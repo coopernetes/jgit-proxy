@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: jgit-proxy
+server:
+  port: 8000
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+logging:
+  level:
+    com.github.coopernetes: DEBUG
+
+git-proxy:
+  filters:
+    whitelists:
+      - enabled: true
+        order: 20
+        operations:
+            - FETCH
+            - PUSH
+        owners:
+            - coopernetes
+        names:
+            - test-repo
+        slugs:
+            - finos/git-proxy
+        providers:
+            - github
+    github-required-authentication:
+      enabled: true
+      order: 10
+      operations:
+          - FETCH
+          - PUSH
+      require-basic: true
+      require-bearer: false
+  providers:
+    github:
+      enabled: true
+      log-proxy: true
+    gitlab:
+      enabled: true
+    bitbucket:
+      enabled: false
+    internal-github:
+      enabled: true
+      servlet-path: /enterprise-github
+      uri: https://githubserver.example.com
+    another-github:
+      enabled: true
+      servlet-path: /external-github
+      uri: https://githubserver.other.example.com
