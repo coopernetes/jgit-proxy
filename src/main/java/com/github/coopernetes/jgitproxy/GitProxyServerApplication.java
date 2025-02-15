@@ -1,6 +1,6 @@
 package com.github.coopernetes.jgitproxy;
 
-import com.github.coopernetes.jgitproxy.github.GithubProperties;
+import com.github.coopernetes.jgitproxy.config.GitProxyProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
@@ -16,7 +16,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
             HibernateJpaAutoConfiguration.class,
             MongoAutoConfiguration.class
         })
-@EnableConfigurationProperties(GithubProperties.class)
+@EnableConfigurationProperties(GitProxyProperties.class)
 public class GitProxyServerApplication {
 
     public static void main(String[] args) {

@@ -1,0 +1,39 @@
+git-proxy:
+  providers:
+    builtin:
+      github:
+        enabled: true
+        log-proxy: false
+        filters:
+          github-required-authentication:
+            enabled: true
+            order: 1
+            operations:
+              - FETCH
+              - PUSH
+          WHITELIST:
+            enabled: true
+            order: 2
+            operations:
+              - PUSH
+            options:
+              type: WHITELIST    # This must match the @JsonTypeName
+              owners:
+                - coopernetes
+              names:
+                - test-repo
+              slugs:
+                - finos/git-proxy
+      gitlab:
+        enabled: true
+      bitbucket:
+        enabled: true
+    custom:
+      internal-github:
+        uri: https://githubserver.example.com
+        enabled: true
+
+logging:
+  level:
+    com.fasterxml.jackson: TRACE
+    org.springframework.boot.context.config: TRACE
