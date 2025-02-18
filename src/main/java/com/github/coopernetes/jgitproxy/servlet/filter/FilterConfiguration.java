@@ -57,6 +57,7 @@ public class FilterConfiguration {
                     whitelistFilters.forEach(
                             reg -> beanFactory.registerSingleton(reg.getFilter().beanName(), reg));
                 }
+                // TODO: Generalize this logic
                 if (provider instanceof GitHubProvider gitHubProvider
                         && properties.getFilters() != null
                         && properties.getFilters().getGithubRequiredAuthentication() != null
@@ -69,34 +70,46 @@ public class FilterConfiguration {
                                 .getGithubRequiredAuthentication()
                                 .getProviders()
                                 .contains(gitHubProvider.getName())) {
-                    var githubRequiredAuthenticationFilter =
+                    var registrationBean =
                             create(gitHubProvider, properties.getFilters().getGithubRequiredAuthentication());
-                    beanFactory.registerSingleton(
-                            githubRequiredAuthenticationFilter.getFilter().beanName(),
-                            githubRequiredAuthenticationFilter);
+                    beanFactory.registerSingleton(registrationBean.getFilter().beanName(), registrationBean);
                 }
             }
         });
     }
 
-    private static List<FilterRegistrationBean<WhitelistFilter>> createWhitelistFilters(
+    private static List<FilterRegistrationBean<WhitelistByUrlFilter>> createWhitelistFilters(
             GitProxyProperties properties, GitProxyProvider provider) {
         return properties.getFilters().getWhitelists().stream()
+                .filter(FilterProperties::isEnabled)
                 .filter(props -> props.getProviders().contains(provider.getName()))
                 .flatMap(props -> {
                     var targets = determineTargets(props);
                     return targets.stream()
                             .map(target -> {
+                                int order = props.getOrder();
+                                // TODO: Provide a less implicit way to customize or define this behaviour.
+                                // The general logic here is that for a single configuration of a group of
+                                // WhitelistFilters, the order modified for them to apply from most specific (slugs) to
+                                // least specific (repo names). This runs the risk of being too implicit and
+                                // confusing if other filter orders are not set correctly or if the order modified
+                                // begins colliding with other filters in the overall chain.
+                                if (target == AuthorizedByUrlFilter.Target.NAME) {
+                                    order += 2;
+                                }
+                                if (target == AuthorizedByUrlFilter.Target.OWNER) {
+                                    order += 1;
+                                }
                                 if (props.getOperations() != null) {
-                                    return new WhitelistFilter(
-                                            props.getOrder(),
+                                    return new WhitelistByUrlFilter(
+                                            order,
                                             props.getOperations(),
                                             provider,
                                             props.getWhitelistForTarget(target),
                                             target);
                                 }
-                                return new WhitelistFilter(
-                                        props.getOrder(), provider, props.getWhitelistForTarget(target), target);
+                                return new WhitelistByUrlFilter(
+                                        order, provider, props.getWhitelistForTarget(target), target);
                             })
                             .toList()
                             .stream();
@@ -105,10 +118,10 @@ public class FilterConfiguration {
                 .collect(Collectors.toList());
     }
 
-    private static FilterRegistrationBean<WhitelistFilter> create(
-            GitProxyProvider provider, WhitelistFilter filter, int order) {
+    private static FilterRegistrationBean<WhitelistByUrlFilter> create(
+            GitProxyProvider provider, WhitelistByUrlFilter filter, int order) {
         log.debug("Creating {} for provider {}", filter, provider);
-        var filterBean = new FilterRegistrationBean<WhitelistFilter>();
+        var filterBean = new FilterRegistrationBean<WhitelistByUrlFilter>();
         filterBean.setName(filter.beanName());
         filterBean.setFilter(filter);
         filterBean.setOrder(order);
@@ -117,7 +130,8 @@ public class FilterConfiguration {
     }
 
     private static FilterRegistrationBean<GitHubRequiredAuthenticationFilter> create(
-            GitHubProvider gitHubProvider, GitHubRequiredAuthenticationFilterProperties filterProperties) {
+            GitHubProvider gitHubProvider,
+            GitProxyProperties.GitHubRequiredAuthenticationFilterProperties filterProperties) {
         GitHubRequiredAuthenticationFilter filter;
         if (filterProperties.getOperations() != null
                 && !filterProperties.getOperations().isEmpty()) {
@@ -134,7 +148,8 @@ public class FilterConfiguration {
         return filterBean;
     }
 
-    private static Set<AuthorizedByUrlFilter.Target> determineTargets(WhitelistFilterProperties filterProperties) {
+    private static Set<AuthorizedByUrlFilter.Target> determineTargets(
+            GitProxyProperties.WhitelistFilterProperties filterProperties) {
         var targets = new HashSet<AuthorizedByUrlFilter.Target>();
         if (!filterProperties.getNames().isEmpty()) {
             targets.add(AuthorizedByUrlFilter.Target.NAME);

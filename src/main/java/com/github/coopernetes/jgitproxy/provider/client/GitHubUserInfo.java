@@ -3,7 +3,7 @@ package com.github.coopernetes.jgitproxy.provider.client;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Instant;
 
-public record GithubUserInfo(
+public record GitHubUserInfo(
         String login,
         Long id,
         @JsonProperty("node_id") String nodeId,

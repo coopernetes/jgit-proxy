@@ -1,7 +1,7 @@
 package com.github.coopernetes.jgitproxy.config;
 
-import com.github.coopernetes.jgitproxy.servlet.filter.GitHubRequiredAuthenticationFilterProperties;
-import com.github.coopernetes.jgitproxy.servlet.filter.WhitelistFilterProperties;
+import com.github.coopernetes.jgitproxy.servlet.filter.AuthorizedByUrlFilter;
+import com.github.coopernetes.jgitproxy.servlet.filter.FilterProperties;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -57,5 +57,36 @@ public class GitProxyProperties {
     public static class Filters {
         private List<WhitelistFilterProperties> whitelists = new ArrayList<>();
         private GitHubRequiredAuthenticationFilterProperties githubRequiredAuthentication;
+    }
+
+    /**
+     * Properties for the GitHub required authentication filter. This filter is used to require that all requests to
+     * GitHub are authenticated. This filter can be configured to require either a bearer token or a basic
+     * authentication header.
+     */
+    @Getter
+    @Setter
+    @ToString
+    public static class GitHubRequiredAuthenticationFilterProperties extends FilterProperties {
+        private boolean requireBearer = false;
+        private boolean requireBasic = false;
+    }
+
+    @Getter
+    @Setter
+    @ToString
+    public static class WhitelistFilterProperties extends FilterProperties {
+
+        private List<String> owners = new ArrayList<>();
+        private List<String> names = new ArrayList<>();
+        private List<String> slugs = new ArrayList<>();
+
+        public List<String> getWhitelistForTarget(AuthorizedByUrlFilter.Target target) {
+            return switch (target) {
+                case OWNER -> owners;
+                case NAME -> names;
+                case SLUG -> slugs;
+            };
+        }
     }
 }

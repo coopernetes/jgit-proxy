@@ -8,6 +8,7 @@ import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.Set;
+import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -43,24 +44,15 @@ public abstract class AbstractProviderAwareGitProxyFilter extends AbstractGitPro
     }
 
     @Override
-    public boolean shouldFilter(HttpServletRequest request) {
-        return super.shouldFilter(request) && isMatchingProvider(request);
-    }
-
-    private boolean isMatchingProvider(HttpServletRequest request) {
-        String servletPath = provider.servletPath();
-        if (servletPath.endsWith(
-                "/*")) { // TODO: Move into validation of config props so that it's not possible to have this
-            // configuration
-            servletPath = servletPath.substring(0, servletPath.length() - 2);
-        }
-        return request.getRequestURI().startsWith(servletPath);
+    public Predicate<HttpServletRequest> shouldFilter() {
+        return super.shouldFilter()
+                .and((HttpServletRequest request) -> request.getRequestURI().startsWith(provider.servletPath()));
     }
 
     /**
      * Returns the name of the bean that is created by this filter. This is used to identify the filter in the Spring
      * application context and provide unique names for each filter across all providers since it's not unexpected that
-     * multiple filters are used in a single application.
+     * multiple filters would be used in a single application matching different providers.
      *
      * @return The name of the bean that is created by this filter.
      */
@@ -74,6 +66,6 @@ public abstract class AbstractProviderAwareGitProxyFilter extends AbstractGitPro
         return this.getClass().getSimpleName() + "{" + "provider="
                 + provider + ", order="
                 + order + ", appliedOperations="
-                + appliedOperations + '}';
+                + applicableOperations + '}';
     }
 }

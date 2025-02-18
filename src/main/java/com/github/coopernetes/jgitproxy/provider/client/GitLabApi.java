@@ -1,10 +1,10 @@
 package com.github.coopernetes.jgitproxy.provider.client;
 
-public interface GithubApi {
+public interface GitLabApi {
 
     String getApiUrl();
 
     String getGraphqlUrl();
 
-    GithubRestClient getRestClient();
+    String getOAuthUrl();
 }

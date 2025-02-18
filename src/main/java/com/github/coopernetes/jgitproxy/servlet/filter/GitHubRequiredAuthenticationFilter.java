@@ -68,6 +68,6 @@ public class GitHubRequiredAuthenticationFilter extends ProviderSpecificGitProxy
 
     @Override
     public HttpAuthScheme requiredAuthScheme() {
-        return HttpAuthScheme.BASIC; // TODO: Make tihs configurable
+        return HttpAuthScheme.BASIC; // TODO: Make this configurable from props
     }
 }

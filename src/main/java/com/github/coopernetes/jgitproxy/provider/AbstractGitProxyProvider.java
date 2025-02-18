@@ -22,14 +22,28 @@ public abstract class AbstractGitProxyProvider implements GitProxyProvider {
 
     /**
      * Returns the path that the servlet will be mapped to. This is based on the host of the target URL or a custom path
-     * if set. Since this path is used for setting up the servlet's URL mapping, it will always append a wildcard to the
-     * end of the path to ensure that all requests are proxied to the target URL.
+     * if set.
      *
      * @return the servlet path to map to
      */
     @Override
     public String servletPath() {
-        return String.format("%s/*", customPath != null ? customPath : "/" + uri.getHost());
+        return customPath != null ? customPath : "/" + uri.getHost();
+    }
+
+    /**
+     * Returns the servlet mapping for the provider. This is used to map the servlet to a specific path in the
+     * application. If the provider has a custom path set, this will be used as the mapping. Otherwise, the host of the
+     * target URL will be used. Since this mapping is always used for setting up underlying proxying servlet, the
+     * mapping will always append a wildcard end of the path to ensure that all matching requests are proxied.
+     *
+     * <p>Matcher functions should use {@link #servletPath()} instead.
+     *
+     * @return the servlet mapping for the provider
+     */
+    @Override
+    public String servletMapping() {
+        return servletPath() + "/*";
     }
 
     @Override

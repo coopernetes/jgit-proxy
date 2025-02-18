@@ -9,4 +9,6 @@ public interface GitProxyProvider {
     URI getUri();
 
     String servletPath();
+
+    String servletMapping();
 }

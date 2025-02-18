@@ -3,6 +3,7 @@ package com.github.coopernetes.jgitproxy.servlet.filter;
 import com.github.coopernetes.jgitproxy.git.HttpOperation;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Set;
+import java.util.function.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -10,7 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public abstract class AbstractGitProxyFilter implements GitProxyFilter {
     protected final int order;
-    protected final Set<HttpOperation> appliedOperations;
+    protected final Set<HttpOperation> applicableOperations;
 
     @Override
     public int getOrder() {
@@ -18,14 +19,14 @@ public abstract class AbstractGitProxyFilter implements GitProxyFilter {
     }
 
     @Override
-    public boolean shouldFilter(HttpServletRequest request) {
-        return appliedOperations.contains(determineOperation(request));
+    public Predicate<HttpServletRequest> shouldFilter() {
+        return (HttpServletRequest request) -> applicableOperations.contains(determineOperation(request));
     }
 
     @Override
     public String toString() {
         return this.getClass().getSimpleName() + "{" + "order="
                 + order + ", appliedOperations="
-                + appliedOperations + '}';
+                + applicableOperations + '}';
     }
 }

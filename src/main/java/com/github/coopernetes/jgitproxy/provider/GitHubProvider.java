@@ -1,11 +1,10 @@
 package com.github.coopernetes.jgitproxy.provider;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.coopernetes.jgitproxy.provider.client.GithubApi;
-import com.github.coopernetes.jgitproxy.provider.client.GithubRestClient;
+import com.github.coopernetes.jgitproxy.provider.client.GitHubApi;
+import com.github.coopernetes.jgitproxy.provider.client.GitHubClient;
 import java.net.URI;
 
-public final class GitHubProvider extends AbstractGitProxyProvider implements GithubApi {
+public final class GitHubProvider extends AbstractGitProxyProvider implements GitHubApi {
 
     public static final URI DEFAULT_URI = URI.create("https://github.com");
     public static final String NAME = "github";
@@ -34,7 +33,7 @@ public final class GitHubProvider extends AbstractGitProxyProvider implements Gi
     }
 
     @Override
-    public GithubRestClient getRestClient() {
-        return new GithubRestClient(new ObjectMapper(), getApiUrl());
+    public GitHubClient getRestClient() {
+        return new GitHubClient(getApiUrl());
     }
 }

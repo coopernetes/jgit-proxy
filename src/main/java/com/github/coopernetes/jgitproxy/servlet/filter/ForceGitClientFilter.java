@@ -1,12 +1,11 @@
 package com.github.coopernetes.jgitproxy.servlet.filter;
 
-import com.github.coopernetes.jgitproxy.git.HttpOperation;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.Set;
+import java.util.function.Predicate;
 import org.eclipse.jgit.http.server.GitSmartHttpTools;
 import org.springframework.core.Ordered;
 
@@ -15,12 +14,16 @@ import org.springframework.core.Ordered;
  * sends an error response to the client. This filter is used to ensure that only Git clients can be proxied to the
  * target Git provider.
  */
-public class ForceGitClientFilter extends AbstractGitProxyFilter {
+public class ForceGitClientFilter implements GitProxyFilter {
 
-    public ForceGitClientFilter() {
-        super(
-                Ordered.HIGHEST_PRECEDENCE,
-                Set.of(HttpOperation.PUSH, HttpOperation.FETCH, HttpOperation.INFO, HttpOperation.UNKNOWN));
+    @Override
+    public Predicate<HttpServletRequest> shouldFilter() {
+        return (HttpServletRequest request) -> true;
+    }
+
+    @Override
+    public int getOrder() {
+        return Ordered.HIGHEST_PRECEDENCE;
     }
 
     @Override

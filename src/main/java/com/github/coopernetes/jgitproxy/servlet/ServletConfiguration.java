@@ -56,7 +56,7 @@ public class ServletConfiguration {
         }
         log.info("Creating proxy servlet for provider: {}", provider);
         var proxyServlet = new GitProxyProviderServlet(provider);
-        var registration = new ServletRegistrationBean<>(proxyServlet, provider.servletPath());
+        var registration = new ServletRegistrationBean<>(proxyServlet, provider.servletMapping());
         registration.setName(provider.getName() + "servlet");
         registration.addInitParameter(
                 ProxyServlet.P_TARGET_URI, provider.getUri().toString());

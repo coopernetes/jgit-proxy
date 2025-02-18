@@ -26,48 +26,38 @@ public interface AuthorizedByUrlFilter {
         SLUG;
     }
 
-    default Predicate<String> createPredicate(Target target, HttpServletRequest request) {
-        if (target == AuthorizedByUrlFilter.Target.OWNER) {
-            return o -> o.equals(getOwner(request.getRequestURI()));
-        }
-        if (target == AuthorizedByUrlFilter.Target.NAME) {
-            return n -> n.equals(getName(request.getRequestURI()));
-        }
-        if (target == AuthorizedByUrlFilter.Target.SLUG) {
-            return s -> s.equals(getSlug(request.getRequestURI()));
-        }
-        throw new IllegalArgumentException("Unknown target type: " + target);
-    }
+    Predicate<String> createPredicate(Target target, HttpServletRequest request);
 
     /**
      * Extracts the repository slug from the request URI. The slug is 2nd & 3rd path segments of the URI and formatted
-     * as `owner/repo`. Any additional path segments are ignored.
+     * as "owner/repo". Any additional path segments are ignored.
      *
      * <pre>
-     *     /{providerHost}/{owner}/{name}/...
+     *     Given /{providerServletPath}/{owner}/{name}/...
+     *     Return {owner}/{name}
      * </pre>
      *
      * @param requestUri the result of {@link HttpServletRequest#getRequestURI()}
      * @return the repository slug
      */
-    default String getSlug(String requestUri) {
-        var parts = getUriParts(requestUri);
-        return parts[2] + "/" + parts[3];
+    default String getSlug(String requestUri, String servletPath) {
+        var parts = getUriParts(requestUri, servletPath);
+        return parts[1] + "/" + parts[2];
     }
 
     /**
      * Extracts the owner of the repository from the request URI. It is derived from the 2nd path segment of the URI.
      *
      * <pre>
-     *     /{providerHost}/{owner}/...
+     *     /{providerServletPath}/{owner}/...
      *     </pre>
      *
      * @param requestUri the result of {@link HttpServletRequest#getRequestURI()}
      * @return the repository owner
      */
-    default String getOwner(String requestUri) {
-        var parts = getUriParts(requestUri);
-        return parts[2];
+    default String getOwner(String requestUri, String servletPath) {
+        var parts = getUriParts(requestUri, servletPath);
+        return parts[1];
     }
 
     /**
@@ -78,19 +68,29 @@ public interface AuthorizedByUrlFilter {
      * </pre>
      *
      * @param requestUri the result of {@link HttpServletRequest#getRequestURI()}
-     * @return the repository owner
+     * @return the repository name
      */
-    default String getName(String requestUri) {
-        var parts = getUriParts(requestUri);
-        return parts[3];
+    default String getName(String requestUri, String servletPath) {
+        var parts = getUriParts(requestUri, servletPath);
+        return parts[2];
     }
 
-    private String[] getUriParts(String requestUri) {
+    private String[] getUriParts(String requestUri, String servletPath) {
         Assert.notNull(requestUri, "URI must not be null");
-        var parts = requestUri.split("/");
+        Assert.notNull(servletPath, "Servlet path must not be null");
+        String servletPathWithoutWildcard = servletPath.replace("/*", "");
         Assert.isTrue(
-                parts.length >= 4,
-                "URI must have at least 4 parts to be used by this filter ("
+                requestUri.startsWith(servletPathWithoutWildcard),
+                "URI must start with the servlet path ("
+                        + servletPathWithoutWildcard
+                        + ") to be used by this filter ("
+                        + this.getClass().getSimpleName()
+                        + ")");
+
+        var parts = requestUri.replace(servletPathWithoutWildcard, "").split("/");
+        Assert.isTrue(
+                parts.length >= 3,
+                "URI must have at least 3 parts to be used by this filter ("
                         + this.getClass().getSimpleName() + ")");
         return parts;
     }

@@ -13,7 +13,7 @@ public interface AuthenticationRequiredFilter {
         if (request.getHeader("Authorization").startsWith("Basic")) {
             return HttpAuthScheme.BASIC;
         }
-        if (request.getHeader("Authorization") != null) {
+        if (request.getHeader("Authorization").startsWith("Bearer")) {
             return HttpAuthScheme.BEARER;
         }
         throw new IllegalArgumentException("No authentication scheme found");

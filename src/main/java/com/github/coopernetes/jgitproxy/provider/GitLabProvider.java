@@ -1,9 +1,9 @@
 package com.github.coopernetes.jgitproxy.provider;
 
-import com.github.coopernetes.jgitproxy.provider.client.GitlabApi;
+import com.github.coopernetes.jgitproxy.provider.client.GitLabApi;
 import java.net.URI;
 
-public final class GitLabProvider extends AbstractGitProxyProvider implements GitlabApi {
+public final class GitLabProvider extends AbstractGitProxyProvider implements GitLabApi {
 
     public static final URI DEFAULT_URI = URI.create("https://gitlab.com");
     public static final String NAME = "gitlab";
