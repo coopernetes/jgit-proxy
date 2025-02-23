@@ -1,9 +1,11 @@
 package org.finos.gitproxy.servlet;
 
+import java.util.ArrayList;
+import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.config.GitProxyProperties;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.provider.ProviderRepository;
-import lombok.extern.slf4j.Slf4j;
 import org.mitre.dsmiley.httpproxy.ProxyServlet;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.boot.context.properties.bind.BindResult;
@@ -12,9 +14,6 @@ import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @Configuration
 @Slf4j

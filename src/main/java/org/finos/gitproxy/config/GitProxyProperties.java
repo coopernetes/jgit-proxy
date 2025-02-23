@@ -1,21 +1,24 @@
 package org.finos.gitproxy.config;
 
+import java.net.URI;
+import java.util.*;
+
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
+import org.finos.gitproxy.git.HttpAuthScheme;
 import org.finos.gitproxy.provider.BitbucketProvider;
 import org.finos.gitproxy.provider.GitHubProvider;
 import org.finos.gitproxy.provider.GitLabProvider;
 import org.finos.gitproxy.servlet.filter.AuthorizedByUrlFilter;
 import org.finos.gitproxy.servlet.filter.FilterProperties;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.ToString;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-import java.net.URI;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
+/**
+ * The main configuration properties for the GitProxy application. This class is used to configure the GitProxy
+ * application, including the providers that are enabled, the filters that are applied to the proxy servlets, and the
+ * base path for the proxy servlets.
+ */
 @ConfigurationProperties(value = "git-proxy", ignoreUnknownFields = false)
 @Getter
 @Setter
@@ -29,16 +32,15 @@ public class GitProxyProperties {
      * The base path for the proxy servlets. This is the path that will be used to register the servlets with the
      * servlet container. For each provider, the servlet will be registered at {@code basePath + provider.servletPath}.
      */
-    private String basePath = "/git";
+    private String basePath = "";
 
-    // TODO: Find a way to force properties to be instantiated as a bean but early on in the lifecycle while still
-    // delegating to Spring Boot to bind the properties.
-    // This is an open problem with the use of Environment + Binder in the BeanFactoryPostProcessor where
-    // the properties bean is still not bound at the time the factories execute _if_ no "git-proxy.*" properties are
-    // defined at all. Use of that factory for creating beans dynamically implicitly makes it depend on config
-    // properties
-    // always being set. An ideal solution would be to simple create this instance using this method below if
-    // @ConditionalOnMissingBean were true which is the standard idiom for this sort of thing.
+    //TODO: Find a way to force properties to be instantiated as a bean but early on in the lifecycle while still
+    // delegating to Spring Boot to bind the properties. This is an open problem with the use of Environment + Binder
+    // in the BeanFactoryPostProcessor where the properties bean is still not bound at the time the factories execute
+    // _if_ no "git-proxy.*" properties are defined at all. Use of that factory for creating beans dynamically
+    // implicitly makes it depend on config properties always being set. An ideal solution would be to simple create
+    // this instance using this method below if @ConditionalOnMissingBean were true which is the standard idiom for
+    // this sort of thing.
     // https://www.baeldung.com/spring-properties-beanfactorypostprocessor
     public static GitProxyProperties createDefault() {
         var enabledProvider = new Provider();
@@ -84,20 +86,19 @@ public class GitProxyProperties {
     @ToString
     public static class Filters {
         private List<WhitelistFilterProperties> whitelists = new ArrayList<>();
-        private GitHubRequiredAuthenticationFilterProperties githubRequiredAuthentication;
+        private GitHubUserAuthenticatedFilterProperties githubUserAuthenticated;
     }
 
     /**
-     * Properties for the GitHub required authentication filter. This filter is used to require that all requests to
-     * GitHub are authenticated. This filter can be configured to require either a bearer token or a basic
+     * Properties for the GitHub user authentication required filter. This filter is used to require that all requests
+     * to GitHub are authenticated. This filter can be configured to require either a bearer token or a basic
      * authentication header.
      */
     @Getter
     @Setter
     @ToString
-    public static class GitHubRequiredAuthenticationFilterProperties extends FilterProperties {
-        private boolean requireBearer = false;
-        private boolean requireBasic = false;
+    public static class GitHubUserAuthenticatedFilterProperties extends FilterProperties {
+        private Set<HttpAuthScheme> requiredAuthSchemes = Set.of(HttpAuthScheme.BEARER);
     }
 
     @Getter

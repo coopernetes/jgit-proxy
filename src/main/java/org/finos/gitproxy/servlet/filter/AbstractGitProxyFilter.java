@@ -1,12 +1,11 @@
 package org.finos.gitproxy.servlet.filter;
 
-import org.finos.gitproxy.git.HttpOperation;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.Set;
 import java.util.function.Predicate;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.finos.gitproxy.git.HttpOperation;
 
 @RequiredArgsConstructor
 @Slf4j

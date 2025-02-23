@@ -1,13 +1,12 @@
 package org.finos.gitproxy.servlet.filter;
 
-import org.finos.gitproxy.git.HttpOperation;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.ToString;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
+import org.finos.gitproxy.git.HttpOperation;
 
 /** A set of common configuration properties that configure the behavior of a filter. */
 @Getter

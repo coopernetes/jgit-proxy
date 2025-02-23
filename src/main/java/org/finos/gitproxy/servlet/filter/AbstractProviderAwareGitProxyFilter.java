@@ -1,24 +1,23 @@
 package org.finos.gitproxy.servlet.filter;
 
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.util.Set;
+import java.util.function.Predicate;
+import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.git.HttpOperation;
 import org.finos.gitproxy.provider.AbstractGitProxyProvider;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.provider.ProviderConfiguration;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import lombok.extern.slf4j.Slf4j;
-
-import java.util.Set;
-import java.util.function.Predicate;
 
 /**
- * The main Filter class for the Git Proxy application. Every filter in the application must extend this class in order
- * for {@link ProviderConfiguration} to map each Filter to it's corresponding
- * {@link org.springframework.boot.web.servlet.ServletRegistrationBean} for proxying. The base class handles the
- * matching of the request URI to the hostname of the target URI of a provider. The application registers instances of
- * these Filters against corresponding servlets that proxy all known {@link AbstractGitProxyProvider} instances in the
- * application context.
+ * A {@link GitProxyFilter} that is aware of the {@link GitProxyProvider} it is applied to and . Every filter in the
+ * application must extend this class in order for {@link ProviderConfiguration} to map each Filter to it's
+ * corresponding {@link org.springframework.boot.web.servlet.ServletRegistrationBean} for proxying. The base class
+ * handles the matching of the request URI to the hostname of the target URI of a provider. The application registers
+ * instances of these Filters against corresponding servlets that proxy all known {@link AbstractGitProxyProvider}
+ * instances in the application context.
  *
  * <p>This class enables the main use case below:
  *
@@ -59,13 +58,13 @@ public abstract class AbstractProviderAwareGitProxyFilter extends AbstractGitPro
      */
     @Override
     public String beanName() {
-        return String.join("-", provider.getName(), "filter");
+        return String.join("-", provider.getName(), this.getClass().getSimpleName());
     }
 
     @Override
     public String toString() {
         return this.getClass().getSimpleName() + "{" + "provider="
-                + provider + ", order="
+                + provider.getName() + ", order="
                 + order + ", appliedOperations="
                 + applicableOperations + '}';
     }

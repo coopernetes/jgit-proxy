@@ -1,9 +1,8 @@
 package org.finos.gitproxy.provider;
 
+import java.net.URI;
 import org.finos.gitproxy.provider.client.GitHubApi;
 import org.finos.gitproxy.provider.client.GitHubClient;
-
-import java.net.URI;
 
 public class GitHubProvider extends AbstractGitProxyProvider implements GitHubApi {
 

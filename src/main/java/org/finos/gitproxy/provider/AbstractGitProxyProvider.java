@@ -1,9 +1,8 @@
 package org.finos.gitproxy.provider;
 
+import java.net.URI;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
-
-import java.net.URI;
 
 /** An upstream Git server that will be proxied by the application. */
 @RequiredArgsConstructor
@@ -17,9 +16,9 @@ public abstract class AbstractGitProxyProvider implements GitProxyProvider {
 
     /**
      * Returns the path that the servlet will be mapped to. This is based on the host of the target URL or a custom path
-     * if set.
-     *
-     * @return the servlet path to map to
+     * if set along with an optional application-wide base path. To configure a {@link org.finos.gitproxy.servlet.GitProxyProviderServlet}
+     * for proxying, use {@link #servletMapping()} instead.
+     * @return The base path that this provider will be mapped to.
      */
     @Override
     public String servletPath() {
@@ -28,8 +27,7 @@ public abstract class AbstractGitProxyProvider implements GitProxyProvider {
 
     /**
      * Returns the servlet mapping for the provider. This is used to map the servlet to a specific path in the
-     * application. If the provider has a custom path set, this will be used as the mapping. Otherwise, the host of the
-     * target URL will be used. Since this mapping is always used for setting up underlying proxying servlet, the
+     * application. Since this mapping is always used for setting up underlying proxying servlet, the
      * mapping will always append a wildcard end of the path to ensure that all matching requests are proxied.
      *
      * <p>Matcher functions should use {@link #servletPath()} instead.

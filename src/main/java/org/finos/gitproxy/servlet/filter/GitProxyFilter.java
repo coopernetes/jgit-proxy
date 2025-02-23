@@ -1,20 +1,30 @@
 package org.finos.gitproxy.servlet.filter;
 
-import org.finos.gitproxy.git.HttpOperation;
+import static jakarta.servlet.http.HttpServletResponse.SC_OK;
+import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
+
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.function.Predicate;
 import org.eclipse.jgit.http.server.GitSmartHttpTools;
+import org.finos.gitproxy.git.GitRequestDetails;
+import org.finos.gitproxy.git.HttpOperation;
 import org.springframework.core.Ordered;
 
-import java.io.IOException;
-import java.util.function.Predicate;
-
-import static jakarta.servlet.http.HttpServletResponse.SC_OK;
-
+/**
+ * An {@link Ordered} {@link Filter} with additional methods that are designed to be registered with a
+ * {@link org.finos.gitproxy.servlet.GitProxyProviderServlet} for the purposes of filtering git operations. This
+ * interface presumes that the filter is designed to be used with HTTP requests and provides a method to filter only
+ * HTTP requests. Classes implementing this interface signal whether this filter should be applied to a given request
+ * using a {@link Predicate}.
+ *
+ * <p>Custom filters should generally extend {@link AbstractGitProxyFilter} or
+ * {@link AbstractProviderAwareGitProxyFilter} {@see AbstractGitProxyFilter} {@see AbstractProviderAwareGitProxyFilter}
+ */
 public interface GitProxyFilter extends Filter, Ordered {
-
-    String ERROR_ATTRIBUTE = "com.github.coopernetes.jgitproxy.error";
 
     /**
      * Implement the filtering of git operations for HTTP requests. This method is called when the request is determined
@@ -33,7 +43,8 @@ public interface GitProxyFilter extends Filter, Ordered {
 
     /**
      * From the request details, determine if the filter should be applied. This method is called before the filter is
-     * applied to the request. If the filter should be applied, {@link #doHttpFilter} method is called.
+     * applied to the request. If the filter should be applied, {@link #doHttpFilter} method is called. This method
+     * replaces the "continue" field from the <a href="
      *
      * @return A predicate that determines if the filter should be applied
      */
@@ -49,14 +60,11 @@ public interface GitProxyFilter extends Filter, Ordered {
             throws IOException, ServletException {
         var httpRequest = (HttpServletRequest) request;
         var httpResponse = (HttpServletResponse) response;
-        if (shouldFilter(httpRequest)) {
+        if (shouldFilter().test((httpRequest))) {
+            addFilterToDetails(httpRequest);
             doHttpFilter(httpRequest, httpResponse, chain);
         }
         chain.doFilter(request, response);
-    }
-
-    default boolean shouldFilter(HttpServletRequest request) {
-        return shouldFilter().test(request);
     }
 
     /**
@@ -98,7 +106,34 @@ public interface GitProxyFilter extends Filter, Ordered {
         } else if (GitSmartHttpTools.isInfoRefs(request)) {
             return HttpOperation.INFO;
         } else {
+            var headers = new HashMap<String, String>();
+            request.getHeaderNames().asIterator().forEachRemaining(name -> headers.put(name, request.getHeader(name)));
+            if (headers.containsKey("Authorization")) {
+                headers.put("Authorization", "REDACTED");
+            }
+            System.out.println("Unknown git operation. " + request.getRequestURI() + " " + request.getPathInfo() + " "
+                    + request.getQueryString() + " " + headers);
             throw new IllegalArgumentException("Unknown git operation");
+        }
+    }
+
+    //    default boolean isClone(HttpServletRequest request) {
+    //        return request.getRequestURI().endsWith("/HEAD") &&
+    //                request.getHeader("user-agent").startsWith("git/");
+    //    }
+
+    default void addFilterToDetails(HttpServletRequest request) {
+        var details = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTRIBUTE);
+        if (details != null) {
+            details.getFilters().add(this);
+        }
+    }
+
+    default void setResult(HttpServletRequest request, GitRequestDetails.GitResult result, String reason) {
+        var details = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTRIBUTE);
+        if (details != null) {
+            details.setResult(result);
+            details.setReason(reason);
         }
     }
 }

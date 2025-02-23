@@ -1,7 +1,6 @@
 package org.finos.gitproxy.provider.client;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-
 import java.time.Instant;
 
 public record GitHubUserInfo(

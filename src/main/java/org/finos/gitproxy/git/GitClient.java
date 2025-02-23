@@ -44,11 +44,15 @@ public class GitClient {
 
         // https://codepoints.net/U+2705
         // https://emojipedia.org/check-mark-button#technical
-        CHECK_MARK("\u2705"),
+        HEAVY_CHECK_MARK("\u2705"),
 
         // https://codepoints.net/U+26A0
         // https://emojipedia.org/warning#technical
         WARNING("\u26A0"),
+
+        // https://codepoints.net/U+274C
+        // https://emojipedia.org/cross-mark#technical
+        CROSS_MARK("\u274C"),
 
         // Created using codepoints & the Character class due to the point values
         // falling outside the Unicode planes' range supported by Java's \\u escape

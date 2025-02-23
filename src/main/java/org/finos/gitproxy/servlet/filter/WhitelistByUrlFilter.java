@@ -1,19 +1,16 @@
 package org.finos.gitproxy.servlet.filter;
 
-import org.finos.gitproxy.git.GitClient;
-import org.finos.gitproxy.git.HttpOperation;
-import org.finos.gitproxy.provider.GitProxyProvider;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.ToString;
-import lombok.extern.slf4j.Slf4j;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
+import lombok.extern.slf4j.Slf4j;
+import org.finos.gitproxy.git.HttpOperation;
+import org.finos.gitproxy.provider.GitProxyProvider;
 
 /**
  * A generic whitelist filter that checks if the request is authorized to perform any {@link #applicableOperations}
@@ -27,12 +24,12 @@ import java.util.function.Predicate;
  * delegated to {@link AuthorizedByUrlFilter} which is implemented by this class.
  */
 @Slf4j
-@ToString
-public class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter implements AuthorizedByUrlFilter {
+class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter implements AuthorizedByUrlFilter {
 
     private final List<String> whitelist;
     private final Target target;
     private static final Set<HttpOperation> DEFAULT_OPERATIONS = Set.of(HttpOperation.PUSH, HttpOperation.FETCH);
+    public static final String WHITELISTED_ATTRIBUTE = "org.finos.gitproxy.servlet.filter.WhitelistByUrlFilter.whitelisted";
 
     public WhitelistByUrlFilter(int order, GitProxyProvider provider, List<String> whitelist, Target target) {
         super(order, DEFAULT_OPERATIONS, provider);
@@ -53,7 +50,12 @@ public class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter im
 
     @Override
     public String beanName() {
-        return String.join("-", provider.getName(), target.name().toLowerCase(), "whitelist", "filter");
+        return String.join(
+                "-",
+                provider.getName(),
+                target.name(),
+                Integer.toString(this.order),
+                this.getClass().getSimpleName());
     }
 
     @Override
@@ -64,13 +66,13 @@ public class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter im
     @Override
     public Predicate<String> createPredicate(Target target, HttpServletRequest request) {
         if (target == AuthorizedByUrlFilter.Target.OWNER) {
-            return o -> o.equals(getOwner(request.getRequestURI(), provider.servletPath()));
+            return o -> o.equals(getOwner(request.getPathInfo()));
         }
         if (target == AuthorizedByUrlFilter.Target.NAME) {
-            return n -> n.equals(getName(request.getRequestURI(), provider.servletPath()));
+            return n -> n.equals(getName(request.getPathInfo()));
         }
         if (target == AuthorizedByUrlFilter.Target.SLUG) {
-            return s -> s.equals(getSlug(request.getRequestURI(), provider.servletPath()));
+            return s -> s.equals(getSlug(request.getPathInfo()));
         }
         throw new IllegalArgumentException("Unknown target type: " + target);
     }
@@ -79,17 +81,14 @@ public class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter im
     public void doHttpFilter(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws IOException, ServletException {
         var matcher = createPredicate(target, request);
-        if (!isAuthorized(matcher)) {
-            var operation = determineOperation(request);
-            String title =
-                    GitClient.SymbolCodes.NO_ENTRY.emoji() + " Unauthorized! " + GitClient.SymbolCodes.NO_ENTRY.emoji();
-            String action = operation == HttpOperation.PUSH ? "push to" : "fetch from";
-            String message = "You are not authorized to " + action + " this repository.";
-            sendGitError(
-                    request,
-                    response,
-                    GitClient.formatForOperation(title, message, GitClient.AnsiColor.RED, operation));
+        if (isAuthorized(matcher)) {
+            request.setAttribute(WHITELISTED_ATTRIBUTE, this.toString());
         }
         chain.doFilter(request, response);
+    }
+
+    @Override
+    public String toString() {
+        return super.toString() + '{' + "whitelist=" + whitelist + ", target=" + target + '}';
     }
 }

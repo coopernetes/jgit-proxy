@@ -1,10 +1,9 @@
 package org.finos.gitproxy.provider;
 
-import lombok.RequiredArgsConstructor;
-import lombok.ToString;
-
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 
 @RequiredArgsConstructor
 @ToString
