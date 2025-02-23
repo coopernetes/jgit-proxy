@@ -1,13 +1,13 @@
 package org.finos.gitproxy.api;
 
+import static org.finos.gitproxy.servlet.GitProxyProviderServlet.ERROR_ATTRIBUTE;
+
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.web.servlet.error.ErrorController;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import static org.finos.gitproxy.servlet.filter.GitProxyFilter.ERROR_ATTRIBUTE;
 
 @RestController
 @Slf4j

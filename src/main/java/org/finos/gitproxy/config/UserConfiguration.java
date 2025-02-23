@@ -1,16 +1,17 @@
 package org.finos.gitproxy.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.PathResource;
 
-import java.io.IOException;
-
 @Configuration
 @Slf4j
+@EnableConfigurationProperties(GitProxyProperties.class)
 public class UserConfiguration {
 
     // TODO: Remove once migrated over to configuration properties

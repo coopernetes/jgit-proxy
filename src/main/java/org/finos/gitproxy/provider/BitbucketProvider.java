@@ -1,9 +1,8 @@
 package org.finos.gitproxy.provider;
 
-import org.finos.gitproxy.provider.client.BitbucketApi;
 import jakarta.annotation.Nullable;
-
 import java.net.URI;
+import org.finos.gitproxy.provider.client.BitbucketApi;
 
 public class BitbucketProvider extends AbstractGitProxyProvider implements BitbucketApi {
 

@@ -1,10 +1,15 @@
 package org.finos.gitproxy.servlet.filter;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.config.GitProxyProperties;
+import org.finos.gitproxy.git.HttpOperation;
 import org.finos.gitproxy.provider.GitHubProvider;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.provider.ProviderRepository;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.boot.context.properties.bind.BindResult;
 import org.springframework.boot.context.properties.bind.Binder;
@@ -14,17 +19,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 @Configuration
 @Slf4j
 public class FilterConfiguration {
 
     @Bean
     public FilterRegistrationBean<ForceGitClientFilter> forceGitClientFilter(ProviderRepository providerRepository) {
+        log.info("Creating ForceGitClientFilter for providers: {}", providerRepository.getProviders());
         var urls = providerRepository.getProviders().stream()
                 .map(GitProxyProvider::servletMapping)
                 .collect(Collectors.toSet());
@@ -37,63 +38,119 @@ public class FilterConfiguration {
     }
 
     @Bean
-    public static BeanFactoryPostProcessor configurationBasedFilterFactory(
+    public FilterRegistrationBean<AuditFilter> auditFilter(ProviderRepository providerRepository) {
+        log.info("Creating AuditLogFilter for providers: {}", providerRepository.getProviders());
+        var urls = providerRepository.getProviders().stream()
+                .map(GitProxyProvider::servletMapping)
+                .collect(Collectors.toSet());
+        var filter = new AuditLogFilter();
+        var filterBean = new FilterRegistrationBean<AuditFilter>();
+        filterBean.setFilter(filter);
+        filterBean.setOrder(filter.getOrder());
+        filterBean.setUrlPatterns(urls);
+        return filterBean;
+    }
+
+    @Bean
+    public static BeanFactoryPostProcessor providerFilterFactory(
             ApplicationContext applicationContext, Environment environment) {
         BindResult<GitProxyProperties> bindResult = Binder.get(environment).bind("git-proxy", GitProxyProperties.class);
         GitProxyProperties properties = bindResult.get();
         return (beanFactory -> {
             var providerRepo = applicationContext.getBean(ProviderRepository.class);
+            log.info(
+                    "Creating provider-specific filters for {} providers",
+                    providerRepo.getProviders().size());
             for (var provider : providerRepo.getProviders()) {
+                var parsePushBean = createParsePushFilter(provider);
+                beanFactory.registerSingleton(parsePushBean.getFilter().beanName(), parsePushBean);
+
                 var whitelistFilters = createWhitelistFilters(properties, provider);
                 if (!whitelistFilters.isEmpty()) {
-                    log.debug(
-                            "Creating {} whitelist filters for provider: {}",
+                    log.info(
+                            "Found {} configured whitelist filters for provider {}",
                             whitelistFilters.size(),
                             provider.getName());
-                    whitelistFilters.forEach(
-                            reg -> beanFactory.registerSingleton(reg.getFilter().beanName(), reg));
+
+                    int order = whitelistFilters.stream().mapToInt(WhitelistByUrlFilter::getOrder).min()
+                            .orElse(0);
+                    var ops = whitelistFilters.stream().flatMap(f -> f.applicableOperations.stream()).collect(Collectors.toSet());
+                    var whitelistAggregateBean =
+                            createWhitelistAggregateBean(provider, order, ops, whitelistFilters);
+                    beanFactory.registerSingleton(whitelistAggregateBean.getFilter().beanName(), whitelistAggregateBean);
                 }
                 // TODO: Generalize this logic
                 if (provider instanceof GitHubProvider gitHubProvider
                         && properties.getFilters() != null
-                        && properties.getFilters().getGithubRequiredAuthentication() != null
+                        && properties.getFilters().getGithubUserAuthenticated() != null
+                        && properties.getFilters().getGithubUserAuthenticated().isEnabled()
                         && properties
                                 .getFilters()
-                                .getGithubRequiredAuthentication()
-                                .isEnabled()
-                        && properties
-                                .getFilters()
-                                .getGithubRequiredAuthentication()
+                                .getGithubUserAuthenticated()
                                 .getProviders()
                                 .contains(gitHubProvider.getName())) {
-                    var registrationBean =
-                            create(gitHubProvider, properties.getFilters().getGithubRequiredAuthentication());
-                    beanFactory.registerSingleton(registrationBean.getFilter().beanName(), registrationBean);
+                    var githubUserAuthBean = createGithubUserAuthBean(
+                            gitHubProvider, properties.getFilters().getGithubUserAuthenticated());
+                    beanFactory.registerSingleton(githubUserAuthBean.getFilter().beanName(), githubUserAuthBean);
                 }
             }
         });
     }
 
-    private static List<FilterRegistrationBean<WhitelistByUrlFilter>> createWhitelistFilters(
+    private static FilterRegistrationBean<ParseRequestFilter> createParsePushFilter(GitProxyProvider provider) {
+        var filter = new ParseRequestFilter(provider);
+        log.info("Creating {}", filter);
+        var filterBean = new FilterRegistrationBean<ParseRequestFilter>();
+        filterBean.setName(filter.beanName());
+        filterBean.setFilter(filter);
+        filterBean.setOrder(filter.getOrder());
+        filterBean.addUrlPatterns(provider.servletMapping());
+        return filterBean;
+    }
+
+    private static FilterRegistrationBean<WhitelistAggregateFilter> createWhitelistAggregateBean(
+            GitProxyProvider provider,
+            int order,
+            Set<HttpOperation> operations,
+            List<WhitelistByUrlFilter> whitelistFilters) {
+        var filter = new WhitelistAggregateFilter(
+                order,
+                operations, provider, whitelistFilters);
+        log.info("Creating {} with {} whitelists", filter, whitelistFilters.size());
+        var filterBean = new FilterRegistrationBean<WhitelistAggregateFilter>();
+        filterBean.setName(filter.beanName());
+        filterBean.setFilter(filter);
+        filterBean.setOrder(filter.getOrder());
+        filterBean.addUrlPatterns(provider.servletMapping());
+        return filterBean;
+    }
+
+    private static List<WhitelistByUrlFilter> createWhitelistFilters(
             GitProxyProperties properties, GitProxyProvider provider) {
         return properties.getFilters().getWhitelists().stream()
                 .filter(FilterProperties::isEnabled)
-                .filter(props -> props.getProviders().contains(provider.getName()))
+                .filter(props -> props.getProviders().contains(provider.getName()) || applyFilterToAll(props))
                 .flatMap(props -> {
                     var targets = determineTargets(props);
+                    var multipleTargetsInOneConfig = targets.size() > 1;
+                    if (multipleTargetsInOneConfig) {
+                        log.warn(
+                                "Multiple targets has been configured for this a single whitelist filter ({}), order will be adjusted for specificity",
+                                props);
+                    }
                     return targets.stream()
                             .map(target -> {
                                 int order = props.getOrder();
-                                // TODO: Provide a less implicit way to customize or define this behaviour.
-                                // The general logic here is that for a single configuration of a group of
-                                // WhitelistFilters, the order modified for them to apply from most specific (slugs) to
+                                // The general logic here is that for a single configuration of a WhitelistFilters,
+                                // the order is modified for them to apply from most specific (slugs) to
                                 // least specific (repo names). This runs the risk of being too implicit and
                                 // confusing if other filter orders are not set correctly or if the order modified
-                                // begins colliding with other filters in the overall chain.
-                                if (target == AuthorizedByUrlFilter.Target.NAME) {
+                                // begins colliding with other filters in the overall chain. The best thing to do is to
+                                // set a unique order for each filter and chose one target type.
+                                if (multipleTargetsInOneConfig && target == AuthorizedByUrlFilter.Target.NAME) {
                                     order += 2;
                                 }
-                                if (target == AuthorizedByUrlFilter.Target.OWNER) {
+                                if (multipleTargetsInOneConfig && target == AuthorizedByUrlFilter.Target.OWNER) {
                                     order += 1;
                                 }
                                 if (props.getOperations() != null) {
@@ -110,37 +167,25 @@ public class FilterConfiguration {
                             .toList()
                             .stream();
                 })
-                .map(filter -> create(provider, filter, filter.getOrder()))
                 .collect(Collectors.toList());
     }
 
-    private static FilterRegistrationBean<WhitelistByUrlFilter> create(
-            GitProxyProvider provider, WhitelistByUrlFilter filter, int order) {
-        log.debug("Creating {} for provider {}", filter, provider);
-        var filterBean = new FilterRegistrationBean<WhitelistByUrlFilter>();
-        filterBean.setName(filter.beanName());
-        filterBean.setFilter(filter);
-        filterBean.setOrder(order);
-        filterBean.addUrlPatterns(provider.servletPath());
-        return filterBean;
-    }
-
-    private static FilterRegistrationBean<GitHubRequiredAuthenticationFilter> create(
+    private static FilterRegistrationBean<GitHubUserAuthenticatedFilter> createGithubUserAuthBean(
             GitHubProvider gitHubProvider,
-            GitProxyProperties.GitHubRequiredAuthenticationFilterProperties filterProperties) {
-        GitHubRequiredAuthenticationFilter filter;
+            GitProxyProperties.GitHubUserAuthenticatedFilterProperties filterProperties) {
+        GitHubUserAuthenticatedFilter filter;
         if (filterProperties.getOperations() != null
                 && !filterProperties.getOperations().isEmpty()) {
-            filter = new GitHubRequiredAuthenticationFilter(
-                    filterProperties.getOrder(), filterProperties.getOperations(), gitHubProvider);
+            filter = new GitHubUserAuthenticatedFilter(
+                    filterProperties.getOrder(), filterProperties.getOperations(), gitHubProvider, filterProperties.getRequiredAuthSchemes());
         } else {
-            filter = new GitHubRequiredAuthenticationFilter(filterProperties.getOrder(), gitHubProvider);
+            filter = new GitHubUserAuthenticatedFilter(filterProperties.getOrder(), gitHubProvider, filterProperties.getRequiredAuthSchemes());
         }
-
-        var filterBean = new FilterRegistrationBean<GitHubRequiredAuthenticationFilter>();
+        log.info("Creating {}", filter);
+        var filterBean = new FilterRegistrationBean<GitHubUserAuthenticatedFilter>();
         filterBean.setFilter(filter);
         filterBean.setOrder(filterProperties.getOrder());
-        filterBean.addUrlPatterns(gitHubProvider.servletPath());
+        filterBean.addUrlPatterns(gitHubProvider.servletMapping());
         return filterBean;
     }
 
@@ -157,5 +202,10 @@ public class FilterConfiguration {
             targets.add(AuthorizedByUrlFilter.Target.SLUG);
         }
         return targets;
+    }
+
+    private static boolean applyFilterToAll(FilterProperties filterProperties) {
+        return filterProperties.getProviders().size() == 1
+                && filterProperties.getProviders().contains("*");
     }
 }

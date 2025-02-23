@@ -1,10 +1,9 @@
 package org.finos.gitproxy.api;
 
+import java.util.Map;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.Map;
 
 // TODO: Deprecate and remove. Health checking is provided by actuator
 // for users, use /actuator/health instead

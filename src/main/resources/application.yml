@@ -10,12 +10,12 @@ management:
         include: mappings, health, info
 logging:
   level:
-    com.github.coopernetes.jgitproxy: INFO
+    org.finos.gitproxy: INFO
 # The below is a minimal configuration needed for the app to start and is the default shipped with the jar.
 # By default, the app supports proxying to GitHub, GitLab, and Bitbucket. Users should override this configuration
 # to suit their needs.
 git-proxy:
-#  base-path: /git
+#  base-path: "/git"
   providers:
     github:
       enabled: true
@@ -31,27 +31,3 @@ git-proxy:
 #      enabled: true
 #      servlet-path: /external-github
 #      uri: https://gitlabserver.other.example.com
-
-#  filters:
-#    whitelists:
-#      - enabled: true
-#        order: 20
-#        operations:
-#            - FETCH
-#            - PUSH
-#        owners:
-#            - coopernetes
-#        names:
-#            - test-repo
-#        slugs:
-#            - finos/git-proxy
-#        providers:
-#            - github
-#    github-required-authentication:
-#      enabled: true
-#      order: 10
-#      operations:
-#          - FETCH
-#          - PUSH
-#      require-basic: true
-#      require-bearer: false

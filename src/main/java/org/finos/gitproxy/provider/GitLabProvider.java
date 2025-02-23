@@ -1,8 +1,7 @@
 package org.finos.gitproxy.provider;
 
-import org.finos.gitproxy.provider.client.GitLabApi;
-
 import java.net.URI;
+import org.finos.gitproxy.provider.client.GitLabApi;
 
 public class GitLabProvider extends AbstractGitProxyProvider implements GitLabApi {
 

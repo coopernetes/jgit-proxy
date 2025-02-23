@@ -1,5 +1,6 @@
 package org.finos.gitproxy.provider.client;
 
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -7,8 +8,6 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
-
-import java.util.Optional;
 
 @Slf4j
 @RequiredArgsConstructor

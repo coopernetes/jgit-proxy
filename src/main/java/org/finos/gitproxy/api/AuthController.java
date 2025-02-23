@@ -1,5 +1,7 @@
 package org.finos.gitproxy.api;
 
+import java.util.Collections;
+import java.util.Map;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
@@ -8,9 +10,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.Collections;
-import java.util.Map;
 
 /** https://github.com/finos/git-proxy/blob/363f4ae0588c02b32c8bb3d987919bc0b4268d12/src/service/routes/auth.js */
 @RestController

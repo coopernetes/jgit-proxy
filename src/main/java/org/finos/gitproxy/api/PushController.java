@@ -1,11 +1,10 @@
 package org.finos.gitproxy.api;
 
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
 
 @RestController
 @RequestMapping(value = "/api/v1/push", produces = MediaType.APPLICATION_JSON_VALUE)

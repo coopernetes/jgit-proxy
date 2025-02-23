@@ -1,16 +1,16 @@
 package org.finos.gitproxy.servlet;
 
-import org.finos.gitproxy.provider.GitProxyProvider;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
+import org.finos.gitproxy.git.GitRequestDetails;
+import org.finos.gitproxy.provider.GitProxyProvider;
 import org.mitre.dsmiley.httpproxy.ProxyServlet;
-
-import java.io.IOException;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -20,12 +20,23 @@ public class GitProxyProviderServlet extends ProxyServlet {
 
     public static final String REQUEST_ID_HEADER = "X-Request-Id";
     public static final String GITHUB_REQUEST_ID_HEADER = "X-Github-Request-Id";
+    public static final String ERROR_ATTRIBUTE = "org.finos.gitproxy.gitproxy.error";
+    public static final String GIT_REQUEST_ATTRIBUTE = "org.finos.gitproxy.gitproxy.gitRequest";
 
-    /** Ensures that no proxying occurs if the response has already been committed. */
+    /**
+     * Executes the proxying request if a specific set of common conditions are met. These include:
+     *
+     * <ul>
+     *   <li>the client response has already been committed (errors, blocked)
+     *   <li>the request is authorized to proceed (e.g. a push is allowed)
+     * </ul>
+     */
     @Override
     protected void service(HttpServletRequest servletRequest, HttpServletResponse servletResponse)
             throws ServletException, IOException {
-        if (!servletResponse.isCommitted()) {
+        var details = (GitRequestDetails) servletRequest.getAttribute(GIT_REQUEST_ATTRIBUTE);
+        var canProxy = details != null && details.getResult() == GitRequestDetails.GitResult.ALLOWED;
+        if (!servletResponse.isCommitted() && canProxy) {
             super.service(servletRequest, servletResponse);
         }
     }

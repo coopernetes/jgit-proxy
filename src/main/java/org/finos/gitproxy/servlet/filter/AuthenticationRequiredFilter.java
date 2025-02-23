@@ -1,21 +1,19 @@
 package org.finos.gitproxy.servlet.filter;
 
-import org.finos.gitproxy.git.HttpAuthScheme;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.stream.Stream;
+import org.finos.gitproxy.git.HttpAuthScheme;
 
 public interface AuthenticationRequiredFilter {
 
     boolean isAuthenticated(HttpServletRequest request);
 
-    HttpAuthScheme requiredAuthScheme();
+    boolean isUsingRequiredAuthScheme(HttpServletRequest request);
 
     default HttpAuthScheme getAuthScheme(HttpServletRequest request) {
-        if (request.getHeader("Authorization").startsWith("Basic")) {
-            return HttpAuthScheme.BASIC;
-        }
-        if (request.getHeader("Authorization").startsWith("Bearer")) {
-            return HttpAuthScheme.BEARER;
-        }
-        throw new IllegalArgumentException("No authentication scheme found");
+        return Stream.of(HttpAuthScheme.values())
+                .filter(scheme -> request.getHeader("Authorization").startsWith(scheme.getHedaderValue()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("No authentication scheme found"));
     }
 }

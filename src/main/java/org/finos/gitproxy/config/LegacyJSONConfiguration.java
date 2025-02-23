@@ -1,10 +1,9 @@
 package org.finos.gitproxy.config;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import lombok.Data;
-
 import java.util.List;
 import java.util.Map;
+import lombok.Data;
 
 /** Legacy configuration to bring users of the old configuration into the new configuration. */
 @JsonIgnoreProperties(ignoreUnknown = true)
