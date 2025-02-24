@@ -34,7 +34,11 @@ public class GitHubUserAuthenticatedFilter extends ProviderSpecificGitProxyFilte
         this.requiredAuthSchemes = requiredAuthSchemes;
     }
 
-    public GitHubUserAuthenticatedFilter(int order, Set<HttpOperation> appliedOperations, GitHubProvider provider, Set<HttpAuthScheme> requiredAuthSchemes) {
+    public GitHubUserAuthenticatedFilter(
+            int order,
+            Set<HttpOperation> appliedOperations,
+            GitHubProvider provider,
+            Set<HttpAuthScheme> requiredAuthSchemes) {
         super(order, appliedOperations, provider);
         this.requiredAuthSchemes = requiredAuthSchemes;
     }

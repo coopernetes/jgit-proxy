@@ -7,7 +7,9 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.git.HttpOperation;
 import org.springframework.core.Ordered;
@@ -20,8 +22,6 @@ public class AuditLogFilter extends AbstractGitProxyFilter implements AuditFilte
 
     /**
      * Apply audit logging to all operations by default and after all other filters.
-     *
-     * @param provider the provider this filter applies to
      */
     public AuditLogFilter() {
         super(Ordered.LOWEST_PRECEDENCE, DEFAULT_OPERATIONS);
@@ -36,6 +36,13 @@ public class AuditLogFilter extends AbstractGitProxyFilter implements AuditFilte
     public void doHttpFilter(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws IOException, ServletException {
         audit("" + request.getAttribute(GIT_REQUEST_ATTRIBUTE));
+        var headers = Collections.list(request.getHeaderNames()).stream()
+                .collect(Collectors.toMap(
+                        name -> name,
+                        name -> "authorization".equalsIgnoreCase(name)
+                                ? "REDACTED"
+                                : Collections.list(request.getHeaders(name))));
+        audit("headers" + headers);
         chain.doFilter(request, response);
     }
 }

@@ -29,7 +29,8 @@ class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter implement
     private final List<String> whitelist;
     private final Target target;
     private static final Set<HttpOperation> DEFAULT_OPERATIONS = Set.of(HttpOperation.PUSH, HttpOperation.FETCH);
-    public static final String WHITELISTED_ATTRIBUTE = "org.finos.gitproxy.servlet.filter.WhitelistByUrlFilter.whitelisted";
+    public static final String WHITELISTED_ATTRIBUTE =
+            "org.finos.gitproxy.servlet.filter.WhitelistByUrlFilter.whitelisted";
 
     public WhitelistByUrlFilter(int order, GitProxyProvider provider, List<String> whitelist, Target target) {
         super(order, DEFAULT_OPERATIONS, provider);

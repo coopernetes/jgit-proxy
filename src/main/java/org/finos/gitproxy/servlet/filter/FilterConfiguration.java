@@ -72,12 +72,16 @@ public class FilterConfiguration {
                             whitelistFilters.size(),
                             provider.getName());
 
-                    int order = whitelistFilters.stream().mapToInt(WhitelistByUrlFilter::getOrder).min()
+                    int order = whitelistFilters.stream()
+                            .mapToInt(WhitelistByUrlFilter::getOrder)
+                            .min()
                             .orElse(0);
-                    var ops = whitelistFilters.stream().flatMap(f -> f.applicableOperations.stream()).collect(Collectors.toSet());
-                    var whitelistAggregateBean =
-                            createWhitelistAggregateBean(provider, order, ops, whitelistFilters);
-                    beanFactory.registerSingleton(whitelistAggregateBean.getFilter().beanName(), whitelistAggregateBean);
+                    var ops = whitelistFilters.stream()
+                            .flatMap(f -> f.applicableOperations.stream())
+                            .collect(Collectors.toSet());
+                    var whitelistAggregateBean = createWhitelistAggregateBean(provider, order, ops, whitelistFilters);
+                    beanFactory.registerSingleton(
+                            whitelistAggregateBean.getFilter().beanName(), whitelistAggregateBean);
                 }
                 // TODO: Generalize this logic
                 if (provider instanceof GitHubProvider gitHubProvider
@@ -113,9 +117,7 @@ public class FilterConfiguration {
             int order,
             Set<HttpOperation> operations,
             List<WhitelistByUrlFilter> whitelistFilters) {
-        var filter = new WhitelistAggregateFilter(
-                order,
-                operations, provider, whitelistFilters);
+        var filter = new WhitelistAggregateFilter(order, operations, provider, whitelistFilters);
         log.info("Creating {} with {} whitelists", filter, whitelistFilters.size());
         var filterBean = new FilterRegistrationBean<WhitelistAggregateFilter>();
         filterBean.setName(filter.beanName());
@@ -177,9 +179,13 @@ public class FilterConfiguration {
         if (filterProperties.getOperations() != null
                 && !filterProperties.getOperations().isEmpty()) {
             filter = new GitHubUserAuthenticatedFilter(
-                    filterProperties.getOrder(), filterProperties.getOperations(), gitHubProvider, filterProperties.getRequiredAuthSchemes());
+                    filterProperties.getOrder(),
+                    filterProperties.getOperations(),
+                    gitHubProvider,
+                    filterProperties.getRequiredAuthSchemes());
         } else {
-            filter = new GitHubUserAuthenticatedFilter(filterProperties.getOrder(), gitHubProvider, filterProperties.getRequiredAuthSchemes());
+            filter = new GitHubUserAuthenticatedFilter(
+                    filterProperties.getOrder(), gitHubProvider, filterProperties.getRequiredAuthSchemes());
         }
         log.info("Creating {}", filter);
         var filterBean = new FilterRegistrationBean<GitHubUserAuthenticatedFilter>();

@@ -2,7 +2,6 @@ package org.finos.gitproxy.config;
 
 import java.net.URI;
 import java.util.*;
-
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -34,7 +33,7 @@ public class GitProxyProperties {
      */
     private String basePath = "";
 
-    //TODO: Find a way to force properties to be instantiated as a bean but early on in the lifecycle while still
+    // TODO: Find a way to force properties to be instantiated as a bean but early on in the lifecycle while still
     // delegating to Spring Boot to bind the properties. This is an open problem with the use of Environment + Binder
     // in the BeanFactoryPostProcessor where the properties bean is still not bound at the time the factories execute
     // _if_ no "git-proxy.*" properties are defined at all. Use of that factory for creating beans dynamically
