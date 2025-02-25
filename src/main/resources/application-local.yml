@@ -6,7 +6,8 @@ management:
 logging:
   level:
     org.finos.gitproxy: DEBUG
-    org.eclipse.jgit.transport: DEBUG
+    org.finos.gitproxy.git: DEBUG
+#    org.eclipse.jgit.transport: DEBUG
 git-proxy:
   filters:
     github-user-authenticated:

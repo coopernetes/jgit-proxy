@@ -17,7 +17,7 @@ public class GitRequestDetails {
     private String name;
     private String slug;
     private String branch; // null for fetch requests
-    private List<Commit> commits = new ArrayList<>();
+    private Commit commit;
     private GitProxyProvider provider;
     private List<GitProxyFilter> filters = new ArrayList<>();
     private GitResult result = GitResult.PENDING;

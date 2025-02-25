@@ -20,9 +20,7 @@ public class AuditLogFilter extends AbstractGitProxyFilter implements AuditFilte
 
     public static final Set<HttpOperation> DEFAULT_OPERATIONS = Set.of(HttpOperation.values());
 
-    /**
-     * Apply audit logging to all operations by default and after all other filters.
-     */
+    /** Apply audit logging to all operations by default and after all other filters. */
     public AuditLogFilter() {
         super(Ordered.LOWEST_PRECEDENCE, DEFAULT_OPERATIONS);
     }

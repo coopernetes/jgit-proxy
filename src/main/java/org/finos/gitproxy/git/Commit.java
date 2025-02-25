@@ -1,6 +1,7 @@
 package org.finos.gitproxy.git;
 
 import java.time.Instant;
+
 import lombok.Builder;
 import lombok.Data;
 
@@ -8,7 +9,8 @@ import lombok.Data;
 @Data
 @Builder
 public class Commit {
-    private String id;
+    private String sha;
+    private String parent;
     private Contributor author;
     private Contributor committer;
     private String message;
