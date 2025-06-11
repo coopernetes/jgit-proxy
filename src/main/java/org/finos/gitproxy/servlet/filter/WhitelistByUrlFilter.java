@@ -29,8 +29,8 @@ class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter implement
     private final List<String> whitelist;
     private final Target target;
     private static final Set<HttpOperation> DEFAULT_OPERATIONS = Set.of(HttpOperation.PUSH, HttpOperation.FETCH);
-    public static final String WHITELISTED_ATTRIBUTE =
-            "org.finos.gitproxy.servlet.filter.WhitelistByUrlFilter.whitelisted";
+    public static final String WHITELISTED_BY_ATTRIBUTE =
+            "org.finos.gitproxy.servlet.filter.WhitelistByUrlFilter.whitelistedBy";
 
     public WhitelistByUrlFilter(int order, GitProxyProvider provider, List<String> whitelist, Target target) {
         super(order, DEFAULT_OPERATIONS, provider);
@@ -87,12 +87,12 @@ class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter implement
     public void applyWhitelist(HttpServletRequest request, HttpServletResponse response) {
         var matcher = createPredicate(target, request);
         if (isAuthorized(matcher)) {
-            request.setAttribute(WHITELISTED_ATTRIBUTE, this.toString());
+            request.setAttribute(WHITELISTED_BY_ATTRIBUTE, this.toString());
         }
     }
 
     @Override
     public String toString() {
-        return super.toString() + '{' + "whitelist=" + whitelist + ", target=" + target + '}';
+        return "WhitelistByUrlFilter{" + "whitelist=" + whitelist + ", target=" + target + '}';
     }
 }

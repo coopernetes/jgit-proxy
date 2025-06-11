@@ -72,7 +72,7 @@ public class ParseRequestFilter extends AbstractProviderAwareGitProxyFilter impl
                 byte[] packData = readRemainingData(request.getInputStream());
 
                 // parse the packet line and pack data
-                var pushInfo = GitPackParser.parsePush(packetLine, packData);
+                var pushInfo = GitReceivePackParser.parsePush(packetLine, packData);
 
                 // Set all relevant fields from pushInfo to GitRequestDetails
                 gr.setBranch(pushInfo.getReference());

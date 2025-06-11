@@ -1,6 +1,6 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.servlet.filter.WhitelistByUrlFilter.WHITELISTED_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.filter.WhitelistByUrlFilter.WHITELISTED_BY_ATTRIBUTE;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -42,12 +42,12 @@ public class WhitelistAggregateFilter extends AbstractProviderAwareGitProxyFilte
         for (WhitelistByUrlFilter filter : whitelistFilters) {
             filter.applyWhitelist(request, response);
         }
-        String whitelisted = (String) request.getAttribute(WHITELISTED_ATTRIBUTE);
-        log.debug("Whitelisted by {}", whitelisted);
-        if (whitelisted != null) {
-            setResult(request, GitRequestDetails.GitResult.ALLOWED, null);
+        String whitelistedBy = (String) request.getAttribute(WHITELISTED_BY_ATTRIBUTE);
+        if (whitelistedBy != null) {
+            log.debug("Whitelisted by {}", whitelistedBy);
+            setResult(request, GitRequestDetails.GitResult.ALLOWED, whitelistedBy);
         } else {
-            setResult(request, GitRequestDetails.GitResult.BLOCKED, whitelisted);
+            setResult(request, GitRequestDetails.GitResult.BLOCKED, null);
             var operation = determineOperation(request);
             String title =
                     GitClient.SymbolCodes.NO_ENTRY.emoji() + " Unauthorized! " + GitClient.SymbolCodes.NO_ENTRY.emoji();

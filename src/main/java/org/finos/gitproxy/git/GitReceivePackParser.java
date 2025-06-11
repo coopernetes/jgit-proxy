@@ -12,7 +12,7 @@ import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.util.RawParseUtils;
 
 @Slf4j
-public class GitPackParser {
+public class GitReceivePackParser {
     private static final int OBJ_COMMIT = 1;
     //    private static final int OBJ_TREE = 2;
     //    private static final int OBJ_BLOB = 3;
