@@ -1,6 +1,5 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.eclipse.jgit.lib.Constants.PACK_SIGNATURE;
 import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
 
 import jakarta.servlet.FilterChain;
@@ -8,20 +7,12 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.*;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Instant;
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.zip.DataFormatException;
-import java.util.zip.Inflater;
-import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.transport.PacketLineIn;
-import org.eclipse.jgit.util.RawParseUtils;
 import org.finos.gitproxy.git.*;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.servlet.RequestBodyWrapper;
@@ -108,11 +99,9 @@ public class ParseRequestFilter extends AbstractProviderAwareGitProxyFilter impl
         }
     }
 
-
     private void logPushDetails(UUID id, String packetLine, byte[] packData) {
         try {
-            Files.write(Path.of("packetline-" + id + ".txt"),
-                    packetLine.getBytes(StandardCharsets.UTF_8));
+            Files.write(Path.of("packetline-" + id + ".txt"), packetLine.getBytes(StandardCharsets.UTF_8));
             Files.write(Path.of("body-" + id + ".txt"), packData);
         } catch (IOException e) {
             log.error("Error writing debug files", e);

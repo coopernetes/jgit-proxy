@@ -1,16 +1,10 @@
 package org.finos.gitproxy.git;
 
-import static org.eclipse.jgit.lib.Constants.PACK_SIGNATURE;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
-
 import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -20,9 +14,9 @@ import org.eclipse.jgit.util.RawParseUtils;
 @Slf4j
 public class GitPackParser {
     private static final int OBJ_COMMIT = 1;
-//    private static final int OBJ_TREE = 2;
-//    private static final int OBJ_BLOB = 3;
-//    private static final int OBJ_TAG = 4;
+    //    private static final int OBJ_TREE = 2;
+    //    private static final int OBJ_BLOB = 3;
+    //    private static final int OBJ_TAG = 4;
     private static final int OBJ_OFS_DELTA = 6;
     private static final int OBJ_REF_DELTA = 7;
 
@@ -35,7 +29,7 @@ public class GitPackParser {
         private Commit commit;
     }
 
-public static PushInfo parsePush(String packetLine, byte[] packData) throws IOException {
+    public static PushInfo parsePush(String packetLine, byte[] packData) throws IOException {
         // Parse packet line (oldCommit newCommit reference)
         String[] parts = packetLine.split(" ");
         String oldCommit = parts[0];
@@ -50,8 +44,9 @@ public static PushInfo parsePush(String packetLine, byte[] packData) throws IOEx
             commit.setSha(newCommit);
 
             // If parent is empty from pack data, use the old commit SHA
-            if (commit.getParent() == null || commit.getParent().isEmpty() ||
-                commit.getParent().equals("0000000000000000000000000000000000000000")) {
+            if (commit.getParent() == null
+                    || commit.getParent().isEmpty()
+                    || commit.getParent().equals("0000000000000000000000000000000000000000")) {
                 commit.setParent(oldCommit);
             }
         }
@@ -64,7 +59,7 @@ public static PushInfo parsePush(String packetLine, byte[] packData) throws IOEx
                 .build();
     }
 
-public static Commit parsePackData(byte[] data) throws IOException {
+    public static Commit parsePackData(byte[] data) throws IOException {
         int pos = findPackSignature(data);
 
         // Read pack header
@@ -157,62 +152,62 @@ public static Commit parsePackData(byte[] data) throws IOException {
         return size;
     }
 
-private static Commit parseCommitContent(byte[] content) {
-    String raw = RawParseUtils.decode(content);
+    private static Commit parseCommitContent(byte[] content) {
+        String raw = RawParseUtils.decode(content);
 
-    // Get author offset and parse author
-    int authorOffset = RawParseUtils.author(content, 0);
-    PersonIdent author = RawParseUtils.parsePersonIdent(content, authorOffset);
+        // Get author offset and parse author
+        int authorOffset = RawParseUtils.author(content, 0);
+        PersonIdent author = RawParseUtils.parsePersonIdent(content, authorOffset);
 
-    // Get committer offset and parse committer
-    int committerOffset = RawParseUtils.committer(content, 0);
-    PersonIdent committer = RawParseUtils.parsePersonIdent(content, committerOffset);
+        // Get committer offset and parse committer
+        int committerOffset = RawParseUtils.committer(content, 0);
+        PersonIdent committer = RawParseUtils.parsePersonIdent(content, committerOffset);
 
-    String parent = extractHeaderValue(raw, "parent");
-    String signature = extractSignature(raw);
-    String message = raw.substring(RawParseUtils.commitMessage(content, 0));
+        String parent = extractHeaderValue(raw, "parent");
+        String signature = extractSignature(raw);
+        String message = raw.substring(RawParseUtils.commitMessage(content, 0));
 
-    return Commit.builder()
-        // Don't set SHA here, will be set from packet line
-        .parent(parent) // Keep this, but it will be overridden if empty
-        .author(Contributor.builder()
-                .name(author.getName())
-                .email(author.getEmailAddress())
-                .build())
-        .committer(Contributor.builder()
-                .name(committer.getName())
-                .email(committer.getEmailAddress())
-                .build())
-        .message(message.trim())
-        .date(Instant.ofEpochSecond(committer.getWhen().getTime() / 1000))
-        .signature(signature)  // Add the signature
-        .build();
-}
-
-private static String extractSignature(String content) {
-    int sigStart = content.indexOf("gpgsig ");
-    if (sigStart < 0) return null;
-
-    // Find the start of the signature block
-    sigStart += 7; // length of "gpgsig "
-    int sigEnd = content.indexOf("\n ", sigStart);
-    if (sigEnd < 0) return null;
-
-    // Build the complete signature by collecting lines that start with a space
-    StringBuilder signature = new StringBuilder(content.substring(sigStart, sigEnd));
-    int pos = sigEnd;
-
-    while (true) {
-        int nextLine = content.indexOf("\n", pos + 1);
-        if (nextLine < 0 || content.charAt(pos + 1) != ' ') {
-            break;
-        }
-        signature.append(content.substring(pos + 1, nextLine).substring(1)); // Skip the space
-        pos = nextLine;
+        return Commit.builder()
+                // Don't set SHA here, will be set from packet line
+                .parent(parent) // Keep this, but it will be overridden if empty
+                .author(Contributor.builder()
+                        .name(author.getName())
+                        .email(author.getEmailAddress())
+                        .build())
+                .committer(Contributor.builder()
+                        .name(committer.getName())
+                        .email(committer.getEmailAddress())
+                        .build())
+                .message(message.trim())
+                .date(Instant.ofEpochSecond(committer.getWhen().getTime() / 1000))
+                .signature(signature) // Add the signature
+                .build();
     }
 
-    return signature.toString();
-}
+    private static String extractSignature(String content) {
+        int sigStart = content.indexOf("gpgsig ");
+        if (sigStart < 0) return null;
+
+        // Find the start of the signature block
+        sigStart += 7; // length of "gpgsig "
+        int sigEnd = content.indexOf("\n ", sigStart);
+        if (sigEnd < 0) return null;
+
+        // Build the complete signature by collecting lines that start with a space
+        StringBuilder signature = new StringBuilder(content.substring(sigStart, sigEnd));
+        int pos = sigEnd;
+
+        while (true) {
+            int nextLine = content.indexOf("\n", pos + 1);
+            if (nextLine < 0 || content.charAt(pos + 1) != ' ') {
+                break;
+            }
+            signature.append(content.substring(pos + 1, nextLine).substring(1)); // Skip the space
+            pos = nextLine;
+        }
+
+        return signature.toString();
+    }
 
     private static String extractHeaderValue(String content, String header) {
         int start = content.indexOf(header + " ");
