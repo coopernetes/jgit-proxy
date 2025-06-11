@@ -40,7 +40,7 @@ public class WhitelistAggregateFilter extends AbstractProviderAwareGitProxyFilte
     public void doHttpFilter(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws IOException, ServletException {
         for (WhitelistByUrlFilter filter : whitelistFilters) {
-            filter.doHttpFilter(request, response, chain);
+            filter.applyWhitelist(request, response);
         }
         String whitelisted = (String) request.getAttribute(WHITELISTED_ATTRIBUTE);
         log.debug("Whitelisted by {}", whitelisted);

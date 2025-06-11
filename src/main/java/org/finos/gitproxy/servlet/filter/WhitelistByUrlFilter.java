@@ -81,11 +81,14 @@ class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter implement
     @Override
     public void doHttpFilter(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws IOException, ServletException {
+        // no-op, the aggregate filter will apply the whitelist
+    }
+
+    public void applyWhitelist(HttpServletRequest request, HttpServletResponse response) {
         var matcher = createPredicate(target, request);
         if (isAuthorized(matcher)) {
             request.setAttribute(WHITELISTED_ATTRIBUTE, this.toString());
         }
-        chain.doFilter(request, response);
     }
 
     @Override

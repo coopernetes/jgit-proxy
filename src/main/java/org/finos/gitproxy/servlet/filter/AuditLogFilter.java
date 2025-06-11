@@ -33,6 +33,10 @@ public class AuditLogFilter extends AbstractGitProxyFilter implements AuditFilte
     @Override
     public void doHttpFilter(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws IOException, ServletException {
+        // First execute the rest of the filter chain
+        chain.doFilter(request, response);
+
+        // Then perform the audit logging
         audit("" + request.getAttribute(GIT_REQUEST_ATTRIBUTE));
         var headers = Collections.list(request.getHeaderNames()).stream()
                 .collect(Collectors.toMap(
@@ -41,6 +45,5 @@ public class AuditLogFilter extends AbstractGitProxyFilter implements AuditFilte
                                 ? "REDACTED"
                                 : Collections.list(request.getHeaders(name))));
         audit("headers" + headers);
-        chain.doFilter(request, response);
     }
 }

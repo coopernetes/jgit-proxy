@@ -38,13 +38,13 @@ public class FilterConfiguration {
     }
 
     @Bean
-    public FilterRegistrationBean<AuditFilter> auditFilter(ProviderRepository providerRepository) {
+    public FilterRegistrationBean<AuditLogFilter> auditFilter(ProviderRepository providerRepository) {
         log.info("Creating AuditLogFilter for providers: {}", providerRepository.getProviders());
         var urls = providerRepository.getProviders().stream()
                 .map(GitProxyProvider::servletMapping)
                 .collect(Collectors.toSet());
         var filter = new AuditLogFilter();
-        var filterBean = new FilterRegistrationBean<AuditFilter>();
+        var filterBean = new FilterRegistrationBean<AuditLogFilter>();
         filterBean.setFilter(filter);
         filterBean.setOrder(filter.getOrder());
         filterBean.setUrlPatterns(urls);
