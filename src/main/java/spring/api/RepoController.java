@@ -1,4 +1,4 @@
-package org.finos.gitproxy.api;
+package spring.api;
 
 import java.util.ArrayList;
 import java.util.Map;

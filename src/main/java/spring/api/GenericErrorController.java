@@ -1,4 +1,4 @@
-package org.finos.gitproxy.api;
+package spring.api;
 
 import static org.finos.gitproxy.servlet.GitProxyProviderServlet.ERROR_ATTRIBUTE;
 

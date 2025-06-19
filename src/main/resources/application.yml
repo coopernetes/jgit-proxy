@@ -31,3 +31,7 @@ git-proxy:
 #      enabled: true
 #      servlet-path: /external-github
 #      uri: https://gitlabserver.other.example.com
+    debian-gitlab:
+      enabled: true
+      servlet-path: /debian
+      uri: https://salsa.debian.org/

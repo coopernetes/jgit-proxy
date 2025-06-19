@@ -1,4 +1,4 @@
-package org.finos.gitproxy.config;
+package spring.config;
 
 import java.net.URI;
 import java.util.*;

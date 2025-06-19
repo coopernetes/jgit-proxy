@@ -1,4 +1,4 @@
-package org.finos.gitproxy.config;
+package spring.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;

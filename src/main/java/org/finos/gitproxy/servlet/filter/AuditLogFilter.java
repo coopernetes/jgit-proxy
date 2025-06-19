@@ -2,27 +2,22 @@ package org.finos.gitproxy.servlet.filter;
 
 import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
 
-import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
-import org.finos.gitproxy.git.HttpOperation;
 import org.springframework.core.Ordered;
 
 /** A default implementation of {@link AuditFilter} that logs audit messages using SLF4J logger. */
 @Slf4j
 public class AuditLogFilter extends AbstractGitProxyFilter implements AuditFilter {
 
-    public static final Set<HttpOperation> DEFAULT_OPERATIONS = Set.of(HttpOperation.values());
-
     /** Apply audit logging to all operations by default and after all other filters. */
     public AuditLogFilter() {
-        super(Ordered.LOWEST_PRECEDENCE, DEFAULT_OPERATIONS);
+        super(Ordered.LOWEST_PRECEDENCE);
     }
 
     @Override
@@ -31,10 +26,10 @@ public class AuditLogFilter extends AbstractGitProxyFilter implements AuditFilte
     }
 
     @Override
-    public void doHttpFilter(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+    public void doHttpFilter(HttpServletRequest request, HttpServletResponse response)
             throws IOException, ServletException {
         // First execute the rest of the filter chain
-        chain.doFilter(request, response);
+        //        chain.doFilter(request, response);
 
         // Then perform the audit logging
         audit("" + request.getAttribute(GIT_REQUEST_ATTRIBUTE));

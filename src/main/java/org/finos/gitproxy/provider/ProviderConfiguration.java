@@ -3,7 +3,6 @@ package org.finos.gitproxy.provider;
 import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import org.finos.gitproxy.config.GitProxyProperties;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor;
@@ -13,6 +12,7 @@ import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import spring.config.GitProxyProperties;
 
 @Configuration
 public class ProviderConfiguration {

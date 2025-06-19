@@ -8,14 +8,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Set;
 import java.util.function.Predicate;
 import org.eclipse.jgit.http.server.GitSmartHttpTools;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
-import org.springframework.core.Ordered;
+// import org.springframework.core.Ordered;
 
 /**
- * An {@link Ordered} {@link Filter} with additional methods that are designed to be registered with a
+ * A {@link Filter} with additional methods that are designed to be registered with a
  * {@link org.finos.gitproxy.servlet.GitProxyProviderServlet} for the purposes of filtering git operations. This
  * interface presumes that the filter is designed to be used with HTTP requests and provides a method to filter only
  * HTTP requests. Classes implementing this interface signal whether this filter should be applied to a given request
@@ -24,7 +25,9 @@ import org.springframework.core.Ordered;
  * <p>Custom filters should generally extend {@link AbstractGitProxyFilter} or
  * {@link AbstractProviderAwareGitProxyFilter} {@see AbstractGitProxyFilter} {@see AbstractProviderAwareGitProxyFilter}
  */
-public interface GitProxyFilter extends Filter, Ordered {
+public interface GitProxyFilter extends Filter {
+
+    Set<HttpOperation> ALL_OPERATIONS = Set.of(HttpOperation.values());
 
     /**
      * Implement the filtering of git operations for HTTP requests. This method is called when the request is determined
@@ -38,13 +41,13 @@ public interface GitProxyFilter extends Filter, Ordered {
      * @throws IOException
      * @throws ServletException
      */
-    void doHttpFilter(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-            throws IOException, ServletException;
+    void doHttpFilter(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException;
+
+    int getOrder();
 
     /**
      * From the request details, determine if the filter should be applied. This method is called before the filter is
-     * applied to the request. If the filter should be applied, {@link #doHttpFilter} method is called. This method
-     * replaces the "continue" field from the <a href="
+     * applied to the request. If the filter should be applied, {@link #doHttpFilter} method is called.
      *
      * @return A predicate that determines if the filter should be applied
      */
@@ -58,11 +61,19 @@ public interface GitProxyFilter extends Filter, Ordered {
     @Override
     default void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
-        var httpRequest = (HttpServletRequest) request;
-        var httpResponse = (HttpServletResponse) response;
-        if (shouldFilter().test((httpRequest))) {
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        HttpServletResponse httpResponse = (HttpServletResponse) response;
+
+        // Only process if this filter should run
+        if (shouldFilter().test(httpRequest)) {
             addFilterToDetails(httpRequest);
-            doHttpFilter(httpRequest, httpResponse, chain);
+            // Execute filter logic
+            doHttpFilter(httpRequest, httpResponse);
+
+            // If response was committed, stop the chain
+            if (httpResponse.isCommitted()) {
+                return;
+            }
         }
         chain.doFilter(request, response);
     }

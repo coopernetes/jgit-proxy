@@ -1,4 +1,4 @@
-package org.finos.gitproxy.api;
+package spring.api;
 
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;

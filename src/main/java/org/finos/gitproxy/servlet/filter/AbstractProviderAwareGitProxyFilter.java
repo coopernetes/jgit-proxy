@@ -1,6 +1,5 @@
 package org.finos.gitproxy.servlet.filter;
 
-import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.Set;
@@ -24,7 +23,7 @@ import org.finos.gitproxy.provider.ProviderConfiguration;
  * <pre>
  *     Git HTTP client initiates request to {applicationUrl}/{providerHostname}/{providerPath...}
  *     -> Find Filter instances that match hostname of {@link AbstractGitProxyProvider#getUri()}
- *     -> Execute {@link #doHttpFilter(HttpServletRequest, HttpServletResponse, FilterChain)}
+ *     -> Execute {@link #doHttpFilter(HttpServletRequest, HttpServletResponse)}
  * </pre>
  *
  * <p>The <a href="https://git-scm.com/docs/http-protocol">Git http protocol is stateless</a> and therefore each
@@ -40,6 +39,17 @@ public abstract class AbstractProviderAwareGitProxyFilter extends AbstractGitPro
     public AbstractProviderAwareGitProxyFilter(
             int order, Set<HttpOperation> appliedOperations, GitProxyProvider provider) {
         super(order, appliedOperations);
+        this.provider = provider;
+    }
+
+    /**
+     * Applies this GitProxyFilter to all git operations for a given provider.
+     *
+     * @param order the order the Filters are applied
+     * @param provider provider which this filter applies to
+     */
+    public AbstractProviderAwareGitProxyFilter(int order, GitProxyProvider provider) {
+        super(order, ALL_OPERATIONS);
         this.provider = provider;
     }
 

@@ -1,12 +1,12 @@
-package org.finos.gitproxy.api;
+package spring.api;
 
 import lombok.RequiredArgsConstructor;
-import org.finos.gitproxy.config.LegacyJSONConfiguration;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import spring.config.LegacyJSONConfiguration;
 
 @RestController
 @RequestMapping(value = "/api/v1/config", produces = MediaType.APPLICATION_JSON_VALUE)
