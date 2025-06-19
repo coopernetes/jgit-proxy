@@ -2,12 +2,11 @@ package org.finos.gitproxy.servlet.filter;
 
 import static org.finos.gitproxy.servlet.GitProxyProviderServlet.ERROR_ATTRIBUTE;
 
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.function.Predicate;
+import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.http.server.GitSmartHttpTools;
 import org.springframework.core.Ordered;
 
@@ -20,6 +19,7 @@ import org.springframework.core.Ordered;
  * the proxy. This poses a security risk in air-gapped environments where the Git provider should only be accessible via
  * Git clients. Exclude with caution!
  */
+@Slf4j
 public final class ForceGitClientFilter implements GitProxyFilter {
 
     @Override
@@ -33,14 +33,11 @@ public final class ForceGitClientFilter implements GitProxyFilter {
     }
 
     @Override
-    public void doHttpFilter(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-            throws IOException, ServletException {
+    public void doHttpFilter(HttpServletRequest request, HttpServletResponse response) throws IOException {
         if (!GitSmartHttpTools.isGitClient(request)) {
             var error = "This endpoint is only accessible via a Git client.";
             request.setAttribute(ERROR_ATTRIBUTE, error);
             response.sendError(HttpServletResponse.SC_BAD_REQUEST, error);
-            return;
         }
-        chain.doFilter(request, response);
     }
 }

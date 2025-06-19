@@ -1,10 +1,7 @@
 package org.finos.gitproxy.servlet.filter;
 
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -24,7 +21,7 @@ import org.finos.gitproxy.provider.GitProxyProvider;
  * delegated to {@link AuthorizedByUrlFilter} which is implemented by this class.
  */
 @Slf4j
-class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter implements AuthorizedByUrlFilter {
+public class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter implements AuthorizedByUrlFilter {
 
     private final List<String> whitelist;
     private final Target target;
@@ -79,12 +76,11 @@ class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter implement
     }
 
     @Override
-    public void doHttpFilter(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-            throws IOException, ServletException {
+    public void doHttpFilter(HttpServletRequest request, HttpServletResponse response) {
         // no-op, the aggregate filter will apply the whitelist
     }
 
-    public void applyWhitelist(HttpServletRequest request, HttpServletResponse response) {
+    public void applyWhitelist(HttpServletRequest request) {
         var matcher = createPredicate(target, request);
         if (isAuthorized(matcher)) {
             request.setAttribute(WHITELISTED_BY_ATTRIBUTE, this.toString());

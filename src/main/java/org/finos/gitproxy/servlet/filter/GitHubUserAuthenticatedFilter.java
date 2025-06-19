@@ -3,8 +3,6 @@ package org.finos.gitproxy.servlet.filter;
 import static org.finos.gitproxy.git.GitClient.AnsiColor;
 import static org.finos.gitproxy.git.GitClient.SymbolCodes;
 
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -26,26 +24,16 @@ public class GitHubUserAuthenticatedFilter extends ProviderSpecificGitProxyFilte
 
     private final Set<HttpAuthScheme> requiredAuthSchemes;
 
-    private static final Set<HttpOperation> DEFAULT_OPERATIONS = Set.of(HttpOperation.PUSH, HttpOperation.FETCH);
+    private static final Set<HttpOperation> SUPPORTED_OPERATIONS = Set.of(HttpOperation.PUSH);
     private static final String REASON = "Missing required GitHub authentication";
 
     public GitHubUserAuthenticatedFilter(int order, GitHubProvider provider, Set<HttpAuthScheme> requiredAuthSchemes) {
-        super(order, DEFAULT_OPERATIONS, provider);
-        this.requiredAuthSchemes = requiredAuthSchemes;
-    }
-
-    public GitHubUserAuthenticatedFilter(
-            int order,
-            Set<HttpOperation> appliedOperations,
-            GitHubProvider provider,
-            Set<HttpAuthScheme> requiredAuthSchemes) {
-        super(order, appliedOperations, provider);
+        super(order, SUPPORTED_OPERATIONS, provider);
         this.requiredAuthSchemes = requiredAuthSchemes;
     }
 
     @Override
-    public void doHttpFilter(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-            throws IOException, ServletException {
+    public void doHttpFilter(HttpServletRequest request, HttpServletResponse response) throws IOException {
         if (!isAuthenticated(request) || !isUsingRequiredAuthScheme(request)) {
             setResult(request, GitRequestDetails.GitResult.BLOCKED, REASON);
             var op = determineOperation(request);
@@ -56,9 +44,7 @@ public class GitHubUserAuthenticatedFilter extends ProviderSpecificGitProxyFilte
                     AnsiColor.RED,
                     op);
             sendGitError(request, response, message);
-            return;
         }
-        chain.doFilter(request, response);
     }
 
     @Override

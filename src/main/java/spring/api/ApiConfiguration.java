@@ -1,4 +1,4 @@
-package org.finos.gitproxy.api;
+package spring.api;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

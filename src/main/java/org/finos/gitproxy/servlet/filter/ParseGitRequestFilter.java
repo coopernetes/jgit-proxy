@@ -4,16 +4,21 @@ import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATT
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.*;
-import java.nio.charset.StandardCharsets;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.transport.PacketLineIn;
-import org.finos.gitproxy.git.*;
+import org.finos.gitproxy.git.GitReceivePackParser;
+import org.finos.gitproxy.git.GitRequestDetails;
+import org.finos.gitproxy.git.HttpOperation;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.servlet.RequestBodyWrapper;
 import org.springframework.core.Ordered;
@@ -24,21 +29,34 @@ import org.springframework.core.Ordered;
  * {@link ForceGitClientFilter}.
  */
 @Slf4j
-public class ParseRequestFilter extends AbstractProviderAwareGitProxyFilter implements RepositoryUrlFilter {
+public class ParseGitRequestFilter extends AbstractProviderAwareGitProxyFilter implements RepositoryUrlFilter {
 
     private static final int ORDER = Ordered.HIGHEST_PRECEDENCE + 1;
 
-    public ParseRequestFilter(GitProxyProvider provider) {
-        super(ORDER, Set.of(HttpOperation.PUSH, HttpOperation.FETCH, HttpOperation.INFO), provider);
+    public ParseGitRequestFilter(GitProxyProvider provider) {
+        super(ORDER, provider);
     }
 
     @Override
-    public void doHttpFilter(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-            throws IOException, ServletException {
-        var wrapper = new RequestBodyWrapper(request);
-        var pushRequest = parse(wrapper);
-        request.setAttribute(GIT_REQUEST_ATTRIBUTE, pushRequest);
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+
+        // Create the wrapper to capture the body
+        RequestBodyWrapper wrapper = new RequestBodyWrapper(httpRequest);
+
+        // Parse the git request details
+        GitRequestDetails requestDetails = parse(wrapper);
+
+        // Add the details to the request attributes
+        wrapper.setAttribute(GIT_REQUEST_ATTRIBUTE, requestDetails);
+
+        // Continue with the wrapped request (important!)
         chain.doFilter(wrapper, response);
+    }
+
+    @Override
+    public void doHttpFilter(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        // no-op
     }
 
     /**
@@ -101,7 +119,7 @@ public class ParseRequestFilter extends AbstractProviderAwareGitProxyFilter impl
 
     private void logPushDetails(UUID id, String packetLine, byte[] packData) {
         try {
-            Files.write(Path.of("packetline-" + id + ".txt"), packetLine.getBytes(StandardCharsets.UTF_8));
+            Files.writeString(Path.of("packetline-" + id + ".txt"), packetLine);
             Files.write(Path.of("body-" + id + ".txt"), packData);
         } catch (IOException e) {
             log.error("Error writing debug files", e);

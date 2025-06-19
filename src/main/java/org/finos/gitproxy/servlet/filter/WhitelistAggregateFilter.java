@@ -2,8 +2,6 @@ package org.finos.gitproxy.servlet.filter;
 
 import static org.finos.gitproxy.servlet.filter.WhitelistByUrlFilter.WHITELISTED_BY_ATTRIBUTE;
 
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -36,11 +34,15 @@ public class WhitelistAggregateFilter extends AbstractProviderAwareGitProxyFilte
         this.whitelistFilters = whitelistFilters;
     }
 
+    public WhitelistAggregateFilter(int order, GitProxyProvider provider, List<WhitelistByUrlFilter> whitelistFilters) {
+        super(order, provider);
+        this.whitelistFilters = whitelistFilters;
+    }
+
     @Override
-    public void doHttpFilter(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-            throws IOException, ServletException {
+    public void doHttpFilter(HttpServletRequest request, HttpServletResponse response) throws IOException {
         for (WhitelistByUrlFilter filter : whitelistFilters) {
-            filter.applyWhitelist(request, response);
+            filter.applyWhitelist(request);
         }
         String whitelistedBy = (String) request.getAttribute(WHITELISTED_BY_ATTRIBUTE);
         if (whitelistedBy != null) {
@@ -58,6 +60,5 @@ public class WhitelistAggregateFilter extends AbstractProviderAwareGitProxyFilte
                     response,
                     GitClient.formatForOperation(title, message, GitClient.AnsiColor.RED, operation));
         }
-        chain.doFilter(request, response);
     }
 }

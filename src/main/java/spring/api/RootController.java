@@ -1,4 +1,4 @@
-package org.finos.gitproxy.api;
+package spring.api;
 
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;

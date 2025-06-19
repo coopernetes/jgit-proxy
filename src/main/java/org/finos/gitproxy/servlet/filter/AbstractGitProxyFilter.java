@@ -13,6 +13,16 @@ public abstract class AbstractGitProxyFilter implements GitProxyFilter {
     protected final int order;
     protected final Set<HttpOperation> applicableOperations;
 
+    /**
+     * Apply this GitProxyFilter against all Git operations.
+     *
+     * @param order Order the filter is applied
+     */
+    public AbstractGitProxyFilter(int order) {
+        this.applicableOperations = ALL_OPERATIONS;
+        this.order = order;
+    }
+
     @Override
     public int getOrder() {
         return this.order;
