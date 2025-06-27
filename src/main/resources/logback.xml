@@ -30,6 +30,8 @@
 
     <!-- Application logs -->
     <logger name="org.finos.gitproxy" level="DEBUG"/>
+    <logger name="org.finos.gitproxy.servlet.GitProxyServlet" level="INFO"/>
+
 
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>

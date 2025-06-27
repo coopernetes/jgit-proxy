@@ -35,7 +35,7 @@ public class WhitelistAggregateFilter extends AbstractProviderAwareGitProxyFilte
     }
 
     public WhitelistAggregateFilter(int order, GitProxyProvider provider, List<WhitelistByUrlFilter> whitelistFilters) {
-        super(order, provider);
+        super(order, Set.of(HttpOperation.FETCH, HttpOperation.PUSH), provider);
         this.whitelistFilters = whitelistFilters;
     }
 
@@ -46,15 +46,17 @@ public class WhitelistAggregateFilter extends AbstractProviderAwareGitProxyFilte
         }
         String whitelistedBy = (String) request.getAttribute(WHITELISTED_BY_ATTRIBUTE);
         if (whitelistedBy != null) {
-            log.debug("Whitelisted by {}", whitelistedBy);
+            if (log.isDebugEnabled()) {
+                log.debug("Whitelisted by {}", whitelistedBy);
+            }
             setResult(request, GitRequestDetails.GitResult.ALLOWED, whitelistedBy);
         } else {
             setResult(request, GitRequestDetails.GitResult.BLOCKED, null);
             var operation = determineOperation(request);
             String title =
-                    GitClient.SymbolCodes.NO_ENTRY.emoji() + " Unauthorized! " + GitClient.SymbolCodes.NO_ENTRY.emoji();
-            String action = operation == HttpOperation.PUSH ? "push to" : "fetch from";
-            String message = "You are not authorized to " + action + " this repository.";
+                    GitClient.SymbolCodes.NO_ENTRY.emoji() + " Disallowed! " + GitClient.SymbolCodes.NO_ENTRY.emoji();
+            String action = operation == HttpOperation.PUSH ? "Pushes to" : "Fetches from";
+            String message = action + " this repository are not permitted.";
             sendGitError(
                     request,
                     response,

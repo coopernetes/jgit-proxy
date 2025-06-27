@@ -1,14 +1,7 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
-
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.util.Collections;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.finos.gitproxy.git.GitRequestDetails;
 import org.springframework.core.Ordered;
 
 /** A default implementation of {@link AuditFilter} that logs audit messages using SLF4J logger. */
@@ -21,24 +14,13 @@ public class AuditLogFilter extends AbstractGitProxyFilter implements AuditFilte
     }
 
     @Override
-    public void audit(String message) {
-        log.info(message);
-    }
-
-    @Override
-    public void doHttpFilter(HttpServletRequest request, HttpServletResponse response)
-            throws IOException, ServletException {
-        // First execute the rest of the filter chain
-        //        chain.doFilter(request, response);
-
-        // Then perform the audit logging
-        audit("" + request.getAttribute(GIT_REQUEST_ATTRIBUTE));
-        var headers = Collections.list(request.getHeaderNames()).stream()
-                .collect(Collectors.toMap(
-                        name -> name,
-                        name -> "authorization".equalsIgnoreCase(name)
-                                ? "REDACTED"
-                                : Collections.list(request.getHeaders(name))));
-        audit("headers" + headers);
+    public void audit(GitRequestDetails requestDetails) {
+        log.info(
+                "Result={},Reason={},Provider={},Repository={},Operation={}",
+                requestDetails.getResult(),
+                requestDetails.getReason(),
+                requestDetails.getProvider().getName(),
+                requestDetails.getRepository(),
+                requestDetails.getOperation());
     }
 }

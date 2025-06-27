@@ -1,6 +1,9 @@
 package org.finos.gitproxy;
 
 import jakarta.servlet.DispatcherType;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Set;
 import org.eclipse.jetty.ee10.servlet.FilterHolder;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
 import org.eclipse.jetty.ee10.servlet.ServletHolder;
@@ -11,10 +14,6 @@ import org.finos.gitproxy.git.HttpAuthScheme;
 import org.finos.gitproxy.provider.GitHubProvider;
 import org.finos.gitproxy.servlet.GitProxyServlet;
 import org.finos.gitproxy.servlet.filter.*;
-
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Set;
 
 public class GitProxyApplication {
     public static void main(String[] args) throws Exception {
@@ -48,11 +47,16 @@ public class GitProxyApplication {
         context.addFilter(ghFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
 
         var whitelistFilters = List.of(
-                new WhitelistByUrlFilter(100, gitHubProvider, List.of("coopernetes"), RepositoryUrlFilter.Target.OWNER),
+                //                                new WhitelistByUrlFilter(100, gitHubProvider, List.of("coopernetes"),
+                //                 RepositoryUrlFilter.Target.OWNER),
+                //                                new WhitelistByUrlFilter(
+                //                                        101, gitHubProvider, List.of("jgit-proxy", "test-repo"),
+                //                 RepositoryUrlFilter.Target.NAME),
                 new WhitelistByUrlFilter(
-                        101, gitHubProvider, List.of("jgit-proxy", "test-repo"), RepositoryUrlFilter.Target.NAME),
-                new WhitelistByUrlFilter(
-                        102, gitHubProvider, List.of("finos/git-proxy"), RepositoryUrlFilter.Target.SLUG));
+                        102,
+                        gitHubProvider,
+                        List.of("finos/git-proxy", "coopernetes/test-repo"),
+                        RepositoryUrlFilter.Target.SLUG));
         var whitelistAggregateFilter = new WhitelistAggregateFilter(20, gitHubProvider, whitelistFilters);
         var whitelistAggFilterHolder = new FilterHolder(whitelistAggregateFilter);
         whitelistAggFilterHolder.setAsyncSupported(true);
@@ -63,11 +67,6 @@ public class GitProxyApplication {
         auditFilterHolder.setAsyncSupported(true);
         context.addFilter(auditFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
 
-//        var proxyServlet = new GitProxyProviderServlet(gitHubProvider);
-//        var asyncWrapper = new AsyncProxyWrapperServlet(proxyServlet);
-//        var proxyServletHolder = new ServletHolder(asyncWrapper);
-//        proxyServletHolder.setInitParameter("targetUri", "https://github.com");
-//        proxyServletHolder.setAsyncSupported(true);
         var proxyServlet = new GitProxyServlet();
         var proxyServletHolder = new ServletHolder(proxyServlet);
         proxyServletHolder.setInitParameter("proxyTo", "https://github.com");

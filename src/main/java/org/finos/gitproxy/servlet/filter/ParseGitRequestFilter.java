@@ -38,7 +38,8 @@ public class ParseGitRequestFilter extends AbstractProviderAwareGitProxyFilter i
     }
 
     @Override
-    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
         HttpServletRequest httpRequest = (HttpServletRequest) request;
 
         // Create the wrapper to capture the body
@@ -71,9 +72,11 @@ public class ParseGitRequestFilter extends AbstractProviderAwareGitProxyFilter i
         gr.getFilters().add(this);
         var op = determineOperation(request);
         gr.setOperation(op);
-        gr.setOwner(getOwner(request.getPathInfo()));
-        gr.setName(getName(request.getPathInfo()));
-        gr.setSlug(getSlug(request.getPathInfo()));
+        gr.setRepository(GitRequestDetails.Repository.builder()
+                .owner(getOwner(request.getPathInfo()))
+                .name(getName(request.getPathInfo()))
+                .slug(getSlug(request.getPathInfo()))
+                .build());
 
         if (op == HttpOperation.INFO) {
             gr.setResult(GitRequestDetails.GitResult.ALLOWED);

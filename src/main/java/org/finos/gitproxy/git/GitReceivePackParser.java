@@ -36,18 +36,26 @@ public class GitReceivePackParser {
         String newCommit = parts[1];
         String reference = parts[2].replace("\u0000", "").trim();
 
-        // Parse the commit content from pack data
-        Commit commit = parsePackData(packData);
+        // For branch deletion (newCommit is all zeros), there's no pack data
+        Commit commit = null;
+        if (!newCommit.equals("0000000000000000000000000000000000000000") && packData != null && packData.length > 0) {
+            // Parse the commit content from pack data
+            try {
+                commit = parsePackData(packData);
 
-        // Important: Set the correct SHA values from the packet line
-        if (commit != null) {
-            commit.setSha(newCommit);
+                // Set the correct SHA values from the packet line
+                if (commit != null) {
+                    commit.setSha(newCommit);
 
-            // If parent is empty from pack data, use the old commit SHA
-            if (commit.getParent() == null
-                    || commit.getParent().isEmpty()
-                    || commit.getParent().equals("0000000000000000000000000000000000000000")) {
-                commit.setParent(oldCommit);
+                    // If parent is empty from pack data, use the old commit SHA
+                    if (commit.getParent() == null
+                            || commit.getParent().isEmpty()
+                            || commit.getParent().equals("0000000000000000000000000000000000000000")) {
+                        commit.setParent(oldCommit);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse pack data", e);
             }
         }
 
@@ -61,6 +69,11 @@ public class GitReceivePackParser {
 
     public static Commit parsePackData(byte[] data) throws IOException {
         int pos = findPackSignature(data);
+
+        // Check if pack signature was found
+        if (pos == -1) {
+            throw new IOException("No PACK signature found in data");
+        }
 
         // Read pack header
         byte[] header = new byte[12];

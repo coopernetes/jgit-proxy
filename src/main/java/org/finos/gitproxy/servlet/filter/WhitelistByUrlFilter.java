@@ -1,11 +1,14 @@
 package org.finos.gitproxy.servlet.filter;
 
+import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTRIBUTE;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
+import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
 import org.finos.gitproxy.provider.GitProxyProvider;
 
@@ -63,14 +66,15 @@ public class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter im
 
     @Override
     public Predicate<String> createPredicate(Target target, HttpServletRequest request) {
+        var details = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTRIBUTE);
         if (target == AuthorizedByUrlFilter.Target.OWNER) {
-            return o -> o.equals(getOwner(request.getPathInfo()));
+            return o -> o.equals(details.getRepository().getOwner());
         }
         if (target == AuthorizedByUrlFilter.Target.NAME) {
-            return n -> n.equals(getName(request.getPathInfo()));
+            return o -> o.equals(details.getRepository().getName());
         }
         if (target == AuthorizedByUrlFilter.Target.SLUG) {
-            return s -> s.equals(getSlug(request.getPathInfo()));
+            return o -> o.equals(details.getRepository().getSlug());
         }
         throw new IllegalArgumentException("Unknown target type: " + target);
     }

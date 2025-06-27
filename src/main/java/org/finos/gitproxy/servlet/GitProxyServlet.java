@@ -3,16 +3,12 @@ package org.finos.gitproxy.servlet;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.client.BytesRequestContent;
 import org.eclipse.jetty.client.Request;
-import org.eclipse.jetty.client.Response;
-import org.eclipse.jetty.ee10.proxy.AsyncProxyServlet;
 import org.eclipse.jetty.ee10.proxy.ProxyServlet;
-import org.eclipse.jetty.util.Callback;
 import org.finos.gitproxy.git.GitRequestDetails;
-
-import java.io.IOException;
 
 @Slf4j
 public class GitProxyServlet extends ProxyServlet.Transparent {
@@ -28,9 +24,27 @@ public class GitProxyServlet extends ProxyServlet.Transparent {
         }
     }
 
+    // TODO: Allow Via header to be sent if configured (enabled via opt-in)
     @Override
-    protected Request.Content proxyRequestContent(HttpServletRequest request, HttpServletResponse response,
-                                               Request proxyRequest) throws IOException {
+    protected void addViaHeader(Request proxyRequest) {
+        // no-op - don't send "Via" header to upstream
+    }
+
+    @Override
+    protected void addViaHeader(HttpServletRequest clientRequest, Request proxyRequest) {
+        // no-op - don't send "Via" header to upstream
+    }
+
+    // TODO: Allow X-Forwarded-* headers to be sent if configured (enabled via opt-in)
+    // TODO: Allow X-Forwarded-* headers to be customized
+    @Override
+    protected void addXForwardedHeaders(HttpServletRequest clientRequest, Request proxyRequest) {
+        // no-op - don't send "X-Forwarded-*" headers to upstream
+    }
+
+    @Override
+    protected Request.Content proxyRequestContent(
+            HttpServletRequest request, HttpServletResponse response, Request proxyRequest) throws IOException {
         if (request instanceof RequestBodyWrapper wrapper) {
             byte[] body = wrapper.getBody();
             if (body != null && body.length > 0) {

@@ -148,7 +148,7 @@ public class GitClient {
      * @return the formatted message for the git client to display
      */
     public static String formatForOperation(String title, String message, AnsiColor color, HttpOperation operation) {
-        if (operation == HttpOperation.FETCH) {
+        if (operation != HttpOperation.PUSH) {
             title = convertSymbolsToPlain(title);
             title = stripColors(title);
             message = convertSymbolsToPlain(message);

@@ -4,15 +4,12 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.Arrays;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.mitre.dsmiley.httpproxy.ProxyServlet;
-import org.springframework.web.util.ContentCachingResponseWrapper;
 
 @Slf4j
 public class GitProxyProviderServlet extends ProxyServlet {
@@ -63,22 +60,7 @@ public class GitProxyProviderServlet extends ProxyServlet {
     protected HttpResponse doExecute(
             HttpServletRequest servletRequest, HttpServletResponse servletResponse, HttpRequest proxyRequest)
             throws IOException {
-        Arrays.stream(proxyRequest.getAllHeaders()).forEach(header -> {
-            if (!"authorization".equalsIgnoreCase(header.getName())) {
-                System.out.println("Proxy Request Header: " + header.getName() + " = " + header.getValue());
-            }
-        });
         var response = super.doExecute(servletRequest, servletResponse, proxyRequest);
-        var wrapper = new ContentCachingResponseWrapper(servletResponse);
-        servletResponse.getHeaderNames().forEach(header -> {
-            if (!"authorization".equalsIgnoreCase(header)) {
-                var value = servletResponse.getHeader(header);
-                System.out.println("Proxy Response Header: " + header + " = " + value);
-            }
-        });
-        System.out.println("Proxy Response status: " + wrapper.getStatus());
-        System.out.println("Proxy Response content size: " + wrapper.getContentSize());
-        System.out.println("Proxy Response body: " + new String(wrapper.getContentAsByteArray()));
         if (log.isDebugEnabled()) {
             // https://docs.gitlab.com/ee/administration/logs/tracing_correlation_id.html
             if (response.containsHeader(REQUEST_ID_HEADER)) {
