@@ -1,0 +1,78 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'org.finos.gitproxy'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+        vendor = JvmVendorSpec.ADOPTIUM
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url 'https://repo.eclipse.org/content/groups/releases/'
+    }
+}
+
+ext {
+    jgitVersion = '7.0.0.202409031743-r'
+    apacheHttpVersion = '4.5.13'
+    httpProxyServletVersion = '2.0'
+    jettyVersion = '12.0.22'
+    jakartaServletVersion = '6.1.0'
+    slf4jVersion = '2.0.17'
+    logbackVersion = '1.5.18'
+}
+
+dependencies {
+    // Servlet API
+    api "jakarta.servlet:jakarta.servlet-api:${jakartaServletVersion}"
+    
+    // Jakarta annotations
+    api "jakarta.annotation:jakarta.annotation-api:3.0.0"
+    
+    // JGit dependencies
+    api "org.eclipse.jgit:org.eclipse.jgit:${jgitVersion}"
+    implementation "org.eclipse.jgit:org.eclipse.jgit.http.apache:${jgitVersion}"
+    implementation "org.eclipse.jgit:org.eclipse.jgit.http.server:${jgitVersion}"
+    
+    // HTTP Client
+    implementation "org.apache.httpcomponents:httpclient:${apacheHttpVersion}"
+    
+    // Proxy Servlet
+    api "org.mitre.dsmiley.httpproxy:smiley-http-proxy-servlet:${httpProxyServletVersion}"
+    
+    // Jackson for JSON
+    api "com.fasterxml.jackson.core:jackson-annotations:2.18.2"
+    implementation "com.fasterxml.jackson.core:jackson-databind:2.18.2"
+    
+    // Logging
+    implementation "ch.qos.logback:logback-core:${logbackVersion}"
+    implementation "ch.qos.logback:logback-classic:${logbackVersion}"
+    implementation "org.slf4j:slf4j-api:${slf4jVersion}"
+    
+    // Jetty for servlet container - exposed as API for standalone apps
+    api platform("org.eclipse.jetty:jetty-bom:${jettyVersion}")
+    api "org.eclipse.jetty:jetty-server:${jettyVersion}"
+    api "org.eclipse.jetty.ee10:jetty-ee10-servlet:${jettyVersion}"
+    api "org.eclipse.jetty.ee10:jetty-ee10-proxy:${jettyVersion}"
+    
+    // Lombok
+    compileOnly 'org.projectlombok:lombok:1.18.34'
+    annotationProcessor 'org.projectlombok:lombok:1.18.34'
+    
+    // Testing
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.0'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
