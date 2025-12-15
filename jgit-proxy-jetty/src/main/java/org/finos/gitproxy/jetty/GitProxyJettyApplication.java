@@ -12,6 +12,7 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.finos.gitproxy.config.InMemoryProviderConfigurationSource;
+import org.finos.gitproxy.git.LocalRepositoryCache;
 import org.finos.gitproxy.provider.BitbucketProvider;
 import org.finos.gitproxy.provider.GitHubProvider;
 import org.finos.gitproxy.provider.GitLabProvider;
@@ -41,6 +42,10 @@ public class GitProxyJettyApplication {
         connector.setPort(getPort());
         server.addConnector(connector);
 
+        // Initialize the local repository cache
+        var repositoryCache = new LocalRepositoryCache();
+        log.info("Initialized LocalRepositoryCache");
+
         // Configure providers
         List<GitProxyProvider> providers = createProviders();
         var providerConfig = new InMemoryProviderConfigurationSource(providers);
@@ -52,7 +57,7 @@ public class GitProxyJettyApplication {
         for (GitProxyProvider provider : providerConfig.getProviders()) {
             log.info("Registering proxy for provider: {}", provider.getName());
             registerProxyServlet(context, provider);
-            registerFilters(context, provider);
+            registerFilters(context, provider, repositoryCache);
         }
 
         server.setHandler(context);
@@ -93,7 +98,8 @@ public class GitProxyJettyApplication {
         context.addServlet(proxyServletHolder, provider.servletMapping());
     }
 
-    private static void registerFilters(ServletContextHandler context, GitProxyProvider provider) {
+    private static void registerFilters(
+            ServletContextHandler context, GitProxyProvider provider, LocalRepositoryCache repositoryCache) {
         String urlPattern = provider.servletMapping();
 
         // Force Git client filter (must be first)
@@ -107,6 +113,12 @@ public class GitProxyJettyApplication {
         var parseRequestFilterHolder = new FilterHolder(parseRequestFilter);
         parseRequestFilterHolder.setAsyncSupported(true);
         context.addFilter(parseRequestFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
+
+        // Enrich push commits filter (uses JGit to get full commit info)
+        var enrichCommitsFilter = new EnrichPushCommitsFilter(provider, repositoryCache);
+        var enrichCommitsFilterHolder = new FilterHolder(enrichCommitsFilter);
+        enrichCommitsFilterHolder.setAsyncSupported(true);
+        context.addFilter(enrichCommitsFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
 
         // Example whitelist filter (can be configured based on requirements)
         var whitelistFilters = List.of(new WhitelistByUrlFilter(
