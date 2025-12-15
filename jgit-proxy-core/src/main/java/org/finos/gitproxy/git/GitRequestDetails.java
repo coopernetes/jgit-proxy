@@ -17,9 +17,8 @@ public class GitRequestDetails {
     private HttpOperation operation;
     private Repository repository;
     private String branch; // null for fetch requests
-    private Commit commit;
-    private List<Commit> commits = new ArrayList<>(); // All commits in a push
-    private String userEmail; // Email of the user performing the operation
+    private Commit commit; // Head/parent commit from the push
+    private List<Commit> pushedCommits = new ArrayList<>(); // All commits received in this push
     private GitProxyProvider provider;
     private List<GitProxyFilter> filters = new ArrayList<>();
     private GitResult result = GitResult.PENDING;

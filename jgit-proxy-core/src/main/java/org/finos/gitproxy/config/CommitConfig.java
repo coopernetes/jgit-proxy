@@ -2,6 +2,7 @@ package org.finos.gitproxy.config;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 import lombok.Builder;
 import lombok.Data;
 
@@ -49,9 +50,9 @@ public class CommitConfig {
 
         /**
          * Regex pattern for allowed email domains. If set, only emails matching this pattern are allowed. Example:
-         * ".*\\.company\\.com$" to allow only company.com domains.
+         * Pattern.compile(".*\\.company\\.com$") to allow only company.com domains.
          */
-        private String allow;
+        private Pattern allow;
     }
 
     /** Configuration for email local part validation. */
@@ -61,9 +62,9 @@ public class CommitConfig {
 
         /**
          * Regex pattern for blocked email local parts. If set, emails matching this pattern are blocked. Example:
-         * "^(noreply|no-reply)$" to block noreply addresses.
+         * Pattern.compile("^(noreply|no-reply)$") to block noreply addresses.
          */
-        private String block;
+        private Pattern block;
     }
 
     /** Configuration for commit message validation. */
@@ -88,12 +89,9 @@ public class CommitConfig {
         @Builder.Default
         private List<String> literals = new ArrayList<>();
 
-        /**
-         * List of regex patterns that are blocked in commit messages. Messages matching any of these patterns will be
-         * rejected.
-         */
+        /** List of compiled regex patterns that are blocked in commit messages. */
         @Builder.Default
-        private List<String> patterns = new ArrayList<>();
+        private List<Pattern> patterns = new ArrayList<>();
     }
 
     /**

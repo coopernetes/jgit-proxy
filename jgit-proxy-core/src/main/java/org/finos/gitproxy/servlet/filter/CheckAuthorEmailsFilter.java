@@ -39,7 +39,7 @@ public class CheckAuthorEmailsFilter extends AbstractGitProxyFilter {
             return;
         }
 
-        List<Commit> commits = requestDetails.getCommits();
+        List<Commit> commits = requestDetails.getPushedCommits();
         if (commits == null || commits.isEmpty()) {
             log.debug("No commits found in request details");
             return;
@@ -93,23 +93,19 @@ public class CheckAuthorEmailsFilter extends AbstractGitProxyFilter {
         String emailDomain = parts[1];
 
         // Check domain allow pattern
-        String domainAllowPattern =
+        Pattern domainAllowPattern =
                 commitConfig.getAuthor().getEmail().getDomain().getAllow();
-        if (domainAllowPattern != null && !domainAllowPattern.isEmpty()) {
-            if (!Pattern.compile(domainAllowPattern, Pattern.CASE_INSENSITIVE)
-                    .matcher(emailDomain)
-                    .find()) {
+        if (domainAllowPattern != null) {
+            if (!domainAllowPattern.matcher(emailDomain).find()) {
                 return false;
             }
         }
 
         // Check local part block pattern
-        String localBlockPattern =
+        Pattern localBlockPattern =
                 commitConfig.getAuthor().getEmail().getLocal().getBlock();
-        if (localBlockPattern != null && !localBlockPattern.isEmpty()) {
-            if (Pattern.compile(localBlockPattern, Pattern.CASE_INSENSITIVE)
-                    .matcher(emailLocal)
-                    .find()) {
+        if (localBlockPattern != null) {
+            if (localBlockPattern.matcher(emailLocal).find()) {
                 return false;
             }
         }

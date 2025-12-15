@@ -30,13 +30,18 @@ public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
     public void doHttpFilter(HttpServletRequest request, HttpServletResponse response) throws IOException {
         var requestDetails = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTRIBUTE);
         if (requestDetails == null) {
-            log.warn("GitRequestDetails not found in request attributes");
+            log.warn("GitRequestDetails not found in request details");
             return;
         }
 
-        String userEmail = requestDetails.getUserEmail();
+        // Extract user email from commit author
+        String userEmail = null;
+        if (requestDetails.getCommit() != null && requestDetails.getCommit().getAuthor() != null) {
+            userEmail = requestDetails.getCommit().getAuthor().getEmail();
+        }
+
         if (userEmail == null || userEmail.isEmpty()) {
-            log.warn("User email not found in request details");
+            log.warn("User email not found in commit author");
             String errorMessage = "Push blocked: User not found. Please contact an administrator for support.";
             setResult(request, GitRequestDetails.GitResult.BLOCKED, "User not found");
             sendGitError(request, response, errorMessage);

@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.config.CommitConfig;
@@ -39,7 +38,7 @@ public class CheckCommitMessagesFilter extends AbstractGitProxyFilter {
             return;
         }
 
-        List<Commit> commits = requestDetails.getCommits();
+        List<Commit> commits = requestDetails.getPushedCommits();
         if (commits == null || commits.isEmpty()) {
             log.debug("No commits found in request details");
             return;
@@ -89,7 +88,7 @@ public class CheckCommitMessagesFilter extends AbstractGitProxyFilter {
         }
 
         List<String> blockedLiterals = commitConfig.getMessage().getBlock().getLiterals();
-        List<String> blockedPatterns = commitConfig.getMessage().getBlock().getPatterns();
+        List<Pattern> blockedPatterns = commitConfig.getMessage().getBlock().getPatterns();
 
         // Check blocked literals (case-insensitive)
         for (String literal : blockedLiterals) {
@@ -100,16 +99,9 @@ public class CheckCommitMessagesFilter extends AbstractGitProxyFilter {
         }
 
         // Check blocked patterns
-        for (String pattern : blockedPatterns) {
-            try {
-                Pattern compiledPattern = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE);
-                if (compiledPattern.matcher(commitMessage).find()) {
-                    log.debug("Commit message matches blocked pattern: {}", pattern);
-                    return false;
-                }
-            } catch (PatternSyntaxException e) {
-                log.error("Invalid regex pattern: {}", pattern, e);
-                // Treat invalid patterns as not matching
+        for (Pattern pattern : blockedPatterns) {
+            if (pattern.matcher(commitMessage).find()) {
+                log.debug("Commit message matches blocked pattern");
                 return false;
             }
         }

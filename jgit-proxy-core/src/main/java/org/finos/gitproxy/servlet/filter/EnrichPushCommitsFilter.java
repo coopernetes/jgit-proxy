@@ -66,23 +66,16 @@ public class EnrichPushCommitsFilter extends AbstractProviderAwareGitProxyFilter
             if (commits.isEmpty()) {
                 log.warn("No commits found in range {}..{}", fromCommit, toCommit);
                 // Add the basic commit at least
-                requestDetails.getCommits().add(basicCommit);
+                requestDetails.getPushedCommits().add(basicCommit);
             } else {
                 log.info("Extracted {} commits from repository", commits.size());
-                requestDetails.getCommits().addAll(commits);
-            }
-
-            // Extract user email from the first commit's author
-            if (!commits.isEmpty()) {
-                String userEmail = commits.get(0).getAuthor().getEmail();
-                requestDetails.setUserEmail(userEmail);
-                log.debug("Set user email from commit: {}", userEmail);
+                requestDetails.getPushedCommits().addAll(commits);
             }
 
         } catch (Exception e) {
             log.error("Failed to enrich push commits", e);
             // Fall back to basic commit
-            requestDetails.getCommits().add(basicCommit);
+            requestDetails.getPushedCommits().add(basicCommit);
         }
     }
 

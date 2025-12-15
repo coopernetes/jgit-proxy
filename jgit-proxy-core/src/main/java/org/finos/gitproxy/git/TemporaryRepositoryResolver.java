@@ -47,6 +47,18 @@ public class TemporaryRepositoryResolver implements RepositoryResolver<HttpServl
      * @return The remote repository URL
      */
     private String extractRemoteUrl(HttpServletRequest req, String name) {
+        // Extract authentication from Authorization header
+        String authHeader = req.getHeader("Authorization");
+        String authCredentials = "";
+
+        if (authHeader != null && authHeader.startsWith("Basic ")) {
+            // Extract credentials from Basic auth
+            String base64Credentials = authHeader.substring("Basic ".length()).trim();
+            String credentials = new String(java.util.Base64.getDecoder().decode(base64Credentials));
+            // credentials format is "username:password"
+            authCredentials = credentials + "@";
+        }
+
         // This is a simplified implementation
         // In a real implementation, you would extract the provider and construct the full URL
         // For now, we'll use the request info
@@ -55,9 +67,13 @@ public class TemporaryRepositoryResolver implements RepositoryResolver<HttpServl
             // Remove leading slash and any git-receive-pack or git-upload-pack suffixes
             String cleanPath = pathInfo.substring(1).replaceAll("/(git-receive-pack|git-upload-pack|info/refs).*$", "");
 
-            // Construct URL based on the host from request
-            // This is simplified - in production you'd need more sophisticated URL construction
-            return "https://" + cleanPath + ".git";
+            // Construct URL with authentication if present
+            // Format: https://username:password@host/path.git
+            if (!authCredentials.isEmpty()) {
+                return "https://" + authCredentials + cleanPath + ".git";
+            } else {
+                return "https://" + cleanPath + ".git";
+            }
         }
 
         return name;

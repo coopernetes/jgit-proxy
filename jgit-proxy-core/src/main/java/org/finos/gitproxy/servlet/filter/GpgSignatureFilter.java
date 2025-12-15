@@ -53,7 +53,7 @@ public class GpgSignatureFilter extends AbstractGitProxyFilter {
             return;
         }
 
-        var commits = requestDetails.getCommits();
+        var commits = requestDetails.getPushedCommits();
         if (commits == null || commits.isEmpty()) {
             log.debug("No commits found in request details");
             return;

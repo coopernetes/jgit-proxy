@@ -172,7 +172,9 @@ public class CommitInspectionService {
         }
 
         // Extract GPG signature if present
-        String signature = extractGpgSignature(revCommit);
+        // Note: Signature extraction is handled by GitReceivePackParser during push parsing
+        // and is available in the Commit object passed from the push packet data
+        String signature = null;
 
         return Commit.builder()
                 .sha(revCommit.getName())
@@ -189,48 +191,5 @@ public class CommitInspectionService {
                 .date(Instant.ofEpochSecond(committer.getWhen().getTime() / 1000))
                 .signature(signature)
                 .build();
-    }
-
-    /**
-     * Extract GPG signature from a commit if present.
-     *
-     * @param revCommit The JGit commit
-     * @return The GPG signature, or null if not present
-     */
-    private static String extractGpgSignature(RevCommit revCommit) {
-        byte[] rawBuffer = revCommit.getRawBuffer();
-        String raw = new String(rawBuffer);
-
-        int sigStart = raw.indexOf("gpgsig ");
-        if (sigStart < 0) {
-            return null;
-        }
-
-        // Find the start of the signature block
-        sigStart += 7; // length of "gpgsig "
-        int sigEnd = raw.indexOf("\n", sigStart);
-
-        // Build the complete signature by collecting continuation lines
-        StringBuilder signature = new StringBuilder();
-        int pos = sigStart;
-
-        while (pos < raw.length()) {
-            int nextNewline = raw.indexOf("\n", pos);
-            if (nextNewline < 0) {
-                break;
-            }
-
-            String line = raw.substring(pos, nextNewline);
-            if (!line.startsWith(" ")) {
-                // End of signature block
-                break;
-            }
-
-            // Remove leading space and add to signature
-            signature.append(line.substring(1)).append("\n");
-            pos = nextNewline + 1;
-        }
-
-        return signature.toString().trim();
     }
 }

@@ -22,22 +22,40 @@ public class LocalRepositoryCache {
 
     private final Path cacheDirectory;
     private final Map<String, CachedRepository> cache = new ConcurrentHashMap<>();
+    private final int cloneDepth;
+    private final boolean registerShutdownHook;
 
-    /** Default constructor that uses system temp directory. */
+    /** Default constructor that uses system temp directory with shutdown hook. */
     public LocalRepositoryCache() throws IOException {
-        this(Files.createTempDirectory("jgit-proxy-cache-"));
+        this(Files.createTempDirectory("jgit-proxy-cache-"), 100, true);
     }
 
     /**
-     * Constructor with custom cache directory.
+     * Constructor with custom cache directory - Spring-friendly (no shutdown hook).
      *
      * @param cacheDirectory The directory to use for caching repositories
+     * @param registerShutdownHook Whether to register shutdown hook (false for Spring apps)
      */
-    public LocalRepositoryCache(Path cacheDirectory) {
+    public LocalRepositoryCache(Path cacheDirectory, boolean registerShutdownHook) throws IOException {
+        this(cacheDirectory, 100, registerShutdownHook);
+    }
+
+    /**
+     * Full constructor with custom cache directory and clone depth.
+     *
+     * @param cacheDirectory The directory to use for caching repositories
+     * @param cloneDepth The depth for shallow clones (0 for full clone)
+     * @param registerShutdownHook Whether to register shutdown hook (false for Spring apps)
+     */
+    public LocalRepositoryCache(Path cacheDirectory, int cloneDepth, boolean registerShutdownHook) {
         this.cacheDirectory = cacheDirectory;
-        log.info("Initialized LocalRepositoryCache at: {}", cacheDirectory);
-        // Register shutdown hook to clean up
-        Runtime.getRuntime().addShutdownHook(new Thread(this::cleanup));
+        this.cloneDepth = cloneDepth;
+        this.registerShutdownHook = registerShutdownHook;
+        log.info("Initialized LocalRepositoryCache at: {} with clone depth: {}", cacheDirectory, cloneDepth);
+        // Register shutdown hook to clean up (skip for Spring apps that use @PreDestroy)
+        if (registerShutdownHook) {
+            Runtime.getRuntime().addShutdownHook(new Thread(this::cleanup));
+        }
     }
 
     /**
@@ -85,16 +103,26 @@ public class LocalRepositoryCache {
         if (repoDir.exists()) {
             log.debug("Repository directory exists, opening and fetching: {}", repoDir);
             Git git = Git.open(repoDir);
-            // Fetch latest changes
-            git.fetch().setRemote("origin").call();
+            // Fetch latest changes with depth if configured
+            if (cloneDepth > 0) {
+                git.fetch().setRemote("origin").setDepth(cloneDepth).call();
+            } else {
+                git.fetch().setRemote("origin").call();
+            }
             repository = git.getRepository();
         } else {
-            log.debug("Cloning repository to: {}", repoDir);
-            Git git = Git.cloneRepository()
+            log.debug("Cloning repository to: {} with depth: {}", repoDir, cloneDepth);
+            var cloneCommand = Git.cloneRepository()
                     .setURI(remoteUrl)
                     .setDirectory(repoDir)
-                    .setBare(true)
-                    .call();
+                    .setBare(true);
+
+            // Set shallow clone depth if configured
+            if (cloneDepth > 0) {
+                cloneCommand.setDepth(cloneDepth);
+            }
+
+            Git git = cloneCommand.call();
             repository = git.getRepository();
         }
 
