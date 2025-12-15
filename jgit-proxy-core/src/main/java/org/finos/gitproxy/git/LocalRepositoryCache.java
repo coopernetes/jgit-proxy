@@ -20,6 +20,8 @@ import org.eclipse.jgit.transport.URIish;
 @Slf4j
 public class LocalRepositoryCache {
 
+    private static final int DEFAULT_CLONE_DEPTH = 100;
+
     private final Path cacheDirectory;
     private final Map<String, CachedRepository> cache = new ConcurrentHashMap<>();
     private final int cloneDepth;
@@ -27,7 +29,7 @@ public class LocalRepositoryCache {
 
     /** Default constructor that uses system temp directory with shutdown hook. */
     public LocalRepositoryCache() throws IOException {
-        this(Files.createTempDirectory("jgit-proxy-cache-"), 100, true);
+        this(Files.createTempDirectory("jgit-proxy-cache-"), DEFAULT_CLONE_DEPTH, true);
     }
 
     /**
@@ -37,7 +39,7 @@ public class LocalRepositoryCache {
      * @param registerShutdownHook Whether to register shutdown hook (false for Spring apps)
      */
     public LocalRepositoryCache(Path cacheDirectory, boolean registerShutdownHook) throws IOException {
-        this(cacheDirectory, 100, registerShutdownHook);
+        this(cacheDirectory, DEFAULT_CLONE_DEPTH, registerShutdownHook);
     }
 
     /**

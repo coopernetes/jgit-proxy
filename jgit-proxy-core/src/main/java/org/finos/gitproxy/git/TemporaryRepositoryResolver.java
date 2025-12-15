@@ -52,11 +52,17 @@ public class TemporaryRepositoryResolver implements RepositoryResolver<HttpServl
         String authCredentials = "";
 
         if (authHeader != null && authHeader.startsWith("Basic ")) {
-            // Extract credentials from Basic auth
-            String base64Credentials = authHeader.substring("Basic ".length()).trim();
-            String credentials = new String(java.util.Base64.getDecoder().decode(base64Credentials));
-            // credentials format is "username:password"
-            authCredentials = credentials + "@";
+            try {
+                // Extract credentials from Basic auth
+                String base64Credentials =
+                        authHeader.substring("Basic ".length()).trim();
+                String credentials = new String(java.util.Base64.getDecoder().decode(base64Credentials));
+                // credentials format is "username:password"
+                authCredentials = credentials + "@";
+            } catch (IllegalArgumentException e) {
+                log.warn("Invalid Base64 encoding in Authorization header", e);
+                // Continue without auth credentials
+            }
         }
 
         // This is a simplified implementation

@@ -30,7 +30,7 @@ public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
     public void doHttpFilter(HttpServletRequest request, HttpServletResponse response) throws IOException {
         var requestDetails = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTRIBUTE);
         if (requestDetails == null) {
-            log.warn("GitRequestDetails not found in request details");
+            log.warn("GitRequestDetails not found in request attributes");
             return;
         }
 
