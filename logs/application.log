@@ -1,0 +1,1 @@
+2025-12-15 03:57:15.034 [Test worker] [] [] INFO  o.s.t.c.s.AnnotationConfigContextLoaderUtils - Could not detect default configuration classes for test class [org.finos.gitproxy.JgitProxyApplicationTests]: JgitProxyApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
