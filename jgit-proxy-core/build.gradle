@@ -38,6 +38,13 @@ dependencies {
     // Jakarta annotations
     api "jakarta.annotation:jakarta.annotation-api:3.0.0"
     
+    // Apache Commons Validator for email validation
+    implementation "commons-validator:commons-validator:1.9.0"
+    
+    // BouncyCastle for GPG signature verification
+    implementation "org.bouncycastle:bcprov-jdk18on:1.79"
+    implementation "org.bouncycastle:bcpg-jdk18on:1.79"
+    
     // JGit dependencies
     api "org.eclipse.jgit:org.eclipse.jgit:${jgitVersion}"
     implementation "org.eclipse.jgit:org.eclipse.jgit.http.apache:${jgitVersion}"

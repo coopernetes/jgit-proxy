@@ -18,6 +18,8 @@ public class GitRequestDetails {
     private Repository repository;
     private String branch; // null for fetch requests
     private Commit commit;
+    private List<Commit> commits = new ArrayList<>(); // All commits in a push
+    private String userEmail; // Email of the user performing the operation
     private GitProxyProvider provider;
     private List<GitProxyFilter> filters = new ArrayList<>();
     private GitResult result = GitResult.PENDING;
