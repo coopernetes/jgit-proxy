@@ -32,14 +32,6 @@ git-proxy:
     bitbucket:
       enabled: true
   filters:
-    github-user-authenticated:
-      enabled: true
-      order: 1
-      operations:
-        - PUSH
-      required-auth-schemes: bearer, token, basic
-      providers:
-        - github
     whitelists:
       - enabled: true
         order: 5
