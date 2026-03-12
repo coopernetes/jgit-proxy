@@ -27,6 +27,9 @@ dependencies {
     // Core module
     implementation project(':jgit-proxy-core')
     
+    // YAML configuration
+    implementation 'org.yaml:snakeyaml:2.2'
+    
     // Lombok
     compileOnly 'org.projectlombok:lombok:1.18.34'
     annotationProcessor 'org.projectlombok:lombok:1.18.34'
