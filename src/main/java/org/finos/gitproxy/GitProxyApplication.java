@@ -1,91 +1,83 @@
 package org.finos.gitproxy;
 
 import jakarta.servlet.DispatcherType;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
-import lombok.extern.slf4j.Slf4j;
+import java.util.Set;
 import org.eclipse.jetty.ee10.servlet.FilterHolder;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
 import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
-import org.finos.gitproxy.config.JettyConfigurationBuilder;
-import org.finos.gitproxy.config.JettyConfigurationLoader;
-import org.finos.gitproxy.provider.GitProxyProvider;
+import org.finos.gitproxy.git.HttpAuthScheme;
+import org.finos.gitproxy.provider.GitHubProvider;
 import org.finos.gitproxy.servlet.GitProxyServlet;
-import org.finos.gitproxy.servlet.filter.GitProxyFilter;
+import org.finos.gitproxy.servlet.filter.*;
 
-/**
- * Main application class for the Jetty-based GitProxy server. This application reads configuration from YAML files and
- * bootstraps the Jetty server with appropriate providers and filters.
- */
-@Slf4j
 public class GitProxyApplication {
     public static void main(String[] args) throws Exception {
-        // Load configuration
-        JettyConfigurationLoader configLoader = new JettyConfigurationLoader();
-        JettyConfigurationBuilder configBuilder = new JettyConfigurationBuilder(configLoader);
-
-        // Build providers from configuration
-        List<GitProxyProvider> providers = configBuilder.buildProviders();
-
-        if (providers.isEmpty()) {
-            log.warn("No providers configured, server will not handle any requests");
-        }
-
-        // Setup Jetty server
         var threadPool = new QueuedThreadPool();
         threadPool.setName("server");
+
         var server = new Server(threadPool);
 
-        // Configure server port
-        int port = configLoader.getServerPort();
         var connector = new ServerConnector(server);
-        connector.setPort(port);
+        connector.setPort(8080);
         server.addConnector(connector);
+
+        var gitHubProvider = new GitHubProvider("");
+        String urlPattern = gitHubProvider.servletMapping();
 
         var context = new ServletContextHandler("/", false, false);
 
-        // Setup each provider with its filters and servlet
-        for (GitProxyProvider provider : providers) {
-            log.info("Configuring provider: {} at {}", provider.getName(), provider.servletMapping());
+        var forceGitClientFilter = new ForceGitClientFilter();
+        var forceGitClientFilterHolder = new FilterHolder(forceGitClientFilter);
+        forceGitClientFilterHolder.setAsyncSupported(true);
+        context.addFilter(forceGitClientFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
 
-            String urlPattern = provider.servletMapping();
+        var parseRequestFilter = new ParseGitRequestFilter(gitHubProvider);
+        var parseRequestFilterHolder = new FilterHolder(parseRequestFilter);
+        parseRequestFilterHolder.setAsyncSupported(true);
+        context.addFilter(parseRequestFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
 
-            // Build and add filters for this provider
-            List<GitProxyFilter> filters = configBuilder.buildFiltersForProvider(provider);
+        var githubAuthorizedFilter = new GitHubUserAuthenticatedFilter(
+                10, gitHubProvider, Set.of(HttpAuthScheme.BASIC, HttpAuthScheme.TOKEN, HttpAuthScheme.BEARER));
+        var ghFilterHolder = new FilterHolder(githubAuthorizedFilter);
+        context.addFilter(ghFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
 
-            // Sort filters by order
-            filters.sort(Comparator.comparingInt(GitProxyFilter::getOrder));
+        var whitelistFilters = List.of(
+                //                                new WhitelistByUrlFilter(100, gitHubProvider, List.of("coopernetes"),
+                //                 RepositoryUrlFilter.Target.OWNER),
+                //                                new WhitelistByUrlFilter(
+                //                                        101, gitHubProvider, List.of("jgit-proxy", "test-repo"),
+                //                 RepositoryUrlFilter.Target.NAME),
+                new WhitelistByUrlFilter(
+                        102,
+                        gitHubProvider,
+                        List.of("finos/git-proxy", "coopernetes/test-repo"),
+                        RepositoryUrlFilter.Target.SLUG));
+        var whitelistAggregateFilter = new WhitelistAggregateFilter(20, gitHubProvider, whitelistFilters);
+        var whitelistAggFilterHolder = new FilterHolder(whitelistAggregateFilter);
+        whitelistAggFilterHolder.setAsyncSupported(true);
+        context.addFilter(whitelistAggFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
 
-            for (GitProxyFilter filter : filters) {
-                var filterHolder = new FilterHolder(filter);
-                filterHolder.setAsyncSupported(true);
-                context.addFilter(filterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
-                log.debug(
-                        "Added filter {} (order={}) for {}",
-                        filter.getClass().getSimpleName(),
-                        filter.getOrder(),
-                        provider.getName());
-            }
+        var auditFilter = new AuditLogFilter();
+        var auditFilterHolder = new FilterHolder(auditFilter);
+        auditFilterHolder.setAsyncSupported(true);
+        context.addFilter(auditFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
 
-            // Add proxy servlet for this provider
-            var proxyServlet = new GitProxyServlet();
-            var proxyServletHolder = new ServletHolder(proxyServlet);
-            proxyServletHolder.setInitParameter("proxyTo", provider.getUri().toString());
-            proxyServletHolder.setInitParameter("prefix", provider.servletPath());
-            proxyServletHolder.setInitParameter("hostHeader", provider.getUri().getHost());
-            proxyServletHolder.setInitParameter("preserveHost", "false");
-            context.addServlet(proxyServletHolder, urlPattern);
-            log.info("Added servlet for {} proxying to {}", provider.getName(), provider.getUri());
-        }
+        var proxyServlet = new GitProxyServlet();
+        var proxyServletHolder = new ServletHolder(proxyServlet);
+        proxyServletHolder.setInitParameter("proxyTo", "https://github.com");
+        proxyServletHolder.setInitParameter("prefix", "/github.com");
+        proxyServletHolder.setInitParameter("hostHeader", "github.com");
+        proxyServletHolder.setInitParameter("preserveHost", "false");
+        context.addServlet(proxyServletHolder, urlPattern);
 
         server.setHandler(context);
 
         server.start();
-        log.info("Server started at http://localhost:{}/", port);
-        System.out.println("Server started at http://localhost:" + port + "/");
+        System.out.println("Server started at http://localhost:8080/");
     }
 }

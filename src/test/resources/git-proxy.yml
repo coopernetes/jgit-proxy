@@ -1,8 +1,0 @@
-git-proxy:
-  providers:
-    github:
-      enabled: true
-logging:
-  level:
-    com.fasterxml.jackson: TRACE
-    org.springframework.boot.context.config: TRACE
