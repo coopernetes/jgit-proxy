@@ -66,10 +66,12 @@ The core module provides pluggable configuration through:
 - Default in-memory implementations
 
 ### Jetty Module
-Configuration is done programmatically in the `GitProxyJettyApplication` class. You can:
-- Add/remove providers
-- Configure filters
-- Set up whitelists
+The Jetty module uses YAML-based configuration loaded from `git-proxy.yml` and `git-proxy-local.yml`:
+- **Providers**: Configure GitHub, GitLab, Bitbucket, and custom providers
+- **Filters**: Configure whitelist filters for repository access control
+- **Environment overrides**: Use `GITPROXY_` prefixed environment variables
+
+See [`jgit-proxy-jetty/CONFIGURATION.md`](jgit-proxy-jetty/CONFIGURATION.md) for detailed configuration options.
 
 ### Spring Module
 Configuration is done through:
