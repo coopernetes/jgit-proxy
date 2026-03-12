@@ -1,0 +1,24 @@
+logging:
+  level:
+    org.finos.gitproxy: DEBUG
+git-proxy:
+  filters:
+    whitelists:
+      - enabled: true
+        order: 1100
+        operations:
+          - FETCH
+          - PUSH
+        providers:
+          - github
+        slugs:
+          - finos/git-proxy
+          - coopernetes/test-repo
+      - enabled: true
+        order: 1200
+        operations:
+          - FETCH
+        owners:
+          - finos
+        providers:
+          - github

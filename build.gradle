@@ -1,101 +1,31 @@
 plugins {
-    id 'java'
-    id 'application'
-    id 'org.springframework.boot' version '3.4.2'
-    id 'io.spring.dependency-management' version '1.1.6'
-    id 'com.diffplug.spotless' version '6.25.0'
-    id 'org.cyclonedx.bom' version '1.10.0'
-    id 'maven-publish'
+    id 'com.diffplug.spotless' version '6.25.0' apply false
+    id 'org.springframework.boot' version '3.4.2' apply false
+    id 'io.spring.dependency-management' version '1.1.6' apply false
 }
-
-group = 'org.finos.gitproxy'
-version = '0.0.1-SNAPSHOT'
-
-java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
-        vendor = JvmVendorSpec.ADOPTIUM
-    }
-}
-
-configurations {
-    compileOnly {
-        extendsFrom annotationProcessor
-    }
-}
-
-repositories {
-    mavenCentral()
-    maven {
-        url 'https://repo.eclipse.org/content/groups/releases/'
-    }
-}
-
-//application {
-//    mainClass = 'org.finos.gitproxy.GitProxyApplication'
-//}
 
 ext {
-    jgitVersion = '7.0.0.202409031743-r'
-    apacheHttpVersion = '4.5.13'
-    httpProxyServletVersion = '2.0'
     palantirJavaFormatVersion = '2.51.0'
-    jettyVersion = '12.0.22'
-    jakartaServletVersion = '6.1.0'
-    slf4jVersion = '2.0.17'
-    logbackVersion = '1.5.18'
 }
 
-dependencies {
-    implementation platform("org.eclipse.jetty:jetty-bom:${jettyVersion}")
-    implementation "org.eclipse.jetty:jetty-server"
-    implementation "org.eclipse.jetty.ee10:jetty-ee10-servlet"
-    implementation "org.eclipse.jetty.ee10:jetty-ee10-proxy"
-    implementation "jakarta.servlet:jakarta.servlet-api:${jakartaServletVersion}"
-    implementation "org.eclipse.jgit:org.eclipse.jgit:${jgitVersion}"
-    implementation "org.eclipse.jgit:org.eclipse.jgit.http.apache:${jgitVersion}"
-    implementation "org.eclipse.jgit:org.eclipse.jgit.http.server:${jgitVersion}"
-    implementation "org.apache.httpcomponents:httpclient:${apacheHttpVersion}"
-    implementation "org.mitre.dsmiley.httpproxy:smiley-http-proxy-servlet:${httpProxyServletVersion}"
-    implementation "ch.qos.logback:logback-core:${logbackVersion}"
-    implementation "ch.qos.logback:logback-classic:${logbackVersion}"
-    implementation "org.slf4j:slf4j-api:${slf4jVersion}"
-
-//TODO: Re-introduce spring as an optional app
-//    implementation "org.springframework.boot:spring-boot-starter-actuator"
-//    implementation "org.springframework.boot:spring-boot-starter-data-mongodb"
-    implementation("org.springframework.boot:spring-boot-starter-web") {
-        exclude group: 'org.springframework.boot', module: 'spring-boot-starter-tomcat'
-        exclude group: 'org.springframework.boot', module: 'spring-boot-starter-logging'
-    }
-    compileOnly 'org.projectlombok:lombok'
-    developmentOnly 'org.springframework.boot:spring-boot-devtools'
-    annotationProcessor 'org.projectlombok:lombok'
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-}
-
-tasks.named('test') {
-    useJUnitPlatform()
-}
-
-spotless {
-    format 'misc', {
-        target '*.properties','*.gradle', '*.md', '.gitignore'
-    }
-    java {
-        palantirJavaFormat("${palantirJavaFormatVersion}").formatJavadoc(true)
+allprojects {
+    group = 'org.finos.gitproxy'
+    version = '0.0.1-SNAPSHOT'
+    
+    repositories {
+        mavenCentral()
+        maven {
+            url 'https://repo.eclipse.org/content/groups/releases/'
+        }
     }
 }
 
-//compileJava.dependsOn 'spotlessApply'
-
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            from(components.java)
+subprojects {
+    apply plugin: 'com.diffplug.spotless'
+    
+    spotless {
+        java {
+            palantirJavaFormat("${palantirJavaFormatVersion}").formatJavadoc(true)
         }
     }
 }

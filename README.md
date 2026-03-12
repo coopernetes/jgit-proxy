@@ -1,10 +1,49 @@
 # git-proxy in Java
 This is a simple implementation of a git proxy in Java. This is a possible successor to [finos/git-proxy](https://github.com/finos/git-proxy) which is written in Node.
 
-## Usage
-To use this project, you need to have Java 17 or higher installed on your machine. You can run the project using the following command:
+## Project Structure
+
+This project has been restructured into a multi-module Gradle project with the following modules:
+
+### jgit-proxy-core
+Core module containing reusable proxy and filter code:
+- Servlet filters for request processing
+- Provider interfaces and implementations (GitHub, GitLab, Bitbucket)
+- Git protocol utilities
+- Pluggable configuration abstraction layer
+
+### jgit-proxy-jetty  
+Standalone Jetty server application that uses the core module to provide a lightweight proxy server without Spring dependencies.
+
+**To run:**
 ```shell
-./gradlew bootRun
+./gradlew :jgit-proxy-jetty:run
+```
+
+### jgit-proxy-spring
+Spring Boot application with:
+- REST API endpoints
+- Spring-based configuration
+- H2 database support for provider/filter configuration (planned)
+- JPA entities for persistence (planned)
+
+**To run (once compilation issues are resolved):**
+```shell
+./gradlew :jgit-proxy-spring:bootRun
+```
+
+## Usage
+
+### Using the Jetty Standalone Server
+The Jetty standalone server is the simplest way to run the proxy:
+
+```shell
+./gradlew :jgit-proxy-jetty:run
+```
+
+### Using the Spring Boot Server
+```shell
+./gradlew :jgit-proxy-spring:bootRun
 ```
 
 ## Endpoints
@@ -16,6 +55,46 @@ The proxy has support for GitHub, GitLab, and Bitbucket. The following endpoints
 An example of how to use the proxy is as follows:
 ```shell
 git clone http://localhost:8080/github.com/finos/git-proxy.git
+```
+
+## Configuration
+
+### Core Module
+The core module provides pluggable configuration through:
+- `ProviderConfigurationSource` - Interface for loading provider configurations
+- `FilterConfigurationSource` - Interface for loading filter configurations
+- Default in-memory implementations
+
+### Jetty Module
+The Jetty module uses YAML-based configuration loaded from `git-proxy.yml` and `git-proxy-local.yml`:
+- **Providers**: Configure GitHub, GitLab, Bitbucket, and custom providers
+- **Filters**: Configure whitelist filters for repository access control
+- **Environment overrides**: Use `GITPROXY_` prefixed environment variables
+
+See [`jgit-proxy-jetty/CONFIGURATION.md`](jgit-proxy-jetty/CONFIGURATION.md) for detailed configuration options.
+
+### Spring Module
+Configuration is done through:
+- `application.yml` for application properties
+- JPA/H2 database for dynamic provider/filter configuration (planned)
+
+## Development
+
+### Building the Project
+```shell
+./gradlew build
+```
+
+### Building Individual Modules
+```shell
+./gradlew :jgit-proxy-core:build
+./gradlew :jgit-proxy-jetty:build
+./gradlew :jgit-proxy-spring:build
+```
+
+### Running Tests
+```shell
+./gradlew test
 ```
 
 ## Demo
