@@ -74,6 +74,8 @@ public class LocalRepositoryCache {
         CachedRepository cached = cache.get(cacheKey);
         if (cached != null && cached.isValid()) {
             log.debug("Using cached repository for: {}", remoteUrl);
+            // Increment open count so JGit's close() doesn't drop it to zero while we still cache it
+            cached.repository.incrementOpen();
             return cached.repository;
         }
 
@@ -96,6 +98,7 @@ public class LocalRepositoryCache {
         // Double-check after acquiring lock
         CachedRepository cached = cache.get(cacheKey);
         if (cached != null && cached.isValid()) {
+            cached.repository.incrementOpen();
             return cached.repository;
         }
 

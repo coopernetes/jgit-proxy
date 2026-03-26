@@ -48,7 +48,7 @@ dependencies {
     // JGit dependencies
     api "org.eclipse.jgit:org.eclipse.jgit:${jgitVersion}"
     implementation "org.eclipse.jgit:org.eclipse.jgit.http.apache:${jgitVersion}"
-    implementation "org.eclipse.jgit:org.eclipse.jgit.http.server:${jgitVersion}"
+    api "org.eclipse.jgit:org.eclipse.jgit.http.server:${jgitVersion}"
     
     // HTTP Client
     implementation "org.apache.httpcomponents:httpclient:${apacheHttpVersion}"
