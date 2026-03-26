@@ -18,11 +18,14 @@ import org.finos.gitproxy.provider.GitProxyProvider;
  * Repository resolver for store-and-forward mode. Syncs a local bare repo from the upstream provider on each open,
  * ensuring the local mirror is fresh for both fetch and push operations.
  *
- * <p>Stores the clean upstream URL (without credentials) in the repository config under {@code gitproxy.upstreamUrl} so
- * that {@link ForwardingPostReceiveHook} can read it later to know where to push.
+ * <p><strong>Public repositories only.</strong> The local cache clones and fetches without credentials — no PATs or
+ * tokens are ever written to disk. If the upstream repository requires authentication (private repo), the clone will
+ * fail and the client receives a clear error directing them to use the transparent proxy path instead.
  *
- * <p>Also stores extracted credentials as a request attribute ({@link #CREDENTIALS_ATTRIBUTE}) so that
- * {@link StoreAndForwardReceivePackFactory} can pass them to the forwarding hook.
+ * <p>Client credentials are extracted from the request and stored as a request attribute
+ * ({@link #CREDENTIALS_ATTRIBUTE}) so that {@link StoreAndForwardReceivePackFactory} can pass them to
+ * {@link ForwardingPostReceiveHook} for the upstream push. These credentials exist only in memory for the duration of
+ * the request.
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -41,14 +44,12 @@ public class StoreAndForwardRepositoryResolver implements RepositoryResolver<Htt
         // JGit passes name as the path after the servlet mapping, e.g. "owner/repo.git"
         String cleanName = name.replaceAll("\\.git$", "");
 
-        // Extract credentials from Basic auth header or URL userinfo
-        String[] userPass = extractCredentials(req);
-
-        // Construct URLs
+        // Construct the clean upstream URL (no credentials, ever)
         String cleanUpstreamUrl = provider.getUri() + "/" + cleanName + ".git";
-        String authenticatedUrl = buildAuthenticatedUrl(userPass, cleanName);
 
-        // Store credentials as request attribute for ReceivePackFactory to pick up
+        // Extract client credentials for the upstream push (in-memory only).
+        // These are NOT used for cloning — the cache always clones unauthenticated.
+        String[] userPass = extractCredentials(req);
         if (userPass != null) {
             CredentialsProvider creds = new UsernamePasswordCredentialsProvider(userPass[0], userPass[1]);
             req.setAttribute(CREDENTIALS_ATTRIBUTE, creds);
@@ -57,25 +58,34 @@ public class StoreAndForwardRepositoryResolver implements RepositoryResolver<Htt
         log.info("Opening store-and-forward repository: {} -> {}", name, cleanUpstreamUrl);
 
         try {
-            // Clone or fetch from upstream (using authenticated URL for private repos)
-            Repository repo = cache.getOrClone(authenticatedUrl);
+            // Clone or fetch from upstream WITHOUT credentials.
+            // This intentionally only works for public repositories.
+            Repository repo = cache.getOrClone(cleanUpstreamUrl);
 
-            // Store the clean upstream URL so PostReceiveHook can find it
+            // Store the upstream URL so PostReceiveHook can find it
             repo.getConfig().setString("gitproxy", null, "upstreamUrl", cleanUpstreamUrl);
             repo.getConfig().save();
 
             return repo;
         } catch (Exception e) {
             log.error("Failed to open repository: {} from upstream {}", name, cleanUpstreamUrl, e);
+
+            // Provide a clear error for private repos that fail to clone
+            String message = e.getMessage() != null ? e.getMessage() : "";
+            if (message.contains("Authentication") || message.contains("401") || message.contains("403")) {
+                throw new ServiceMayNotContinueException("Store-and-forward mode only supports public repositories. "
+                        + "For private repositories, use the proxy path: /proxy"
+                        + provider.servletPath()
+                        + "/" + cleanName);
+            }
+
             throw new RepositoryNotFoundException(name, e);
         }
     }
 
     /**
-     * Extract credentials from either the Authorization header or the URL userinfo. Git clients typically only send
-     * Basic auth after a 401 challenge, but when credentials are embedded in the remote URL (e.g.
-     * {@code http://user:token@host/...}), they appear in the Authorization header on the initial request for some
-     * clients, or not at all for others. This method tries both sources.
+     * Extract credentials from either the Authorization header or the URL userinfo. These are used only for the
+     * upstream push via {@link ForwardingPostReceiveHook}, never for cloning or caching.
      */
     private String[] extractCredentials(HttpServletRequest req) {
         // Try Authorization header first
@@ -94,7 +104,6 @@ public class StoreAndForwardRepositoryResolver implements RepositoryResolver<Htt
         }
 
         // Fall back to URL userinfo — git embeds user:pass in the request URL
-        // The servlet container exposes this via the request URL
         String requestUrl = req.getRequestURL().toString();
         try {
             java.net.URI uri = java.net.URI.create(requestUrl);
@@ -111,13 +120,5 @@ public class StoreAndForwardRepositoryResolver implements RepositoryResolver<Htt
         }
 
         return null;
-    }
-
-    private String buildAuthenticatedUrl(String[] userPass, String repoPath) {
-        String host = provider.getUri().getHost();
-        if (userPass != null) {
-            return "https://" + userPass[0] + ":" + userPass[1] + "@" + host + "/" + repoPath + ".git";
-        }
-        return "https://" + host + "/" + repoPath + ".git";
     }
 }

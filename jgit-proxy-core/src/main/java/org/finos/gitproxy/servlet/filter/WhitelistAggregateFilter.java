@@ -43,6 +43,12 @@ public class WhitelistAggregateFilter extends AbstractProviderAwareGitProxyFilte
         this.whitelistFilters = whitelistFilters;
     }
 
+    public WhitelistAggregateFilter(
+            int order, GitProxyProvider provider, List<WhitelistByUrlFilter> whitelistFilters, String pathPrefix) {
+        super(validateWhitelistOrder(order), Set.of(HttpOperation.FETCH, HttpOperation.PUSH), provider, pathPrefix);
+        this.whitelistFilters = whitelistFilters;
+    }
+
     /**
      * Validates that the whitelist filter order is within the allowed range.
      *
@@ -66,10 +72,7 @@ public class WhitelistAggregateFilter extends AbstractProviderAwareGitProxyFilte
         }
         String whitelistedBy = (String) request.getAttribute(WHITELISTED_BY_ATTRIBUTE);
         if (whitelistedBy != null) {
-            if (log.isDebugEnabled()) {
-                log.debug("Whitelisted by {}", whitelistedBy);
-            }
-            setResult(request, GitRequestDetails.GitResult.ALLOWED, whitelistedBy);
+            log.debug("Whitelisted by {}", whitelistedBy);
         } else {
             setResult(request, GitRequestDetails.GitResult.BLOCKED, null);
             var operation = determineOperation(request);

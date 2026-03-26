@@ -18,10 +18,12 @@ public class GitRequestDetails {
     private Repository repository;
     private String branch; // null for fetch requests
     private Commit commit; // Head/parent commit from the push
+    private String commitFrom; // Old ref SHA from the packet line (the push range start)
+    private String commitTo; // New ref SHA from the packet line (the push range end)
     private List<Commit> pushedCommits = new ArrayList<>(); // All commits received in this push
     private GitProxyProvider provider;
     private List<GitProxyFilter> filters = new ArrayList<>();
-    private GitResult result = GitResult.PENDING;
+    private GitResult result = GitResult.ALLOWED;
     private String reason;
 
     @Builder

@@ -3,6 +3,8 @@ package org.finos.gitproxy.git;
 import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
 import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Collection;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.transport.PreReceiveHook;
@@ -25,8 +27,10 @@ public class SlowApprovalPreReceiveHook implements PreReceiveHook {
 
     @Override
     public void onPreReceive(ReceivePack rp, Collection<ReceiveCommand> commands) {
-        rp.sendMessage(CYAN + "[git-proxy] " + KEY.emoji() + "  Push received, submitting for approval..." + RESET);
-        rp.sendMessage(YELLOW + "[git-proxy] " + WARNING.emoji()
+        OutputStream msgOut = rp.getMessageOutputStream();
+
+        sendAndFlush(rp, msgOut, CYAN + "[git-proxy] " + KEY.emoji() + "  Push received, submitting for approval..." + RESET);
+        sendAndFlush(rp, msgOut, YELLOW + "[git-proxy] " + WARNING.emoji()
                 + String.format("  Waiting for external approval (%ds timeout)...", TOTAL_SECONDS)
                 + RESET);
 
@@ -35,17 +39,27 @@ public class SlowApprovalPreReceiveHook implements PreReceiveHook {
                 Thread.sleep(INTERVAL_SECONDS * 1000L);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                rp.sendMessage(RED + "[git-proxy] " + CROSS_MARK.emoji() + "  Approval check interrupted" + RESET);
+                sendAndFlush(rp, msgOut, RED + "[git-proxy] " + CROSS_MARK.emoji() + "  Approval check interrupted" + RESET);
                 return;
             }
 
             int remaining = TOTAL_SECONDS - elapsed - INTERVAL_SECONDS;
             if (remaining > 0) {
-                rp.sendMessage(YELLOW + "[git-proxy] " + WARNING.emoji()
+                sendAndFlush(rp, msgOut, YELLOW + "[git-proxy] " + WARNING.emoji()
                         + String.format("  Still waiting for approval... (%ds remaining)", remaining) + RESET);
             }
         }
 
-        rp.sendMessage(GREEN + "[git-proxy] " + HEAVY_CHECK_MARK.emoji() + "  Approval granted" + RESET);
+        sendAndFlush(rp, msgOut, GREEN + "[git-proxy] " + HEAVY_CHECK_MARK.emoji() + "  Approval granted" + RESET);
+    }
+
+    /** Send a sideband message and flush immediately so it streams to the git client over HTTP. */
+    private void sendAndFlush(ReceivePack rp, OutputStream msgOut, String message) {
+        rp.sendMessage(message);
+        try {
+            msgOut.flush();
+        } catch (IOException e) {
+            log.warn("Failed to flush sideband message", e);
+        }
     }
 }

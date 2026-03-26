@@ -21,6 +21,31 @@ repositories {
 
 application {
     mainClass = 'org.finos.gitproxy.jetty.GitProxyJettyApplication'
+    applicationDefaultJvmArgs = ["-Djgitproxy.pidfile=${buildDir}/jgit-proxy.pid"]
+}
+
+tasks.register('stop') {
+    group = 'application'
+    description = 'Stops the running jgit-proxy server'
+    doLast {
+        def pf = file("${buildDir}/jgit-proxy.pid")
+        if (pf.exists()) {
+            def pid = pf.text.trim()
+            logger.lifecycle("Stopping jgit-proxy (PID: ${pid})...")
+            def result = exec {
+                commandLine 'kill', pid
+                ignoreExitValue = true
+            }
+            if (result.exitValue == 0) {
+                logger.lifecycle("Stopped jgit-proxy server")
+            } else {
+                logger.warn("Process ${pid} not found — may have already stopped")
+            }
+            pf.delete()
+        } else {
+            logger.warn("No PID file found. Is the server running?")
+        }
+    }
 }
 
 dependencies {

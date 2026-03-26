@@ -36,6 +36,10 @@ public class ParseGitRequestFilter extends AbstractProviderAwareGitProxyFilter i
         super(ORDER, provider);
     }
 
+    public ParseGitRequestFilter(GitProxyProvider provider, String pathPrefix) {
+        super(ORDER, provider, pathPrefix);
+    }
+
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
@@ -77,11 +81,6 @@ public class ParseGitRequestFilter extends AbstractProviderAwareGitProxyFilter i
                 .slug(getSlug(request.getPathInfo()))
                 .build());
 
-        if (op == HttpOperation.INFO) {
-            gr.setResult(GitRequestDetails.GitResult.ALLOWED);
-            return gr;
-        }
-
         if (op == HttpOperation.PUSH) {
             try {
                 // Read packet line using JGit
@@ -97,6 +96,8 @@ public class ParseGitRequestFilter extends AbstractProviderAwareGitProxyFilter i
                 // Set all relevant fields from pushInfo to GitRequestDetails
                 gr.setBranch(pushInfo.getReference());
                 gr.setCommit(pushInfo.getCommit());
+                gr.setCommitFrom(pushInfo.getOldCommit());
+                gr.setCommitTo(pushInfo.getNewCommit());
 
                 if (log.isDebugEnabled()) {
                     logPushDetails(gr.getId(), packetLine, packData);

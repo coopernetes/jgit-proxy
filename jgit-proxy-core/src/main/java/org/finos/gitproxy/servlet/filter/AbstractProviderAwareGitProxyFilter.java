@@ -32,11 +32,18 @@ public abstract class AbstractProviderAwareGitProxyFilter extends AbstractGitPro
         implements ProviderAwareGitProxyFilter {
 
     protected final GitProxyProvider provider;
+    private final String pathPrefix;
 
     public AbstractProviderAwareGitProxyFilter(
             int order, Set<HttpOperation> appliedOperations, GitProxyProvider provider) {
+        this(order, appliedOperations, provider, "");
+    }
+
+    public AbstractProviderAwareGitProxyFilter(
+            int order, Set<HttpOperation> appliedOperations, GitProxyProvider provider, String pathPrefix) {
         super(order, appliedOperations);
         this.provider = provider;
+        this.pathPrefix = pathPrefix != null ? pathPrefix : "";
     }
 
     /**
@@ -46,14 +53,26 @@ public abstract class AbstractProviderAwareGitProxyFilter extends AbstractGitPro
      * @param provider provider which this filter applies to
      */
     public AbstractProviderAwareGitProxyFilter(int order, GitProxyProvider provider) {
-        super(order, ALL_OPERATIONS);
-        this.provider = provider;
+        this(order, ALL_OPERATIONS, provider, "");
+    }
+
+    /**
+     * Applies this GitProxyFilter to all git operations for a given provider, with a path prefix for the servlet
+     * mapping (e.g. {@code /proxy} for transparent proxy mode).
+     *
+     * @param order the order the Filters are applied
+     * @param provider provider which this filter applies to
+     * @param pathPrefix prefix prepended to the provider's servlet path for URI matching
+     */
+    public AbstractProviderAwareGitProxyFilter(int order, GitProxyProvider provider, String pathPrefix) {
+        this(order, ALL_OPERATIONS, provider, pathPrefix);
     }
 
     @Override
     public Predicate<HttpServletRequest> shouldFilter() {
+        String expectedPath = pathPrefix + provider.servletPath();
         return super.shouldFilter()
-                .and((HttpServletRequest request) -> request.getRequestURI().startsWith(provider.servletPath()));
+                .and((HttpServletRequest request) -> request.getRequestURI().startsWith(expectedPath));
     }
 
     /**
