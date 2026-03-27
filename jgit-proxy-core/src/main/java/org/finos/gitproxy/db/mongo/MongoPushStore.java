@@ -4,9 +4,7 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
-import com.mongodb.client.model.IndexOptions;
 import com.mongodb.client.model.Indexes;
-import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.Sorts;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -45,14 +43,13 @@ public class MongoPushStore implements PushStore {
         collection.createIndex(Indexes.ascending("repoName"));
         collection.createIndex(Indexes.ascending("user"));
         collection.createIndex(Indexes.descending("timestamp"));
-        collection.createIndex(Indexes.ascending("_id"), new IndexOptions().unique(true));
         log.info("MongoDB push store initialized");
     }
 
     @Override
     public void save(PushRecord record) {
         Document doc = toDocument(record);
-        getCollection().replaceOne(Filters.eq("_id", record.getId()), doc, new ReplaceOptions().upsert(true));
+        getCollection().insertOne(doc);
     }
 
     @Override

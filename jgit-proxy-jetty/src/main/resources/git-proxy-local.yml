@@ -1,6 +1,8 @@
 logging:
   level:
     org.finos.gitproxy: DEBUG
+database:
+  type: h2-mem
 git-proxy:
   filters:
     whitelists:
