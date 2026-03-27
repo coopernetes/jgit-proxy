@@ -12,6 +12,7 @@ import org.eclipse.jgit.transport.resolver.ReceivePackFactory;
 import org.eclipse.jgit.transport.resolver.ServiceNotAuthorizedException;
 import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
 import org.finos.gitproxy.config.CommitConfig;
+import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.provider.GitProxyProvider;
 
 /**
@@ -26,6 +27,7 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
 
     private final GitProxyProvider provider;
     private final CommitConfig commitConfig;
+    private final PushStore pushStore;
 
     @Override
     public ReceivePack create(HttpServletRequest req, Repository db)
@@ -42,22 +44,56 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
             creds = extractBasicAuth(req);
         }
 
-        // Per-request validation context shared across validation hooks
+        // Per-request shared contexts
         var validationContext = new ValidationContext();
+        var pushContext = new PushContext();
+
+        // Persistence hook (records push to database)
+        var persistenceHook = pushStore != null ? new PushStorePersistenceHook(pushStore, provider) : null;
+        if (persistenceHook != null) {
+            persistenceHook.setPushContext(pushContext);
+        }
 
         // Chain hooks:
+        // 0. PushStorePersistenceHook.preReceive — record initial push (if store configured)
         // 1. SlowApprovalPreReceiveHook — approval gate with sideband feedback (short-circuits if rejected)
         // 2. AuthorEmailValidationHook — validates emails, writes to context
         // 3. CommitMessageValidationHook — validates messages, writes to context
         // 4. ValidationVerifierHook — reads context, sends summary, rejects if issues
         // 5. ProxyPreReceiveHook — informational commit inspection (only if verified)
-        rp.setPreReceiveHook(chainPreReceiveHooks(
+        // 6. DiffGenerationHook — generates push diff and default-branch diff
+        // 7. PushStorePersistenceHook.validationResult — capture results + diffs (if store configured)
+        PreReceiveHook[] preHooks;
+        if (persistenceHook != null) {
+            preHooks = new PreReceiveHook[] {
+                persistenceHook.preReceiveHook(),
                 new SlowApprovalPreReceiveHook(),
                 new AuthorEmailValidationHook(commitConfig, validationContext),
                 new CommitMessageValidationHook(commitConfig, validationContext),
                 new ValidationVerifierHook(validationContext),
-                new ProxyPreReceiveHook()));
-        rp.setPostReceiveHook(new ForwardingPostReceiveHook(provider, creds));
+                new ProxyPreReceiveHook(),
+                new DiffGenerationHook(pushContext),
+                persistenceHook.validationResultHook(validationContext)
+            };
+        } else {
+            preHooks = new PreReceiveHook[] {
+                new SlowApprovalPreReceiveHook(),
+                new AuthorEmailValidationHook(commitConfig, validationContext),
+                new CommitMessageValidationHook(commitConfig, validationContext),
+                new ValidationVerifierHook(validationContext),
+                new ProxyPreReceiveHook(),
+                new DiffGenerationHook(pushContext)
+            };
+        }
+        rp.setPreReceiveHook(chainPreReceiveHooks(preHooks));
+
+        // Post-receive: forward to upstream, then record final status
+        var forwardingHook = new ForwardingPostReceiveHook(provider, creds);
+        if (persistenceHook != null) {
+            rp.setPostReceiveHook(chainPostReceiveHooks(forwardingHook, persistenceHook.postReceiveHook()));
+        } else {
+            rp.setPostReceiveHook(forwardingHook);
+        }
 
         log.debug("Created ReceivePack for {} with {} auth", provider.getName(), creds != null ? "credentials" : "no");
 
@@ -79,6 +115,14 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
                 if (commands.stream().anyMatch(cmd -> cmd.getResult() != ReceiveCommand.Result.NOT_ATTEMPTED)) {
                     return;
                 }
+            }
+        };
+    }
+
+    private static PostReceiveHook chainPostReceiveHooks(PostReceiveHook... hooks) {
+        return (ReceivePack rp, Collection<ReceiveCommand> commands) -> {
+            for (PostReceiveHook hook : hooks) {
+                hook.onPostReceive(rp, commands);
             }
         };
     }

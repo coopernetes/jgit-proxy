@@ -1,5 +1,7 @@
 package org.finos.gitproxy.servlet.filter;
 
+import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
+import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
 import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,6 +14,7 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.git.Commit;
+import org.finos.gitproxy.git.GitClient;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
 
@@ -57,13 +60,19 @@ public class CheckCommitMessagesFilter extends AbstractGitProxyFilter {
 
         if (!illegalMessages.isEmpty()) {
             log.warn("Illegal commit messages found: {}", illegalMessages);
-            String errorMessage = String.format(
-                    "Your push has been blocked.\n"
-                            + "Please ensure your commit message(s) does not contain sensitive information or URLs.\n\n"
-                            + "The following commit messages are illegal: %s",
-                    illegalMessages);
-            setResult(request, GitRequestDetails.GitResult.BLOCKED, "Illegal commit messages");
-            sendGitError(request, response, errorMessage);
+            String title = NO_ENTRY.emoji() + "  Push Blocked — Invalid Commit Message";
+            String messageList = illegalMessages.stream()
+                    .map(m -> CROSS_MARK.emoji() + "  " + m.lines().findFirst().orElse("(empty)"))
+                    .collect(Collectors.joining("\n"));
+            String message = "Commit message(s) contain blocked content:\n"
+                    + "\n"
+                    + messageList + "\n"
+                    + "\n"
+                    + WARNING.emoji() + "  Messages must not contain:\n"
+                    + "   - WIP, fixup!, squash!, DO NOT MERGE\n"
+                    + "   - Sensitive data (passwords, tokens, secrets)";
+            blockAndSendError(
+                    request, response, "Illegal commit messages", GitClient.format(title, message, RED, null));
             return;
         }
 

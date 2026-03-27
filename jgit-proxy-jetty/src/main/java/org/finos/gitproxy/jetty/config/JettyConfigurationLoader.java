@@ -195,6 +195,23 @@ public class JettyConfigurationLoader {
         return Collections.emptyList();
     }
 
+    /** Returns the database type (memory, h2-mem, h2-file, sqlite, postgres, mongo). */
+    @SuppressWarnings("unchecked")
+    public String getDatabaseType() {
+        Map<String, Object> db = (Map<String, Object>) config.get("database");
+        if (db != null && db.containsKey("type")) {
+            return (String) db.get("type");
+        }
+        return "h2-mem";
+    }
+
+    /** Returns the database configuration map. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getDatabaseConfig() {
+        Map<String, Object> db = (Map<String, Object>) config.get("database");
+        return db != null ? db : Collections.emptyMap();
+    }
+
     /** Returns the full merged configuration map (for debugging/testing). */
     public Map<String, Object> getRawConfig() {
         return Collections.unmodifiableMap(config);

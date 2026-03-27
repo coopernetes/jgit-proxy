@@ -1,5 +1,0 @@
-{
-  "healthcheck": "/api/v1/healthcheck",
-  "push": "/api/v1/push",
-  "auth": "/api/auth"
-}

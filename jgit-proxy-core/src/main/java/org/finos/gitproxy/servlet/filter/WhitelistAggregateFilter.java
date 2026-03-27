@@ -74,15 +74,18 @@ public class WhitelistAggregateFilter extends AbstractProviderAwareGitProxyFilte
         if (whitelistedBy != null) {
             log.debug("Whitelisted by {}", whitelistedBy);
         } else {
-            setResult(request, GitRequestDetails.GitResult.BLOCKED, null);
             var operation = determineOperation(request);
-            String title =
-                    GitClient.SymbolCodes.NO_ENTRY.emoji() + " Disallowed! " + GitClient.SymbolCodes.NO_ENTRY.emoji();
-            String action = operation == HttpOperation.PUSH ? "Pushes to" : "Fetches from";
-            String message = action + " this repository are not permitted.";
-            sendGitError(
+            String action = operation == HttpOperation.PUSH ? "Push" : "Fetch";
+            String title = GitClient.SymbolCodes.NO_ENTRY.emoji() + "  " + action + " Blocked — Repository Not Allowed";
+            String verb = operation == HttpOperation.PUSH ? "Pushes to" : "Fetches from";
+            String message = verb + " this repository are not permitted.\n"
+                    + "\n"
+                    + "Contact an administrator to add this repository\n"
+                    + "to the allowlist.";
+            blockAndSendError(
                     request,
                     response,
+                    "Repository not in allowlist",
                     GitClient.formatForOperation(title, message, GitClient.AnsiColor.RED, operation));
         }
     }

@@ -7,6 +7,7 @@ import java.util.UUID;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
+import org.finos.gitproxy.db.model.PushStep;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.servlet.filter.GitProxyFilter;
 
@@ -23,6 +24,7 @@ public class GitRequestDetails {
     private List<Commit> pushedCommits = new ArrayList<>(); // All commits received in this push
     private GitProxyProvider provider;
     private List<GitProxyFilter> filters = new ArrayList<>();
+    private List<PushStep> steps = new ArrayList<>(); // Filter/hook results for audit trail
     private GitResult result = GitResult.ALLOWED;
     private String reason;
 

@@ -1,5 +1,7 @@
 package org.finos.gitproxy.servlet.filter;
 
+import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
+import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
 import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -7,6 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
+import org.finos.gitproxy.git.GitClient;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
 import org.finos.gitproxy.service.UserAuthorizationService;
@@ -44,20 +47,23 @@ public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
 
         if (userEmail == null || userEmail.isEmpty()) {
             log.warn("User email not found in commit author");
-            String errorMessage = "Push blocked: User not found. Please contact an administrator for support.";
-            setResult(request, GitRequestDetails.GitResult.BLOCKED, "User not found");
-            sendGitError(request, response, errorMessage);
+            String title = NO_ENTRY.emoji() + "  Push Blocked — Unknown User";
+            String message = "Could not identify the pushing user.\n"
+                    + "\n"
+                    + "Contact an administrator for support.";
+            blockAndSendError(request, response, "User not found", GitClient.format(title, message, RED, null));
             return;
         }
 
         // Check if user exists
         if (!userAuthorizationService.userExists(userEmail)) {
             log.warn("User {} does not exist in the system", userEmail);
-            String errorMessage = String.format(
-                    "Push blocked: User %s not found in the system. Please contact an administrator for support.",
-                    userEmail);
-            setResult(request, GitRequestDetails.GitResult.BLOCKED, "User does not exist");
-            sendGitError(request, response, errorMessage);
+            String title = NO_ENTRY.emoji() + "  Push Blocked — User Not Registered";
+            String message = CROSS_MARK.emoji() + "  " + userEmail + " is not registered.\n"
+                    + "\n"
+                    + "Contact an administrator for support.";
+            blockAndSendError(
+                    request, response, "User does not exist", GitClient.format(title, message, RED, null));
             return;
         }
 
@@ -69,10 +75,11 @@ public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
 
         if (!isAuthorized) {
             log.warn("User {} is not authorized to push to repository {}", userEmail, repositoryUrl);
-            String errorMessage = String.format(
-                    "Your push has been blocked (%s is not allowed to push on repo %s)", userEmail, repositoryUrl);
-            setResult(request, GitRequestDetails.GitResult.BLOCKED, "User not authorized");
-            sendGitError(request, response, errorMessage);
+            String title = NO_ENTRY.emoji() + "  Push Blocked — Unauthorized";
+            String message = CROSS_MARK.emoji() + "  " + userEmail + " is not allowed to push to:\n"
+                    + "   " + LINK.emoji() + "  " + repositoryUrl;
+            blockAndSendError(
+                    request, response, "User not authorized", GitClient.format(title, message, RED, null));
             return;
         }
 

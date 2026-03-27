@@ -183,11 +183,13 @@ public class GitClient {
     }
 
     private static String formatTitle(String content) {
-        return "\n\n\t" + content;
+        return "\n\n\t" + content + "\n";
     }
 
     private static String formatMessage(String content) {
-        return "\n\n" + content;
+        // Indent each line with a tab to align with the title
+        String indented = content.lines().map(line -> "\t" + line).collect(java.util.stream.Collectors.joining("\n"));
+        return "\n" + indented + "\n";
     }
 
     private static String convertSymbolsToPlain(String content) {

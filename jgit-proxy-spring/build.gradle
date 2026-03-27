@@ -42,8 +42,11 @@ dependencies {
     }
     implementation "org.springframework.boot:spring-boot-starter-data-jpa"
     
-    // H2 Database
+    // Database drivers
     runtimeOnly 'com.h2database:h2'
+    runtimeOnly 'org.xerial:sqlite-jdbc'
+    runtimeOnly 'org.postgresql:postgresql'
+    runtimeOnly 'org.mongodb:mongodb-driver-sync:5.3.1'
     
     // Lombok - managed by Spring Boot BOM
     compileOnly 'org.projectlombok:lombok'

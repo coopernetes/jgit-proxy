@@ -29,6 +29,11 @@ ext {
     jakartaServletVersion = '6.1.0'
     slf4jVersion = '2.0.17'
     logbackVersion = '1.5.18'
+    hikariVersion = '6.2.1'
+    h2Version = '2.3.232'
+    sqliteVersion = '3.47.2.0'
+    postgresVersion = '42.7.4'
+    mongoVersion = '5.3.1'
 }
 
 dependencies {
@@ -71,13 +76,25 @@ dependencies {
     api "org.eclipse.jetty.ee10:jetty-ee10-servlet:${jettyVersion}"
     api "org.eclipse.jetty.ee10:jetty-ee10-proxy:${jettyVersion}"
     
+    // Database - connection pooling
+    api "com.zaxxer:HikariCP:${hikariVersion}"
+
+    // Database - JDBC drivers (optional at runtime, depending on which store is used)
+    compileOnly "com.h2database:h2:${h2Version}"
+    compileOnly "org.xerial:sqlite-jdbc:${sqliteVersion}"
+    compileOnly "org.postgresql:postgresql:${postgresVersion}"
+
+    // Database - MongoDB driver
+    compileOnly "org.mongodb:mongodb-driver-sync:${mongoVersion}"
+
     // Lombok
     compileOnly 'org.projectlombok:lombok:1.18.34'
     annotationProcessor 'org.projectlombok:lombok:1.18.34'
-    
+
     // Testing
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.0'
+    testRuntimeOnly "com.h2database:h2:${h2Version}"
 }
 
 tasks.named('test') {

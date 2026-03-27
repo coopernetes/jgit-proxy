@@ -11,6 +11,8 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.function.Predicate;
 import org.eclipse.jgit.http.server.GitSmartHttpTools;
+import org.finos.gitproxy.db.model.PushStep;
+import org.finos.gitproxy.db.model.StepStatus;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
 // import org.springframework.core.Ordered;
@@ -88,10 +90,12 @@ public interface GitProxyFilter extends Filter {
             // Execute filter logic
             doHttpFilter(httpRequest, httpResponse);
 
-            // If response was committed, stop the chain
+            // If response was committed (filter blocked), the filter already recorded the step
+            // via blockAndSendError. If not committed, auto-record PASS.
             if (httpResponse.isCommitted()) {
                 return;
             }
+            recordStep(httpRequest, StepStatus.PASS, null, null);
         }
         chain.doFilter(request, response);
     }
@@ -118,6 +122,55 @@ public interface GitProxyFilter extends Filter {
     default void sendGitError(HttpServletRequest httpRequest, HttpServletResponse httpResponse, String message)
             throws IOException {
         GitSmartHttpTools.sendError(httpRequest, httpResponse, SC_OK, message);
+    }
+
+    /**
+     * Record a filter step result on the request for later persistence. Each filter that runs should have its outcome
+     * recorded as a {@link PushStep} so the audit trail captures which filters passed and which blocked.
+     *
+     * @param request The HTTP request
+     * @param status The step result (PASS, BLOCKED, FAIL, SKIPPED)
+     * @param reason Short reason (for BLOCKED/FAIL steps)
+     * @param content Detailed content (e.g., the formatted error message sent to the client)
+     */
+    default void recordStep(HttpServletRequest request, StepStatus status, String reason, String content) {
+        var details = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTRIBUTE);
+        if (details == null) return;
+
+        PushStep step = PushStep.builder()
+                .pushId(details.getId().toString())
+                .stepName(this.getClass().getSimpleName())
+                .stepOrder(this.getOrder())
+                .status(status)
+                .content(content)
+                .blockedMessage(status == StepStatus.BLOCKED ? reason : null)
+                .errorMessage(status == StepStatus.FAIL ? reason : null)
+                .build();
+        details.getSteps().add(step);
+    }
+
+    /**
+     * Block the push and send an error response to the git client, recording both the result and the step in one call.
+     * This replaces the three-step pattern of {@code setResult} + {@code sendGitError} + {@code return}.
+     *
+     * <p>Usage:
+     *
+     * <pre>
+     *     blockAndSendError(request, response, "Illegal author emails", formattedMessage);
+     *     return;
+     * </pre>
+     *
+     * @param request The HTTP request
+     * @param response The HTTP response
+     * @param reason Short reason for the block (stored in the DB for querying/reporting)
+     * @param formattedMessage The full formatted message to display to the git client (also stored as step content)
+     */
+    default void blockAndSendError(
+            HttpServletRequest request, HttpServletResponse response, String reason, String formattedMessage)
+            throws IOException {
+        setResult(request, GitRequestDetails.GitResult.BLOCKED, reason);
+        recordStep(request, StepStatus.BLOCKED, reason, formattedMessage);
+        sendGitError(request, response, formattedMessage);
     }
 
     /**

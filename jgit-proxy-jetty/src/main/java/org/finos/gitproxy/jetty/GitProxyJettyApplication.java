@@ -16,6 +16,7 @@ import org.eclipse.jgit.http.server.GitServlet;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.config.GpgConfig;
 import org.finos.gitproxy.config.InMemoryProviderConfigurationSource;
+import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.git.*;
 import org.finos.gitproxy.jetty.config.JettyConfigurationBuilder;
 import org.finos.gitproxy.jetty.config.JettyConfigurationLoader;
@@ -62,6 +63,10 @@ public class GitProxyJettyApplication {
         connector.setPort(configBuilder.getServerPort());
         server.addConnector(connector);
 
+        // Initialize push store (database for audit records)
+        PushStore pushStore = configBuilder.buildPushStore();
+        log.info("Push store initialized: {}", pushStore.getClass().getSimpleName());
+
         // Store-and-forward cache: full clone (depth=0) required for ReceivePack
         var storeForwardCache = new LocalRepositoryCache(Files.createTempDirectory("jgit-proxy-sf-"), 0, true);
         log.info("Initialized store-and-forward LocalRepositoryCache (full clone)");
@@ -85,11 +90,11 @@ public class GitProxyJettyApplication {
             log.info("Registering provider: {}", provider.getName());
 
             // PRIMARY: GitServlet for store-and-forward on the main path
-            registerGitServlet(context, provider, storeForwardCache, commitConfig);
+            registerGitServlet(context, provider, storeForwardCache, commitConfig, pushStore);
 
             // SECONDARY: Proxy servlet on /proxy prefix for bypass/debugging
             registerProxyServlet(context, provider);
-            registerFilters(context, provider, proxyCache, configBuilder, commitConfig);
+            registerFilters(context, provider, proxyCache, configBuilder, commitConfig, pushStore);
         }
 
         server.setHandler(context);
@@ -113,12 +118,13 @@ public class GitProxyJettyApplication {
             ServletContextHandler context,
             GitProxyProvider provider,
             LocalRepositoryCache cache,
-            CommitConfig commitConfig) {
+            CommitConfig commitConfig,
+            PushStore pushStore) {
         var resolver = new StoreAndForwardRepositoryResolver(cache, provider);
 
         var gitServlet = new GitServlet();
         gitServlet.setRepositoryResolver(resolver);
-        gitServlet.setReceivePackFactory(new StoreAndForwardReceivePackFactory(provider, commitConfig));
+        gitServlet.setReceivePackFactory(new StoreAndForwardReceivePackFactory(provider, commitConfig, pushStore));
         gitServlet.setUploadPackFactory(new StoreAndForwardUploadPackFactory());
 
         String pushPath = PUSH_PATH_PREFIX + provider.servletPath();
@@ -160,8 +166,15 @@ public class GitProxyJettyApplication {
             GitProxyProvider provider,
             LocalRepositoryCache repositoryCache,
             JettyConfigurationBuilder configBuilder,
-            CommitConfig commitConfig) {
+            CommitConfig commitConfig,
+            PushStore pushStore) {
         String urlPattern = PROXY_PATH_PREFIX + provider.servletPath() + "/*";
+
+        // Push store audit filter — wraps entire chain via try-finally so it always persists
+        var pushStoreAuditFilter = new PushStoreAuditFilter(pushStore);
+        var pushStoreAuditFilterHolder = new FilterHolder(pushStoreAuditFilter);
+        pushStoreAuditFilterHolder.setAsyncSupported(true);
+        context.addFilter(pushStoreAuditFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
 
         // Force Git client filter (must be first)
         var forceGitClientFilter = new ForceGitClientFilter();
@@ -218,7 +231,7 @@ public class GitProxyJettyApplication {
 
         log.info("Registered content validation filters for provider {}", provider.getName());
 
-        // Audit filter (should be last)
+        // Audit log filter (should be last)
         var auditFilter = new AuditLogFilter();
         var auditFilterHolder = new FilterHolder(auditFilter);
         auditFilterHolder.setAsyncSupported(true);

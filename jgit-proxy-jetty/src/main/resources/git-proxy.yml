@@ -1,6 +1,11 @@
 server:
   port: 8080
 
+# Database configuration for push audit storage.
+# Supported types: memory, h2-mem, h2-file, sqlite, postgres, mongo
+database:
+  type: h2-mem
+
 # The below is a minimal configuration needed for the app to start and is the default shipped with the jar.
 # By default, the app supports proxying to GitHub, GitLab, and Bitbucket. Users should override this configuration
 # to suit their needs.

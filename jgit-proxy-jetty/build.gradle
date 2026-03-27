@@ -51,14 +51,20 @@ tasks.register('stop') {
 dependencies {
     // Core module
     implementation project(':jgit-proxy-core')
-    
+
     // YAML configuration
     implementation 'org.yaml:snakeyaml:2.2'
-    
+
+    // Database drivers - include all so standalone Jetty server can use any backend
+    runtimeOnly 'com.h2database:h2:2.3.232'
+    runtimeOnly 'org.xerial:sqlite-jdbc:3.47.2.0'
+    runtimeOnly 'org.postgresql:postgresql:42.7.4'
+    runtimeOnly 'org.mongodb:mongodb-driver-sync:5.3.1'
+
     // Lombok
     compileOnly 'org.projectlombok:lombok:1.18.34'
     annotationProcessor 'org.projectlombok:lombok:1.18.34'
-    
+
     // Testing
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.0'

@@ -1,0 +1,53 @@
+services:
+  # PostgreSQL - production-grade relational database
+  postgres:
+    image: postgres:17-alpine
+    container_name: gitproxy-postgres
+    environment:
+      POSTGRES_DB: gitproxy
+      POSTGRES_USER: gitproxy
+      POSTGRES_PASSWORD: gitproxy
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  # MongoDB - document database (compatible with git-proxy Node.js data model)
+  mongo:
+    image: mongo:7
+    container_name: gitproxy-mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: gitproxy
+      MONGO_INITDB_ROOT_PASSWORD: gitproxy
+      MONGO_INITDB_DATABASE: gitproxy
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  # Mongo Express - web UI for MongoDB
+  mongo-express:
+    image: mongo-express:1
+    container_name: gitproxy-mongo-express
+    depends_on:
+      - mongo
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: gitproxy
+      ME_CONFIG_MONGODB_ADMINPASSWORD: gitproxy
+      ME_CONFIG_MONGODB_URL: mongodb://gitproxy:gitproxy@mongo:27017/
+      ME_CONFIG_BASICAUTH: "false"
+    ports:
+      - "8081:8081"
+
+  # Adminer - lightweight web UI for SQL databases (Postgres, H2 file, SQLite)
+  adminer:
+    image: adminer:4
+    container_name: gitproxy-adminer
+    depends_on:
+      - postgres
+    ports:
+      - "8082:8080"
+
+volumes:
+  postgres-data:
+  mongo-data:

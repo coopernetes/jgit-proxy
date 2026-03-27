@@ -1,5 +1,7 @@
 package org.finos.gitproxy.servlet.filter;
 
+import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
+import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
 import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.validator.routines.EmailValidator;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.git.Commit;
+import org.finos.gitproxy.git.GitClient;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
 
@@ -58,12 +61,17 @@ public class CheckAuthorEmailsFilter extends AbstractGitProxyFilter {
 
         if (!illegalEmails.isEmpty()) {
             log.warn("Illegal commit author emails found: {}", illegalEmails);
-            String errorMessage = String.format(
-                    "Your push has been blocked. The following commit author e-mails are illegal: %s\n"
-                            + "Please verify your Git configured e-mail address is valid (e.g. john.smith@example.com)",
-                    illegalEmails);
-            setResult(request, GitRequestDetails.GitResult.BLOCKED, "Illegal author emails");
-            sendGitError(request, response, errorMessage);
+            String title = NO_ENTRY.emoji() + "  Push Blocked — Invalid Author Email";
+            String emailList = illegalEmails.stream()
+                    .map(e -> CROSS_MARK.emoji() + "  " + e)
+                    .collect(Collectors.joining("\n"));
+            String message = "The following author email(s) are not allowed:\n"
+                    + "\n"
+                    + emailList + "\n"
+                    + "\n"
+                    + "Verify your Git email address is valid:\n"
+                    + "  git config user.email \"you@example.com\"";
+            blockAndSendError(request, response, "Illegal author emails", GitClient.format(title, message, RED, null));
             return;
         }
 

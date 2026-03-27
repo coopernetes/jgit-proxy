@@ -3,6 +3,8 @@ package org.finos.gitproxy.jetty.config;
 import java.net.URI;
 import java.util.*;
 import lombok.extern.slf4j.Slf4j;
+import org.finos.gitproxy.db.PushStore;
+import org.finos.gitproxy.db.PushStoreFactory;
 import org.finos.gitproxy.provider.*;
 import org.finos.gitproxy.servlet.filter.RepositoryUrlFilter;
 import org.finos.gitproxy.servlet.filter.WhitelistByUrlFilter;
@@ -104,6 +106,32 @@ public class JettyConfigurationBuilder {
     /** Returns the configured server port. */
     public int getServerPort() {
         return configLoader.getServerPort();
+    }
+
+    /** Creates a {@link PushStore} based on the database configuration. */
+    public PushStore buildPushStore() {
+        String type = configLoader.getDatabaseType();
+        Map<String, Object> dbConfig = configLoader.getDatabaseConfig();
+
+        log.info("Initializing push store: type={}", type);
+
+        return switch (type) {
+            case "memory" -> PushStoreFactory.inMemory();
+            case "h2-mem" -> PushStoreFactory.h2InMemory(getString(dbConfig, "name", "gitproxy"));
+            case "h2-file" -> PushStoreFactory.h2File(getString(dbConfig, "path", "./.data/gitproxy"));
+            case "sqlite" -> PushStoreFactory.sqlite(getString(dbConfig, "path", "./.data/gitproxy.db"));
+            case "postgres" -> PushStoreFactory.postgres(
+                    getString(dbConfig, "host", "localhost"),
+                    getInt(dbConfig, "port", 5432),
+                    getString(dbConfig, "name", "gitproxy"),
+                    getString(dbConfig, "username", "gitproxy"),
+                    getString(dbConfig, "password", "gitproxy"));
+            case "mongo" -> PushStoreFactory.mongo(
+                    getString(dbConfig, "url", "mongodb://gitproxy:gitproxy@localhost:27017"),
+                    getString(dbConfig, "name", "gitproxy"));
+            default -> throw new IllegalArgumentException(
+                    "Unknown database type: " + type + ". Supported: memory, h2-mem, h2-file, sqlite, postgres, mongo");
+        };
     }
 
     private GitProxyProvider createProvider(String name, String servletPath, String uriStr) {
