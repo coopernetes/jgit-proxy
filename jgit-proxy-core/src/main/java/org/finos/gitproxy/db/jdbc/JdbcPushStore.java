@@ -56,9 +56,9 @@ public class JdbcPushStore implements PushStore {
         String insertSql =
                 """
                 INSERT INTO push_records (id, timestamp, url, upstream_url, project, repo_name, branch,
-                    commit_from, commit_to, message, author, author_email, push_user, user_email,
-                    method, status, error_message, blocked_message, auto_approved, auto_rejected)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    commit_from, commit_to, message, author, author_email, committer, committer_email,
+                    push_user, user_email, method, status, error_message, blocked_message, auto_approved, auto_rejected)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
         try (Connection conn = dataSource.getConnection()) {
@@ -255,6 +255,8 @@ public class JdbcPushStore implements PushStore {
                 .message(rs.getString("message"))
                 .author(rs.getString("author"))
                 .authorEmail(rs.getString("author_email"))
+                .committer(rs.getString("committer"))
+                .committerEmail(rs.getString("committer_email"))
                 .user(rs.getString("push_user"))
                 .userEmail(rs.getString("user_email"))
                 .method(rs.getString("method"))
@@ -267,26 +269,28 @@ public class JdbcPushStore implements PushStore {
     }
 
     private void bindPushRecord(PreparedStatement ps, PushRecord r) throws SQLException {
-        ps.setString(1, r.getId());
-        ps.setTimestamp(2, Timestamp.from(r.getTimestamp()));
-        ps.setString(3, r.getUrl());
-        ps.setString(4, r.getUpstreamUrl());
-        ps.setString(5, r.getProject());
-        ps.setString(6, r.getRepoName());
-        ps.setString(7, r.getBranch());
-        ps.setString(8, r.getCommitFrom());
-        ps.setString(9, r.getCommitTo());
-        ps.setString(10, r.getMessage());
-        ps.setString(11, r.getAuthor());
-        ps.setString(12, r.getAuthorEmail());
-        ps.setString(13, r.getUser());
-        ps.setString(14, r.getUserEmail());
-        ps.setString(15, r.getMethod());
-        ps.setString(16, r.getStatus().name());
-        ps.setString(17, r.getErrorMessage());
-        ps.setString(18, r.getBlockedMessage());
-        ps.setBoolean(19, r.isAutoApproved());
-        ps.setBoolean(20, r.isAutoRejected());
+        ps.setString(1,   r.getId());             // id
+        ps.setTimestamp(2, Timestamp.from(r.getTimestamp())); // timestamp
+        ps.setString(3,   r.getUrl());             // url
+        ps.setString(4,   r.getUpstreamUrl());     // upstream_url
+        ps.setString(5,   r.getProject());         // project
+        ps.setString(6,   r.getRepoName());        // repo_name
+        ps.setString(7,   r.getBranch());          // branch
+        ps.setString(8,   r.getCommitFrom());      // commit_from
+        ps.setString(9,   r.getCommitTo());        // commit_to
+        ps.setString(10,  r.getMessage());         // message
+        ps.setString(11,  r.getAuthor());          // author
+        ps.setString(12,  r.getAuthorEmail());     // author_email
+        ps.setString(13,  r.getCommitter());       // committer
+        ps.setString(14,  r.getCommitterEmail());  // committer_email
+        ps.setString(15,  r.getUser());            // push_user
+        ps.setString(16,  r.getUserEmail());       // user_email
+        ps.setString(17,  r.getMethod());          // method
+        ps.setString(18,  r.getStatus().name());   // status
+        ps.setString(19,  r.getErrorMessage());    // error_message
+        ps.setString(20,  r.getBlockedMessage());  // blocked_message
+        ps.setBoolean(21, r.isAutoApproved());     // auto_approved
+        ps.setBoolean(22, r.isAutoRejected());     // auto_rejected
     }
 
     // --- Steps ---

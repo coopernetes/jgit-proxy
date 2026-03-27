@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS push_records (
     message         TEXT,
     author          VARCHAR(255),
     author_email    VARCHAR(255),
+    committer       VARCHAR(255),
+    committer_email VARCHAR(255),
     push_user       VARCHAR(255),
     user_email      VARCHAR(255),
     method          VARCHAR(10),

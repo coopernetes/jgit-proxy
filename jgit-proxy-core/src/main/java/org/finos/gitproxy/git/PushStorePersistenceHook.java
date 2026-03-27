@@ -206,6 +206,8 @@ public class PushStorePersistenceHook {
                 .message(source.getMessage())
                 .author(source.getAuthor())
                 .authorEmail(source.getAuthorEmail())
+                .committer(source.getCommitter())
+                .committerEmail(source.getCommitterEmail())
                 .user(source.getUser())
                 .userEmail(source.getUserEmail())
                 .method(source.getMethod())
@@ -266,6 +268,10 @@ public class PushStorePersistenceHook {
                         builder.author(tip.getAuthor().getName());
                         builder.authorEmail(tip.getAuthor().getEmail());
                     }
+                    if (tip.getCommitter() != null) {
+                        builder.committer(tip.getCommitter().getName());
+                        builder.committerEmail(tip.getCommitter().getEmail());
+                    }
                     if (tip.getMessage() != null) {
                         builder.message(tip.getMessage().lines().findFirst().orElse(null));
                     }
@@ -275,12 +281,16 @@ public class PushStorePersistenceHook {
                     for (Commit c : range) {
                         commits.add(PushRecordMapper.mapCommit(pushId, c));
                     }
-                    // Use the latest commit's author and headline message
+                    // Use the latest commit's author, committer, and headline message
                     if (!range.isEmpty()) {
                         Commit head = range.get(0);
                         if (head.getAuthor() != null) {
                             builder.author(head.getAuthor().getName());
                             builder.authorEmail(head.getAuthor().getEmail());
+                        }
+                        if (head.getCommitter() != null) {
+                            builder.committer(head.getCommitter().getName());
+                            builder.committerEmail(head.getCommitter().getEmail());
                         }
                         if (head.getMessage() != null) {
                             builder.message(head.getMessage().lines().findFirst().orElse(null));
