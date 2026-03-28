@@ -1,5 +1,4 @@
 rootProject.name = 'gitproxy'
 
 include 'jgit-proxy-core'
-include 'jgit-proxy-spring'
 include 'jgit-proxy-server'

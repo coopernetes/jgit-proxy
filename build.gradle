@@ -1,11 +1,9 @@
 plugins {
-    id 'com.diffplug.spotless' version '6.25.0' apply false
-    id 'org.springframework.boot' version '3.4.2' apply false
-    id 'io.spring.dependency-management' version '1.1.6' apply false
+    id 'com.diffplug.spotless' version '8.4.0' apply false
 }
 
 ext {
-    palantirJavaFormatVersion = '2.51.0'
+    palantirJavaFormatVersion = '2.90.0'
 }
 
 allprojects {
