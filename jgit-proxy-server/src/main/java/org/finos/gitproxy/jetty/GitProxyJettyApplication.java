@@ -18,12 +18,18 @@ import org.finos.gitproxy.config.GpgConfig;
 import org.finos.gitproxy.config.InMemoryProviderConfigurationSource;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.git.*;
+import org.finos.gitproxy.jetty.api.ObjectMapperProvider;
+import org.finos.gitproxy.jetty.api.PushRecordResource;
 import org.finos.gitproxy.jetty.config.JettyConfigurationBuilder;
 import org.finos.gitproxy.jetty.config.JettyConfigurationLoader;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.service.DummyUserAuthorizationService;
 import org.finos.gitproxy.servlet.GitProxyServlet;
 import org.finos.gitproxy.servlet.filter.*;
+import org.glassfish.hk2.utilities.binding.AbstractBinder;
+import org.glassfish.jersey.jackson.JacksonFeature;
+import org.glassfish.jersey.server.ResourceConfig;
+import org.glassfish.jersey.servlet.ServletContainer;
 
 /**
  * Standalone Jetty server application for the JGit proxy. Registers two servlets per provider:
@@ -97,6 +103,9 @@ public class GitProxyJettyApplication {
             registerFilters(context, provider, proxyCache, configBuilder, commitConfig, pushStore);
         }
 
+        // REST API servlet (Jersey JAX-RS) — registers alongside JGit servlets on /api/*
+        registerApiServlet(context, pushStore);
+
         server.setHandler(context);
         server.start();
 
@@ -112,6 +121,24 @@ public class GitProxyJettyApplication {
         }
 
         server.join();
+    }
+
+    private static void registerApiServlet(ServletContextHandler context, PushStore pushStore) {
+        ResourceConfig config = new ResourceConfig();
+        config.register(PushRecordResource.class);
+        config.register(ObjectMapperProvider.class);
+        config.register(JacksonFeature.class);
+        config.register(new AbstractBinder() {
+            @Override
+            protected void configure() {
+                bind(pushStore).to(PushStore.class);
+            }
+        });
+
+        var apiServlet = new ServletHolder(new ServletContainer(config));
+        apiServlet.setName("api");
+        context.addServlet(apiServlet, "/api/*");
+        log.info("Registered REST API servlet at /api/*");
     }
 
     private static void registerGitServlet(

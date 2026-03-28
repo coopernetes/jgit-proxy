@@ -55,6 +55,12 @@ dependencies {
     // YAML configuration
     implementation 'org.yaml:snakeyaml:2.2'
 
+    // Jersey JAX-RS for the REST API (registered as a plain Jetty servlet alongside JGit)
+    implementation 'org.glassfish.jersey.containers:jersey-container-servlet:3.1.9'
+    implementation 'org.glassfish.jersey.media:jersey-media-json-jackson:3.1.9'
+    implementation 'org.glassfish.jersey.inject:jersey-hk2:3.1.9'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.18.2'
+
     // Database drivers - include all so standalone Jetty server can use any backend
     runtimeOnly 'com.h2database:h2:2.3.232'
     runtimeOnly 'org.xerial:sqlite-jdbc:3.47.2.0'
