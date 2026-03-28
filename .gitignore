@@ -39,3 +39,7 @@ out/
 ### Logs ###
 logs/
 *.log
+
+### Runtime debug output ###
+body-*.txt
+packetline-*.txt

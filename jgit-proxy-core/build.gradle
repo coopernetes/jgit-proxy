@@ -6,10 +6,10 @@ group = 'org.finos.gitproxy'
 version = '0.0.1-SNAPSHOT'
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(21)
         vendor = JvmVendorSpec.ADOPTIUM
     }
 }
@@ -96,6 +96,11 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.14.3'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.14.3'
     testRuntimeOnly "com.h2database:h2:${h2Version}"
+    testImplementation 'org.mockito:mockito-core:5.17.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter-params:5.14.3'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.14.3'
+    testCompileOnly 'org.projectlombok:lombok:1.18.44'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.44'
 }
 
 tasks.named('test') {
