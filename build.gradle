@@ -20,10 +20,26 @@ allprojects {
 
 subprojects {
     apply plugin: 'com.diffplug.spotless'
-    
+
     spotless {
         java {
             palantirJavaFormat("${palantirJavaFormatVersion}").formatJavadoc(true)
+        }
+    }
+
+    plugins.withId('java') {
+        apply plugin: 'jacoco'
+
+        jacocoTestReport {
+            dependsOn test
+            reports {
+                xml.required = true
+                html.required = true
+            }
+        }
+
+        test {
+            finalizedBy jacocoTestReport
         }
     }
 }
