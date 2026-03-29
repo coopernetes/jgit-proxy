@@ -12,12 +12,11 @@ import org.junit.jupiter.api.*;
 /**
  * End-to-end tests for the <em>transparent proxy</em> path ({@code /proxy/...}).
  *
- * <p>Mirrors {@code test-proxy-pass.sh} and {@code test-proxy-fail.sh}: every test performs a real
- * {@code git clone} + commit + push through a live Jetty proxy that forwards to a containerised
- * Gitea instance.
+ * <p>Mirrors {@code test-proxy-pass.sh} and {@code test-proxy-fail.sh}: every test performs a real {@code git clone} +
+ * commit + push through a live Jetty proxy that forwards to a containerised Gitea instance.
  *
- * <p>Infrastructure is started once per class (containers are expensive) and each test clones into
- * its own temp directory so there are no ordering dependencies.
+ * <p>Infrastructure is started once per class (containers are expensive) and each test clones into its own temp
+ * directory so there are no ordering dependencies.
  */
 @Tag("e2e")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -61,14 +60,12 @@ class ProxyModeE2ETest {
     }
 
     /**
-     * Clones the test repo, sets the given author identity, appends a timestamped line to a test
-     * file, stages and commits with {@code message}, then attempts a push.
+     * Clones the test repo, sets the given author identity, appends a timestamped line to a test file, stages and
+     * commits with {@code message}, then attempts a push.
      *
      * @return {@code true} if the push succeeded
      */
-    private boolean cloneCommitPush(
-            String dirSuffix, String authorEmail, String commitMessage)
-            throws Exception {
+    private boolean cloneCommitPush(String dirSuffix, String authorEmail, String commitMessage) throws Exception {
         GitHelper git = helper();
         Path repo = git.clone(repoUrl(), dirSuffix);
         git.setAuthor(repo, GiteaContainer.VALID_AUTHOR_NAME, authorEmail);
@@ -112,10 +109,7 @@ class ProxyModeE2ETest {
     @Order(10)
     void noreplyLocalPart_blocked() throws Exception {
         assertFalse(
-                cloneCommitPush(
-                        "proxy-fail-noreply",
-                        "noreply@example.com",
-                        "feat: this commit has a noreply author"),
+                cloneCommitPush("proxy-fail-noreply", "noreply@example.com", "feat: this commit has a noreply author"),
                 "push with noreply@ address should be rejected");
     }
 
@@ -123,10 +117,7 @@ class ProxyModeE2ETest {
     @Order(11)
     void noReplyHyphenLocalPart_blocked() throws Exception {
         assertFalse(
-                cloneCommitPush(
-                        "proxy-fail-noreply2",
-                        "no-reply@example.com",
-                        "feat: no-reply local part"),
+                cloneCommitPush("proxy-fail-noreply2", "no-reply@example.com", "feat: no-reply local part"),
                 "push with no-reply@ address should be rejected");
     }
 
@@ -157,9 +148,7 @@ class ProxyModeE2ETest {
     void wipCommitMessage_blocked() throws Exception {
         assertFalse(
                 cloneCommitPush(
-                        "proxy-fail-wip",
-                        GiteaContainer.VALID_AUTHOR_EMAIL,
-                        "WIP: still working on this feature"),
+                        "proxy-fail-wip", GiteaContainer.VALID_AUTHOR_EMAIL, "WIP: still working on this feature"),
                 "push with WIP commit message should be rejected");
     }
 
@@ -179,9 +168,7 @@ class ProxyModeE2ETest {
     void doNotMergeCommitMessage_blocked() throws Exception {
         assertFalse(
                 cloneCommitPush(
-                        "proxy-fail-dnm",
-                        GiteaContainer.VALID_AUTHOR_EMAIL,
-                        "DO NOT MERGE - experimental branch"),
+                        "proxy-fail-dnm", GiteaContainer.VALID_AUTHOR_EMAIL, "DO NOT MERGE - experimental branch"),
                 "push with DO NOT MERGE message should be rejected");
     }
 

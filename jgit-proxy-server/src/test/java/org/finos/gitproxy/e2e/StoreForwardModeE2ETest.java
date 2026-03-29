@@ -12,13 +12,12 @@ import org.junit.jupiter.api.*;
 /**
  * End-to-end tests for the <em>store-and-forward</em> path ({@code /push/...}).
  *
- * <p>Mirrors {@code test-push-pass.sh} and {@code test-push-fail.sh}: every test performs a real
- * {@code git clone} + commit + push through a live Jetty proxy that uses JGit's ReceivePack to
- * receive the push, runs pre-receive validation hooks, and (on success) forwards to a
- * containerised Gitea instance.
+ * <p>Mirrors {@code test-push-pass.sh} and {@code test-push-fail.sh}: every test performs a real {@code git clone} +
+ * commit + push through a live Jetty proxy that uses JGit's ReceivePack to receive the push, runs pre-receive
+ * validation hooks, and (on success) forwards to a containerised Gitea instance.
  *
- * <p>Infrastructure is shared across the class. Each test clones into its own temp directory so
- * there are no ordering dependencies.
+ * <p>Infrastructure is shared across the class. Each test clones into its own temp directory so there are no ordering
+ * dependencies.
  */
 @Tag("e2e")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -48,8 +47,8 @@ class StoreForwardModeE2ETest {
     // ---- helpers ----
 
     /**
-     * Push URL with admin credentials embedded. Gitea uses these to authenticate the upstream
-     * push after validation passes.
+     * Push URL with admin credentials embedded. Gitea uses these to authenticate the upstream push after validation
+     * passes.
      */
     private String repoUrl() {
         String creds = URLEncoder.encode(GiteaContainer.ADMIN_USER, StandardCharsets.UTF_8)
@@ -61,13 +60,12 @@ class StoreForwardModeE2ETest {
     }
 
     /**
-     * Clones the test repo via the push path, sets author identity, writes a timestamped file,
-     * commits with {@code message}, and pushes.
+     * Clones the test repo via the push path, sets author identity, writes a timestamped file, commits with
+     * {@code message}, and pushes.
      *
      * @return {@code true} if the push exited 0
      */
-    private boolean cloneCommitPush(String dirSuffix, String authorEmail, String commitMessage)
-            throws Exception {
+    private boolean cloneCommitPush(String dirSuffix, String authorEmail, String commitMessage) throws Exception {
         GitHelper git = new GitHelper(tempDir);
         Path repo = git.clone(repoUrl(), dirSuffix);
         git.setAuthor(repo, GiteaContainer.VALID_AUTHOR_NAME, authorEmail);
@@ -111,10 +109,7 @@ class StoreForwardModeE2ETest {
     @Order(10)
     void noreplyLocalPart_blocked() throws Exception {
         assertFalse(
-                cloneCommitPush(
-                        "sf-fail-noreply",
-                        "noreply@example.com",
-                        "feat: this commit has a noreply author"),
+                cloneCommitPush("sf-fail-noreply", "noreply@example.com", "feat: this commit has a noreply author"),
                 "push with noreply@ address should be rejected");
     }
 
@@ -122,10 +117,7 @@ class StoreForwardModeE2ETest {
     @Order(11)
     void noReplyHyphenLocalPart_blocked() throws Exception {
         assertFalse(
-                cloneCommitPush(
-                        "sf-fail-noreply2",
-                        "no-reply@example.com",
-                        "feat: no-reply local part"),
+                cloneCommitPush("sf-fail-noreply2", "no-reply@example.com", "feat: no-reply local part"),
                 "push with no-reply@ address should be rejected");
     }
 
@@ -134,9 +126,7 @@ class StoreForwardModeE2ETest {
     void nonAllowedEmailDomain_blocked() throws Exception {
         assertFalse(
                 cloneCommitPush(
-                        "sf-fail-domain",
-                        "developer@internal.corp.net",
-                        "feat: this commit has a non-allowed domain"),
+                        "sf-fail-domain", "developer@internal.corp.net", "feat: this commit has a non-allowed domain"),
                 "push with disallowed email domain should be rejected");
     }
 
@@ -155,10 +145,7 @@ class StoreForwardModeE2ETest {
     @Order(20)
     void wipCommitMessage_blocked() throws Exception {
         assertFalse(
-                cloneCommitPush(
-                        "sf-fail-wip",
-                        GiteaContainer.VALID_AUTHOR_EMAIL,
-                        "WIP: still working on this feature"),
+                cloneCommitPush("sf-fail-wip", GiteaContainer.VALID_AUTHOR_EMAIL, "WIP: still working on this feature"),
                 "push with WIP commit message should be rejected");
     }
 
@@ -177,10 +164,7 @@ class StoreForwardModeE2ETest {
     @Order(22)
     void doNotMergeCommitMessage_blocked() throws Exception {
         assertFalse(
-                cloneCommitPush(
-                        "sf-fail-dnm",
-                        GiteaContainer.VALID_AUTHOR_EMAIL,
-                        "DO NOT MERGE - experimental branch"),
+                cloneCommitPush("sf-fail-dnm", GiteaContainer.VALID_AUTHOR_EMAIL, "DO NOT MERGE - experimental branch"),
                 "push with DO NOT MERGE message should be rejected");
     }
 

@@ -7,9 +7,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Thin wrapper around the system {@code git} CLI for use in e2e tests. Mirrors the pattern in the
- * shell test scripts: each helper method maps directly to a sequence of git commands that those
- * scripts execute.
+ * Thin wrapper around the system {@code git} CLI for use in e2e tests. Mirrors the pattern in the shell test scripts:
+ * each helper method maps directly to a sequence of git commands that those scripts execute.
  */
 class GitHelper {
 
@@ -30,12 +29,10 @@ class GitHelper {
     }
 
     /**
-     * Sets the local git author identity for subsequent commits made in {@code repoDir}. Git
-     * includes credentials in the remote URL, so the author is the only identity that matters for
-     * validation purposes.
+     * Sets the local git author identity for subsequent commits made in {@code repoDir}. Git includes credentials in
+     * the remote URL, so the author is the only identity that matters for validation purposes.
      */
-    void setAuthor(Path repoDir, String name, String email)
-            throws IOException, InterruptedException {
+    void setAuthor(Path repoDir, String name, String email) throws IOException, InterruptedException {
         this.authorName = name;
         this.authorEmail = email;
         git(repoDir, "config", "user.name", name);
@@ -45,8 +42,7 @@ class GitHelper {
     }
 
     /** Writes {@code content} to {@code fileName} in {@code repoDir} and stages it. */
-    void writeAndStage(Path repoDir, String fileName, String content)
-            throws IOException, InterruptedException {
+    void writeAndStage(Path repoDir, String fileName, String content) throws IOException, InterruptedException {
         Files.writeString(repoDir.resolve(fileName), content);
         git(repoDir, "add", fileName);
     }
@@ -76,10 +72,7 @@ class GitHelper {
         return exitCode == 0;
     }
 
-    /**
-     * Returns the captured combined stdout+stderr from a push that is expected to fail, for
-     * assertion purposes.
-     */
+    /** Returns the captured combined stdout+stderr from a push that is expected to fail, for assertion purposes. */
     String pushOutput(Path repoDir) throws IOException, InterruptedException {
         String branch = currentBranch(repoDir);
         ProcessBuilder pb = buildGitCommand(repoDir, "push", "origin", branch);
