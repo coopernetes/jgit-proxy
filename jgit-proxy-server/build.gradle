@@ -32,14 +32,16 @@ tasks.register('stop') {
         if (pf.exists()) {
             def pid = pf.text.trim()
             logger.lifecycle("Stopping jgit-proxy (PID: ${pid})...")
-            def result = exec {
-                commandLine 'kill', pid
-                ignoreExitValue = true
-            }
-            if (result.exitValue == 0) {
-                logger.lifecycle("Stopped jgit-proxy server")
-            } else {
-                logger.warn("Process ${pid} not found — may have already stopped")
+            try {
+                def proc = new ProcessBuilder('kill', pid).start()
+                def exitCode = proc.waitFor()
+                if (exitCode == 0) {
+                    logger.lifecycle("Stopped jgit-proxy server")
+                } else {
+                    logger.warn("Process ${pid} not found — may have already stopped")
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to kill process: ${e.message}")
             }
             pf.delete()
         } else {

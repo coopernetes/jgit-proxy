@@ -31,9 +31,22 @@ The Node.js original lives at `/home/tom/repos/git-proxy`. Refer to it for the A
 
 Unit tests live under each module's `src/test/`. E2e tests are in `jgit-proxy-server/src/test/java/org/finos/gitproxy/e2e/` and tagged `@Tag("e2e")`.
 
+## Running the server locally
+
+```bash
+# Start (background — writes PID to jgit-proxy-server/build/jgit-proxy.pid)
+./gradlew :jgit-proxy-server:run &
+
+# Stop via Gradle task (reads PID file)
+./gradlew :jgit-proxy-server:stop
+
+# Logs: jgit-proxy-server/logs/application.log  (DEBUG for org.finos.gitproxy)
+# Default DB: h2-file — persisted to jgit-proxy-server/.data/gitproxy.mv.db
+```
+
 ## Integration testing (manual)
 
-Use the shell scripts in the repo root against a running server (`./gradlew :jgit-proxy-server:run`):
+Use the shell scripts in the repo root against a running server:
 
 ```bash
 test-push-pass.sh   # store-and-forward — valid commits
@@ -41,6 +54,8 @@ test-push-fail.sh   # store-and-forward — commits that should be rejected
 test-proxy-pass.sh  # proxy mode — valid commits
 test-proxy-fail.sh  # proxy mode — commits that should be rejected
 ```
+
+To inspect the database, connect to `jgit-proxy-server/.data/gitproxy.mv.db` with the H2 console or the `h2` CLI. The file is created automatically on first run.
 
 ## Docker Compose
 

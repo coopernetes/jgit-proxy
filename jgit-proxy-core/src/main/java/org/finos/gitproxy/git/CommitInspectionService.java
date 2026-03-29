@@ -1,6 +1,7 @@
 package org.finos.gitproxy.git;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -171,10 +172,8 @@ public class CommitInspectionService {
             parentSha = revCommit.getParent(0).getName();
         }
 
-        // Extract GPG signature if present
-        // Note: Signature extraction is handled by GitReceivePackParser during push parsing
-        // and is available in the Commit object passed from the push packet data
-        String signature = null;
+        byte[] rawSig = revCommit.getRawGpgSignature();
+        String signature = (rawSig != null && rawSig.length > 0) ? new String(rawSig, StandardCharsets.US_ASCII) : null;
 
         return Commit.builder()
                 .sha(revCommit.getName())
