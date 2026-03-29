@@ -21,12 +21,10 @@ import org.finos.gitproxy.servlet.GitProxyServlet;
 import org.finos.gitproxy.servlet.filter.*;
 
 /**
- * Starts and stops a real Jetty server wired up identically to {@code GitProxyJettyApplication}
- * but with a single {@link GenericProxyProvider} pointing at the test Gitea instance, listening on
- * an ephemeral port.
+ * Starts and stops a real Jetty server wired up identically to {@code GitProxyJettyApplication} but with a single
+ * {@link GenericProxyProvider} pointing at the test Gitea instance, listening on an ephemeral port.
  *
- * <p>Intended for use inside {@code @Tag("e2e")} tests as a JUnit {@code @BeforeAll} / {@code
- * @AfterAll} resource.
+ * <p>Intended for use inside {@code @Tag("e2e")} tests as a JUnit {@code @BeforeAll} / {@code @AfterAll} resource.
  */
 class JettyProxyFixture implements AutoCloseable {
 
@@ -43,8 +41,7 @@ class JettyProxyFixture implements AutoCloseable {
         server.addConnector(connector);
 
         var pushStore = PushStoreFactory.inMemory();
-        var storeForwardCache =
-                new LocalRepositoryCache(Files.createTempDirectory("jgit-proxy-e2e-sf-"), 0, true);
+        var storeForwardCache = new LocalRepositoryCache(Files.createTempDirectory("jgit-proxy-e2e-sf-"), 0, true);
         var proxyCache = new LocalRepositoryCache();
 
         var provider = GenericProxyProvider.builder()
@@ -61,8 +58,7 @@ class JettyProxyFixture implements AutoCloseable {
         var resolver = new StoreAndForwardRepositoryResolver(storeForwardCache, provider);
         var gitServlet = new GitServlet();
         gitServlet.setRepositoryResolver(resolver);
-        gitServlet.setReceivePackFactory(
-                new StoreAndForwardReceivePackFactory(provider, commitConfig, pushStore));
+        gitServlet.setReceivePackFactory(new StoreAndForwardReceivePackFactory(provider, commitConfig, pushStore));
         gitServlet.setUploadPackFactory(new StoreAndForwardUploadPackFactory());
 
         String pushServletPath = PUSH_PREFIX + provider.servletPath();
@@ -71,13 +67,9 @@ class JettyProxyFixture implements AutoCloseable {
         gitHolder.setName("git-gitea-e2e");
         context.addServlet(gitHolder, pushMapping);
         context.addFilter(
-                new FilterHolder(new SmartHttpErrorFilter()),
-                pushMapping,
-                EnumSet.of(DispatcherType.REQUEST));
+                new FilterHolder(new SmartHttpErrorFilter()), pushMapping, EnumSet.of(DispatcherType.REQUEST));
         context.addFilter(
-                new FilterHolder(new BasicAuthChallengeFilter()),
-                pushMapping,
-                EnumSet.of(DispatcherType.REQUEST));
+                new FilterHolder(new BasicAuthChallengeFilter()), pushMapping, EnumSet.of(DispatcherType.REQUEST));
 
         // Transparent proxy GitProxyServlet on /proxy/...
         String proxyServletPath = PROXY_PREFIX + provider.servletPath();
@@ -96,10 +88,7 @@ class JettyProxyFixture implements AutoCloseable {
         addFilter(context, proxyMapping, new PushStoreAuditFilter(pushStore));
         addFilter(context, proxyMapping, new ForceGitClientFilter());
         addFilter(context, proxyMapping, new ParseGitRequestFilter(provider, PROXY_PREFIX));
-        addFilter(
-                context,
-                proxyMapping,
-                new EnrichPushCommitsFilter(provider, proxyCache, PROXY_PREFIX));
+        addFilter(context, proxyMapping, new EnrichPushCommitsFilter(provider, proxyCache, PROXY_PREFIX));
         addFilter(context, proxyMapping, new CheckAuthorEmailsFilter(commitConfig));
         addFilter(context, proxyMapping, new CheckCommitMessagesFilter(commitConfig));
         addFilter(context, proxyMapping, new GpgSignatureFilter(GpgConfig.defaultConfig()));
@@ -163,8 +152,7 @@ class JettyProxyFixture implements AutoCloseable {
                 .message(CommitConfig.MessageConfig.builder()
                         .block(CommitConfig.BlockConfig.builder()
                                 .literals(List.of("WIP", "DO NOT MERGE", "fixup!", "squash!"))
-                                .patterns(List.of(
-                                        Pattern.compile("(?i)(password|secret|token)\\s*[=:]\\s*\\S+")))
+                                .patterns(List.of(Pattern.compile("(?i)(password|secret|token)\\s*[=:]\\s*\\S+")))
                                 .build())
                         .build())
                 .build();
