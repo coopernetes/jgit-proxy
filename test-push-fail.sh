@@ -111,6 +111,18 @@ test_token_in_message() {
     git commit -m "chore: rotate token=ghp_abc123def456 in CI config"
 }
 
+# Both email AND message checks fail in the same push — useful for
+# verifying the UI displays multiple simultaneous validation failures.
+test_multi_failure() {
+    # blocked local part (noreply) + non-allowed domain = email fails
+    git config user.name "Noreply Bot"
+    git config user.email "noreply@internal.corp.net"
+    echo "multi failure test - $(date)" >> test-file.txt
+    git add test-file.txt
+    # WIP literal + embedded secret pattern = message fails twice
+    git commit -m "WIP: temp debug, password=hunter2 hardcoded"
+}
+
 # --- Run tests ---
 
 echo "=========================================================="
@@ -129,6 +141,9 @@ run_test "FAIL: fixup! commit message"          fail test_fixup_message
 run_test "FAIL: DO NOT MERGE message"           fail test_do_not_merge_message
 run_test "FAIL: password in commit message"     fail test_secret_in_message
 run_test "FAIL: token in commit message"        fail test_token_in_message
+
+# Multi-check failure
+run_test "FAIL: blocked email + WIP + secret in message (multi-check)" fail test_multi_failure
 
 echo ""
 echo "=========================================================="

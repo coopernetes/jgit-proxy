@@ -72,12 +72,16 @@ public class AuthorEmailValidationHook implements PreReceiveHook {
             }
         }
 
-        pushContext.addStep(PushStep.builder()
-                .stepName("checkAuthorEmails")
-                .status(anyFailed ? StepStatus.FAIL : StepStatus.PASS)
-                .blockedMessage(anyFailed ? "One or more author emails failed validation" : null)
-                .logs(logs)
-                .build());
+        // Only add a summary step when passing — failures are already captured as per-issue
+        // steps by ValidationContext and stored by validationResultHook, so a summary FAIL
+        // step here would duplicate those entries in the UI.
+        if (!anyFailed) {
+            pushContext.addStep(PushStep.builder()
+                    .stepName("checkAuthorEmails")
+                    .status(StepStatus.PASS)
+                    .logs(logs)
+                    .build());
+        }
     }
 
     private List<Commit> getCommits(Repository repo, ReceiveCommand cmd) throws Exception {
