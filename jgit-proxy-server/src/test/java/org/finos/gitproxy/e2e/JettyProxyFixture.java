@@ -12,7 +12,6 @@ import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jgit.http.server.GitServlet;
-import org.finos.gitproxy.approval.UiApprovalGateway;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.config.GpgConfig;
 import org.finos.gitproxy.db.PushStoreFactory;
@@ -59,7 +58,7 @@ class JettyProxyFixture implements AutoCloseable {
         var resolver = new StoreAndForwardRepositoryResolver(storeForwardCache, provider);
         var gitServlet = new GitServlet();
         gitServlet.setRepositoryResolver(resolver);
-        var approvalGateway = new UiApprovalGateway(pushStore);
+        var approvalGateway = new AutoApproveGateway(pushStore);
         gitServlet.setReceivePackFactory(
                 new StoreAndForwardReceivePackFactory(provider, commitConfig, pushStore, approvalGateway));
         gitServlet.setUploadPackFactory(new StoreAndForwardUploadPackFactory());
