@@ -90,6 +90,16 @@ Configured via `database.type` in YAML. Supported: `memory`, `h2-mem`, `h2-file`
 
 Always use fully qualified image names (e.g. `docker.io/eclipse-temurin:21-jre`). Podman on Fedora enforces short-name resolution and will error without a TTY if bare names are used.
 
+## GitHub Actions workflows
+
+All action steps must be pinned to a commit hash. After adding or updating any action reference in `.github/workflows/`, run:
+
+```bash
+ratchet pin .github/workflows/<file>.yml
+```
+
+This rewrites version tags (e.g. `@v5`) to their resolved commit SHA and adds a `# ratchet:` comment preserving the original tag for readability.
+
 ## Branch / PR target
 
 Default branch for PRs: **`jetty`**

@@ -1,3 +1,6 @@
+[![CI](https://github.com/coopernetes/jgit-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/coopernetes/jgit-proxy/actions/workflows/ci.yml)
+[![CVE Scanning](https://github.com/coopernetes/jgit-proxy/actions/workflows/cve.yml/badge.svg)](https://github.com/coopernetes/jgit-proxy/actions/workflows/cve.yml)
+
 # git-proxy in Java
 This is a simple implementation of a git proxy in Java. This is a possible successor to [finos/git-proxy](https://github.com/finos/git-proxy) which is written in Node.
 
