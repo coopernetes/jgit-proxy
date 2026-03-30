@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS push_commits (
     message         TEXT,
     commit_date     TIMESTAMP,
     signature       TEXT,
+    signed_off_by   TEXT,
     PRIMARY KEY (push_id, sha)
 );
 
@@ -72,3 +73,4 @@ CREATE INDEX IF NOT EXISTS idx_push_records_user ON push_records(push_user);
 CREATE INDEX IF NOT EXISTS idx_push_records_timestamp ON push_records(timestamp);
 CREATE INDEX IF NOT EXISTS idx_push_steps_push_id ON push_steps(push_id);
 CREATE INDEX IF NOT EXISTS idx_push_commits_push_id ON push_commits(push_id);
+CREATE INDEX IF NOT EXISTS idx_push_records_commit_to ON push_records(commit_to, branch, repo_name);

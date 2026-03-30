@@ -108,6 +108,11 @@ public class JettyConfigurationBuilder {
         return configLoader.getServerPort();
     }
 
+    /** Returns the service URL for dashboard links in block messages. */
+    public String getServiceUrl() {
+        return configLoader.getServiceUrl();
+    }
+
     /** Creates a {@link PushStore} based on the database configuration. */
     public PushStore buildPushStore() {
         String type = configLoader.getDatabaseType();

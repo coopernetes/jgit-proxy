@@ -84,7 +84,7 @@ public class PushStorePersistenceHook {
                     List<PushStep> steps = new ArrayList<>();
                     String recordId = record.getId();
 
-                    // Validation issues
+                    // Validation issues → reject outright (no human review queue)
                     if (validationContext.hasIssues()) {
                         int order = 0;
                         for (var issue : validationContext.getIssues()) {
@@ -97,11 +97,38 @@ public class PushStorePersistenceHook {
                                     .errorMessage(issue.summary())
                                     .build());
                         }
-                        record.setStatus(PushStatus.BLOCKED);
+                        record.setStatus(PushStatus.REJECTED);
+                        record.setAutoRejected(true);
                         record.setBlockedMessage(validationContext.getIssues().size() + " validation issue(s) found");
-                    } else {
-                        record.setStatus(PushStatus.APPROVED);
+
+                        // Steps from push context (diffs, scans, etc.)
+                        if (pushContext != null) {
+                            for (PushStep step : pushContext.getSteps()) {
+                                step.setPushId(recordId);
+                                steps.add(step);
+                            }
+                        }
+                        record.setSteps(steps);
+                        pushStore.save(record);
+                        rp.getRepository()
+                                .getConfig()
+                                .setString("gitproxy", null, "validationRecordId", record.getId());
+                        log.debug(
+                                "Saved validation result record: id={}, status=REJECTED (auto-rejected)",
+                                record.getId());
+
+                        // Reject all commands immediately — no approval wait
+                        String rejectMsg = validationContext.getIssues().size() + " validation issue(s) — see above";
+                        for (ReceiveCommand cmd : commands) {
+                            if (cmd.getResult() == ReceiveCommand.Result.NOT_ATTEMPTED) {
+                                cmd.setResult(ReceiveCommand.Result.REJECTED_OTHER_REASON, rejectMsg);
+                            }
+                        }
+                        return;
                     }
+
+                    // No validation issues → BLOCKED, pending human review
+                    record.setStatus(PushStatus.BLOCKED);
 
                     // Steps from push context (diffs, scans, etc.)
                     if (pushContext != null) {
@@ -110,23 +137,12 @@ public class PushStorePersistenceHook {
                             steps.add(step);
                         }
                     }
-
                     record.setSteps(steps);
 
-                    // Check if any commands were rejected by earlier hooks
-                    boolean anyRejected =
-                            commands.stream().anyMatch(cmd -> cmd.getResult() != ReceiveCommand.Result.NOT_ATTEMPTED);
-                    if (anyRejected) {
-                        record.setStatus(PushStatus.BLOCKED);
-                        commands.stream()
-                                .filter(cmd -> cmd.getResult() != ReceiveCommand.Result.NOT_ATTEMPTED
-                                        && cmd.getResult() != ReceiveCommand.Result.OK)
-                                .findFirst()
-                                .ifPresent(cmd -> record.setBlockedMessage(cmd.getResult() + ": " + cmd.getMessage()));
-                    }
-
                     pushStore.save(record);
-                    log.debug("Saved validation result record: id={}, status={}", record.getId(), record.getStatus());
+                    rp.getRepository().getConfig().setString("gitproxy", null, "validationRecordId", record.getId());
+                    log.debug(
+                            "Saved validation result record: id={}, status=BLOCKED (awaiting review)", record.getId());
                 });
             } catch (Exception e) {
                 log.error("Failed to save validation result record", e);
@@ -147,19 +163,17 @@ public class PushStorePersistenceHook {
 
             try {
                 pushStore.findById(pushId).ifPresent(initial -> {
-                    boolean allOk = commands.stream().allMatch(cmd -> cmd.getResult() == ReceiveCommand.Result.OK);
-                    boolean anyValidationRejected = commands.stream()
-                            .anyMatch(cmd -> cmd.getResult() == ReceiveCommand.Result.REJECTED_OTHER_REASON);
-                    boolean anyTransportFailed = commands.stream()
-                            .anyMatch(cmd -> cmd.getResult() != ReceiveCommand.Result.OK
-                                    && cmd.getResult() != ReceiveCommand.Result.NOT_ATTEMPTED
-                                    && cmd.getResult() != ReceiveCommand.Result.REJECTED_OTHER_REASON);
-
-                    if (anyValidationRejected) {
-                        // Already recorded as BLOCKED by validationResultHook — skip
-                        log.debug("Skipping post-receive record: push was blocked by validation");
+                    // JGit only passes Result.OK commands to post-receive.
+                    // An empty list means all commands were rejected by pre-receive — nothing to record.
+                    if (commands.isEmpty()) {
+                        log.debug("Skipping post-receive record: no OK commands (push was rejected)");
                         return;
                     }
+
+                    boolean allOk = commands.stream().allMatch(cmd -> cmd.getResult() == ReceiveCommand.Result.OK);
+                    boolean anyTransportFailed = commands.stream()
+                            .anyMatch(cmd -> cmd.getResult() != ReceiveCommand.Result.OK
+                                    && cmd.getResult() != ReceiveCommand.Result.NOT_ATTEMPTED);
 
                     PushRecord record = copyBase(initial);
                     if (allOk) {

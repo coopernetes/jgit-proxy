@@ -4,13 +4,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.Collection;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.transport.*;
 import org.eclipse.jgit.transport.resolver.ReceivePackFactory;
 import org.eclipse.jgit.transport.resolver.ServiceNotAuthorizedException;
 import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
+import org.finos.gitproxy.approval.ApprovalGateway;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.provider.GitProxyProvider;
@@ -22,12 +22,34 @@ import org.finos.gitproxy.provider.GitProxyProvider;
  * <p>This factory creates new hook instances per request since each push has its own credentials.
  */
 @Slf4j
-@RequiredArgsConstructor
 public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<HttpServletRequest> {
 
     private final GitProxyProvider provider;
     private final CommitConfig commitConfig;
     private final PushStore pushStore;
+    private final ApprovalGateway approvalGateway;
+    private final String serviceUrl;
+
+    public StoreAndForwardReceivePackFactory(
+            GitProxyProvider provider,
+            CommitConfig commitConfig,
+            PushStore pushStore,
+            ApprovalGateway approvalGateway) {
+        this(provider, commitConfig, pushStore, approvalGateway, null);
+    }
+
+    public StoreAndForwardReceivePackFactory(
+            GitProxyProvider provider,
+            CommitConfig commitConfig,
+            PushStore pushStore,
+            ApprovalGateway approvalGateway,
+            String serviceUrl) {
+        this.provider = provider;
+        this.commitConfig = commitConfig;
+        this.pushStore = pushStore;
+        this.approvalGateway = approvalGateway;
+        this.serviceUrl = serviceUrl;
+    }
 
     @Override
     public ReceivePack create(HttpServletRequest req, Repository db)
@@ -65,39 +87,35 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
 
         // Hook chain — order matters:
         //
-        // 0. PushStorePersistenceHook.preReceive — record RECEIVED (no steps yet)
-        // 1. SlowApprovalPreReceiveHook          — approval gate; records "approval" step
-        // 2. AuthorEmailValidationHook            — validates emails; records "checkAuthorEmails" step
-        // 3. CommitMessageValidationHook          — validates messages; records "checkCommitMessages" step
-        // 4. ProxyPreReceiveHook                  — commit inspection; records "inspection" step
-        // 5. DiffGenerationHook                   — generates diffs; records "diff" / "diff:default-branch" steps
-        // 6. PushStorePersistenceHook.validationResult — saves APPROVED or BLOCKED record with all steps so far
-        // 7. ValidationVerifierHook               — rejects commands if issues; chain may stop here
+        // 0. PushStorePersistenceHook.preReceive  — record RECEIVED (no steps yet)
+        // 1. AuthorEmailValidationHook             — validates emails; records "checkAuthorEmails" step
+        // 2. CommitMessageValidationHook           — validates messages; records "checkCommitMessages" step
+        // 3. ProxyPreReceiveHook                   — commit inspection; records "inspection" step
+        // 4. DiffGenerationHook                    — generates diffs; records "diff" / "diff:default-branch" steps
+        // 5. PushStorePersistenceHook.validationResult — saves APPROVED or BLOCKED record with all steps so far
+        // 6. ApprovalPreReceiveHook                — blocks until reviewer approves/rejects or timeout
         //
         // Post-receive (only runs when pre-receive doesn't stop the chain):
-        // 8. ForwardingPostReceiveHook            — forwards to upstream; records "forward" step
-        // 9. PushStorePersistenceHook.postReceive — saves FORWARDED or ERROR record with forwarding step
+        // 7. ForwardingPostReceiveHook             — forwards to upstream; records "forward" step
+        // 8. PushStorePersistenceHook.postReceive  — saves FORWARDED or ERROR record with forwarding step
 
         PreReceiveHook[] preHooks;
         if (persistenceHook != null) {
             preHooks = new PreReceiveHook[] {
                 persistenceHook.preReceiveHook(),
-                new SlowApprovalPreReceiveHook(pushContext),
                 new AuthorEmailValidationHook(commitConfig, validationContext, pushContext),
                 new CommitMessageValidationHook(commitConfig, validationContext, pushContext),
                 new ProxyPreReceiveHook(pushContext),
                 new DiffGenerationHook(pushContext),
                 persistenceHook.validationResultHook(validationContext),
-                new ValidationVerifierHook(validationContext)
+                new ApprovalPreReceiveHook(pushStore, approvalGateway, serviceUrl)
             };
         } else {
             preHooks = new PreReceiveHook[] {
-                new SlowApprovalPreReceiveHook(pushContext),
                 new AuthorEmailValidationHook(commitConfig, validationContext, pushContext),
                 new CommitMessageValidationHook(commitConfig, validationContext, pushContext),
                 new ProxyPreReceiveHook(pushContext),
-                new DiffGenerationHook(pushContext),
-                new ValidationVerifierHook(validationContext)
+                new DiffGenerationHook(pushContext)
             };
         }
         rp.setPreReceiveHook(chainPreReceiveHooks(preHooks));

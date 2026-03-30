@@ -15,57 +15,54 @@ java {
     }
 }
 
-repositories {
-    mavenCentral()
-}
-
 application {
-    mainClass = 'org.finos.gitproxy.jetty.GitProxyJettyApplication'
+    mainClass = 'org.finos.gitproxy.api.GitProxyWithDashboardApplication'
     applicationDefaultJvmArgs = ["-Djgitproxy.pidfile=${buildDir}/jgit-proxy.pid"]
 }
 
 tasks.register('stop') {
     group = 'application'
-    description = 'Stops the running jgit-proxy server'
+    description = 'Stops the running jgit-proxy-api server'
     doLast {
         def pf = file("${buildDir}/jgit-proxy.pid")
         if (pf.exists()) {
             def pid = pf.text.trim()
-            logger.lifecycle("Stopping jgit-proxy (PID: ${pid})...")
+            logger.lifecycle("Stopping jgit-proxy-api (PID: ${pid})...")
             try {
                 def proc = new ProcessBuilder('kill', pid).start()
-                def exitCode = proc.waitFor()
-                if (exitCode == 0) {
-                    logger.lifecycle("Stopped jgit-proxy server")
-                } else {
-                    logger.warn("Process ${pid} not found — may have already stopped")
-                }
+                proc.waitFor()
             } catch (Exception e) {
                 logger.warn("Failed to kill process: ${e.message}")
             }
             pf.delete()
         } else {
-            logger.warn("No PID file found. Is the server running?")
+            logger.warn("No PID file found.")
         }
     }
 }
 
 dependencies {
-    // Core module
+    // Core library (direct dep — server uses `implementation` so core isn't transitively visible)
     implementation project(':jgit-proxy-core')
 
-    // YAML configuration
-    implementation 'org.yaml:snakeyaml:2.2'
+    // Proxy server (for GitProxyServletRegistrar and config classes)
+    implementation project(':jgit-proxy-server')
 
-    // Jackson BOM — keeps all Jackson modules in sync
+    // Spring MVC for the REST API and dashboard
+    implementation 'org.springframework:spring-webmvc:6.2.6'
+
+    // Jackson JSR310 module for Instant serialisation
     implementation platform('com.fasterxml.jackson:jackson-bom:2.18.6')
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 
-    // Database drivers - include all so standalone Jetty server can use any backend
+    // Database drivers at runtime (whichever store is configured)
     runtimeOnly 'com.h2database:h2:2.4.240'
     runtimeOnly 'org.xerial:sqlite-jdbc:3.51.3.0'
     runtimeOnly 'org.postgresql:postgresql:42.7.10'
     runtimeOnly 'org.mongodb:mongodb-driver-sync:5.6.4'
+
+    // YAML config
+    implementation 'org.yaml:snakeyaml:2.2'
 
     // Lombok
     compileOnly 'org.projectlombok:lombok:1.18.44'
@@ -74,34 +71,16 @@ dependencies {
     // Testing
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.14.3'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.14.3'
-    testImplementation 'org.mockito:mockito-core:5.17.0'
-    testImplementation 'org.junit.jupiter:junit-jupiter-params:5.14.3'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.14.3'
     testCompileOnly 'org.projectlombok:lombok:1.18.44'
     testAnnotationProcessor 'org.projectlombok:lombok:1.18.44'
-
-    // Testcontainers for e2e tests
-    testImplementation 'org.testcontainers:testcontainers:1.20.4'
-    testImplementation 'org.testcontainers:junit-jupiter:1.20.4'
-
-    // H2 available at test runtime so the in-process proxy can use it
     testRuntimeOnly 'com.h2database:h2:2.4.240'
 }
 
-tasks.named('test') {
-    useJUnitPlatform {
-        excludeTags 'e2e'
-    }
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs << '-parameters'
 }
 
-tasks.register('e2eTest', Test) {
-    group = 'verification'
-    description = 'Runs end-to-end tests that require a running container runtime'
-    testClassesDirs = sourceSets.test.output.classesDirs
-    classpath = sourceSets.test.runtimeClasspath
-    useJUnitPlatform {
-        includeTags 'e2e'
-    }
-    // Container startup can be slow
-    timeout = java.time.Duration.ofMinutes(10)
+tasks.named('test') {
+    useJUnitPlatform()
 }

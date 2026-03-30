@@ -175,6 +175,9 @@ public class CommitInspectionService {
         byte[] rawSig = revCommit.getRawGpgSignature();
         String signature = (rawSig != null && rawSig.length > 0) ? new String(rawSig, StandardCharsets.US_ASCII) : null;
 
+        String fullMessage = revCommit.getFullMessage();
+        List<String> signedOffBy = parseSignedOffBy(fullMessage);
+
         return Commit.builder()
                 .sha(revCommit.getName())
                 .parent(parentSha)
@@ -186,9 +189,29 @@ public class CommitInspectionService {
                         .name(committer.getName())
                         .email(committer.getEmailAddress())
                         .build())
-                .message(revCommit.getFullMessage())
+                .message(fullMessage)
                 .date(Instant.ofEpochSecond(committer.getWhen().getTime() / 1000))
                 .signature(signature)
+                .signedOffBy(signedOffBy)
                 .build();
+    }
+
+    /**
+     * Extract all {@code Signed-off-by:} trailers from a commit message. Returns them in order of appearance,
+     * preserving the full {@code Name <email>} value.
+     */
+    static List<String> parseSignedOffBy(String message) {
+        if (message == null || message.isBlank()) return List.of();
+        List<String> result = new ArrayList<>();
+        for (String line : message.lines().toList()) {
+            String trimmed = line.trim();
+            if (trimmed.regionMatches(true, 0, "Signed-off-by:", 0, 14)) {
+                String value = trimmed.substring(14).trim();
+                if (!value.isEmpty()) {
+                    result.add(value);
+                }
+            }
+        }
+        return result;
     }
 }

@@ -1,6 +1,8 @@
 package org.finos.gitproxy.git;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.Builder;
 import lombok.Data;
 
@@ -15,4 +17,8 @@ public class Commit {
     private String message;
     private Instant date;
     private String signature;
+
+    /** Trailers matching {@code Signed-off-by: Name <email>}, in order of appearance. */
+    @Builder.Default
+    private List<String> signedOffBy = new ArrayList<>();
 }

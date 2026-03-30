@@ -1,6 +1,8 @@
 package org.finos.gitproxy.db.model;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.Builder;
 import lombok.Data;
 
@@ -37,4 +39,8 @@ public class PushCommit {
 
     /** GPG/SSH signature if present. */
     private String signature;
+
+    /** {@code Signed-off-by:} trailers extracted from the commit message, in order. */
+    @Builder.Default
+    private List<String> signedOffBy = new ArrayList<>();
 }

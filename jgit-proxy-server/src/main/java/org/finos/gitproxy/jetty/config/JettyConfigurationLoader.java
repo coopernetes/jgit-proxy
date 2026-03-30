@@ -212,6 +212,17 @@ public class JettyConfigurationLoader {
         return db != null ? db : Collections.emptyMap();
     }
 
+    /** Returns the service URL used for dashboard links in block messages and sideband output. */
+    @SuppressWarnings("unchecked")
+    public String getServiceUrl() {
+        Map<String, Object> gitProxy = (Map<String, Object>) config.get("git-proxy");
+        if (gitProxy != null && gitProxy.containsKey("service-url")) {
+            Object val = gitProxy.get("service-url");
+            if (val instanceof String) return (String) val;
+        }
+        return "http://localhost:" + getServerPort();
+    }
+
     /** Returns the full merged configuration map (for debugging/testing). */
     public Map<String, Object> getRawConfig() {
         return Collections.unmodifiableMap(config);

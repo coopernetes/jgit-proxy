@@ -13,6 +13,7 @@ public class PushQuery {
     private String branch;
     private String user;
     private String authorEmail;
+    private String commitTo;
 
     /** Maximum number of results to return. */
     @Builder.Default

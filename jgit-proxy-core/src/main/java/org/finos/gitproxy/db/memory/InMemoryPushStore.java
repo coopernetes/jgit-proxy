@@ -49,6 +49,9 @@ public class InMemoryPushStore implements PushStore {
         if (query.getAuthorEmail() != null) {
             stream = stream.filter(r -> query.getAuthorEmail().equals(r.getAuthorEmail()));
         }
+        if (query.getCommitTo() != null) {
+            stream = stream.filter(r -> query.getCommitTo().equals(r.getCommitTo()));
+        }
 
         Comparator<PushRecord> comparator = Comparator.comparing(PushRecord::getTimestamp);
         if (query.isNewestFirst()) {

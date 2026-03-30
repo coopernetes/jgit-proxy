@@ -84,6 +84,12 @@ public interface GitProxyFilter extends Filter {
         HttpServletRequest httpRequest = (HttpServletRequest) request;
         HttpServletResponse httpResponse = (HttpServletResponse) response;
 
+        // Short-circuit if a prior filter pre-approved this push (e.g. AllowApprovedPushFilter)
+        if (Boolean.TRUE.equals(httpRequest.getAttribute("gitproxy.preApproved"))) {
+            chain.doFilter(request, response);
+            return;
+        }
+
         // Only process if this filter should run
         if (shouldFilter().test(httpRequest)) {
             addFilterToDetails(httpRequest);
@@ -170,7 +176,10 @@ public interface GitProxyFilter extends Filter {
             throws IOException {
         setResult(request, GitRequestDetails.GitResult.BLOCKED, reason);
         recordStep(request, StepStatus.BLOCKED, reason, formattedMessage);
-        sendGitError(request, response, formattedMessage);
+        String serviceUrl = (String) request.getAttribute("gitproxy.serviceUrl");
+        String fullMessage =
+                serviceUrl != null ? formattedMessage + "\n\nView pending pushes at: " + serviceUrl : formattedMessage;
+        sendGitError(request, response, fullMessage);
     }
 
     /**

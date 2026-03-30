@@ -120,6 +120,10 @@ public class JdbcPushStore implements PushStore {
             sql.append(" AND branch = ?");
             params.add(query.getBranch());
         }
+        if (query.getCommitTo() != null) {
+            sql.append(" AND commit_to = ?");
+            params.add(query.getCommitTo());
+        }
         if (query.getUser() != null) {
             sql.append(" AND push_user = ?");
             params.add(query.getUser());
@@ -349,8 +353,8 @@ public class JdbcPushStore implements PushStore {
         if (commits == null || commits.isEmpty()) return;
         String sql = """
                 INSERT INTO push_commits (push_id, sha, parent_sha, author_name, author_email,
-                    committer_name, committer_email, message, commit_date, signature)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    committer_name, committer_email, message, commit_date, signature, signed_off_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             for (PushCommit c : commits) {
@@ -364,6 +368,8 @@ public class JdbcPushStore implements PushStore {
                 ps.setString(8, c.getMessage());
                 ps.setTimestamp(9, c.getCommitDate() != null ? Timestamp.from(c.getCommitDate()) : null);
                 ps.setString(10, c.getSignature());
+                List<String> sobs = c.getSignedOffBy();
+                ps.setString(11, sobs != null && !sobs.isEmpty() ? String.join("\n", sobs) : null);
                 ps.addBatch();
             }
             ps.executeBatch();
@@ -376,6 +382,10 @@ public class JdbcPushStore implements PushStore {
             List<PushCommit> commits = new ArrayList<>();
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
+                    String sobRaw = rs.getString("signed_off_by");
+                    List<String> signedOffBy = (sobRaw != null && !sobRaw.isBlank())
+                            ? Arrays.asList(sobRaw.split("\n"))
+                            : new ArrayList<>();
                     commits.add(PushCommit.builder()
                             .pushId(rs.getString("push_id"))
                             .sha(rs.getString("sha"))
@@ -387,6 +397,7 @@ public class JdbcPushStore implements PushStore {
                             .message(rs.getString("message"))
                             .commitDate(toInstant(rs.getTimestamp("commit_date")))
                             .signature(rs.getString("signature"))
+                            .signedOffBy(signedOffBy)
                             .build());
                 }
             }

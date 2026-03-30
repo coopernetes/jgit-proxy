@@ -1,46 +1,46 @@
-package org.finos.gitproxy.jetty;
+package org.finos.gitproxy.api;
 
 import java.nio.file.Files;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.finos.gitproxy.config.InMemoryProviderConfigurationSource;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.git.LocalRepositoryCache;
+import org.finos.gitproxy.jetty.GitProxyServletRegistrar;
 import org.finos.gitproxy.jetty.config.JettyConfigurationBuilder;
 import org.finos.gitproxy.jetty.config.JettyConfigurationLoader;
 import org.finos.gitproxy.provider.GitProxyProvider;
+import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
+import org.springframework.web.servlet.DispatcherServlet;
 
 /**
- * Standalone Jetty server application for the JGit proxy. Registers two servlets per provider:
+ * Jetty application that runs the git proxy server together with the Spring MVC dashboard and REST API. This is the
+ * entry point to use when you want the approval workflow UI alongside the proxy.
  *
- * <ul>
- *   <li><b>GitServlet</b> on {@code /push/...} — store-and-forward mode using JGit's native ReceivePack/UploadPack
- *       stack with sideband validation feedback
- *   <li><b>GitProxyServlet</b> on {@code /proxy/...} — transparent HTTP proxy bypass
- * </ul>
+ * <p>For a proxy-only deployment (no UI, no REST API), use {@code GitProxyJettyApplication} in
+ * {@code jgit-proxy-server} instead.
  *
- * <p>This entry point runs the proxy only — no dashboard, no REST API. For the full stack including the approval
- * workflow UI, use {@code GitProxyWithDashboardApplication} from the {@code jgit-proxy-api} module.
- *
- * <p>Configuration is loaded from {@code git-proxy.yml} and {@code git-proxy-local.yml}, overridable with
- * {@code GITPROXY_} environment variables.
+ * <p>Git servlets are registered at {@code /push/*} and {@code /proxy/*}. Spring's DispatcherServlet is registered at
+ * {@code /*} — the more-specific git paths take precedence per the servlet spec, so Spring only handles {@code /api/*},
+ * {@code /}, and static assets.
  */
 @Slf4j
-public class GitProxyJettyApplication {
+public class GitProxyWithDashboardApplication {
 
     public static void main(String[] args) throws Exception {
-        log.info("Starting JGit Proxy (proxy only — no dashboard)...");
+        log.info("Starting JGit Proxy with Dashboard...");
         writePidFile();
 
         var configLoader = new JettyConfigurationLoader();
         var configBuilder = new JettyConfigurationBuilder(configLoader);
 
         var threadPool = new QueuedThreadPool();
-        threadPool.setName("jgit-proxy-server");
+        threadPool.setName("jgit-proxy-api");
 
         var server = new Server(threadPool);
         var connector = new ServerConnector(server);
@@ -51,10 +51,7 @@ public class GitProxyJettyApplication {
         log.info("Push store initialized: {}", pushStore.getClass().getSimpleName());
 
         var storeForwardCache = new LocalRepositoryCache(Files.createTempDirectory("jgit-proxy-sf-"), 0, true);
-        log.info("Initialized store-and-forward LocalRepositoryCache (full clone)");
-
         var proxyCache = new LocalRepositoryCache();
-        log.info("Initialized proxy LocalRepositoryCache (shallow clone)");
 
         List<GitProxyProvider> providers = configBuilder.buildProviders();
         var providerConfig = new InMemoryProviderConfigurationSource(providers);
@@ -62,6 +59,7 @@ public class GitProxyJettyApplication {
         var context = new ServletContextHandler("/", false, false);
         var commitConfig = GitProxyServletRegistrar.buildCommitConfig();
 
+        // Register git proxy servlets (store-and-forward + transparent proxy) for each provider
         String serviceUrl = configBuilder.getServiceUrl();
         for (GitProxyProvider provider : providerConfig.getProviders()) {
             log.info("Registering provider: {}", provider.getName());
@@ -72,27 +70,32 @@ public class GitProxyJettyApplication {
                     context, provider, proxyCache, configBuilder, commitConfig, pushStore, serviceUrl);
         }
 
+        // Spring MVC DispatcherServlet at /* — git-specific paths take precedence per servlet spec
+        registerSpringServlet(context, pushStore);
+
         server.setHandler(context);
         server.start();
 
-        log.info("JGit Proxy started on port {}", connector.getPort());
-        for (GitProxyProvider provider : providerConfig.getProviders()) {
-            log.info(
-                    "  - {} (store-and-forward) at {}{}",
-                    provider.getName(),
-                    GitProxyServletRegistrar.PUSH_PATH_PREFIX,
-                    provider.servletMapping());
-            log.info(
-                    "  - {} (proxy bypass) at {}{}",
-                    provider.getName(),
-                    GitProxyServletRegistrar.PROXY_PATH_PREFIX,
-                    provider.servletMapping());
-        }
+        log.info("JGit Proxy with Dashboard started on port {}", connector.getPort());
+        log.info("  Dashboard: http://localhost:{}/", connector.getPort());
+        log.info("  API:       http://localhost:{}/api/push", connector.getPort());
+        log.info("  Health:    http://localhost:{}/api/health", connector.getPort());
 
         server.join();
     }
 
-    /** Write PID file so {@code ./gradlew :jgit-proxy-server:stop} can find and kill this process. */
+    private static void registerSpringServlet(ServletContextHandler context, PushStore pushStore) {
+        var appContext = new AnnotationConfigWebApplicationContext();
+        appContext.register(SpringWebConfig.class);
+        appContext.addBeanFactoryPostProcessor(bf -> bf.registerSingleton("pushStore", pushStore));
+
+        var dispatcher = new DispatcherServlet(appContext);
+        var holder = new ServletHolder("spring-dispatcher", dispatcher);
+        holder.setInitOrder(1);
+        context.addServlet(holder, "/*");
+        log.info("Registered Spring MVC DispatcherServlet at /*");
+    }
+
     private static void writePidFile() {
         String pidFilePath = System.getProperty("jgitproxy.pidfile");
         if (pidFilePath == null) return;
