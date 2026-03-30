@@ -21,13 +21,17 @@ public class PushController {
     @Autowired
     private PushStore pushStore;
 
-    /** List push records. Optional query params: status, project, repo, user, limit (default 50). */
+    /**
+     * List push records. Optional query params: status, project, repo, user, search (matches project OR repo name),
+     * limit (default 50).
+     */
     @GetMapping
     public List<PushRecord> list(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String project,
             @RequestParam(required = false) String repo,
             @RequestParam(required = false) String user,
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "50") int limit) {
 
         PushQuery.PushQueryBuilder query = PushQuery.builder().limit(limit).newestFirst(true);
@@ -44,6 +48,7 @@ public class PushController {
         if (project != null && !project.isBlank()) query.project(project);
         if (repo != null && !repo.isBlank()) query.repoName(repo);
         if (user != null && !user.isBlank()) query.user(user);
+        if (search != null && !search.isBlank()) query.search(search);
 
         return pushStore.find(query.build());
     }

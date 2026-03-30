@@ -43,3 +43,5 @@ logs/
 ### Runtime debug output ###
 body-*.txt
 packetline-*.txt
+
+.data/
