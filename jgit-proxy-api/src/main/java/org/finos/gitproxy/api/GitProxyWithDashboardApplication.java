@@ -9,6 +9,7 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.finos.gitproxy.config.InMemoryProviderConfigurationSource;
+import org.finos.gitproxy.config.ProviderConfigurationSource;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.git.LocalRepositoryCache;
 import org.finos.gitproxy.jetty.GitProxyServletRegistrar;
@@ -71,7 +72,7 @@ public class GitProxyWithDashboardApplication {
         }
 
         // Spring MVC DispatcherServlet at /* — git-specific paths take precedence per servlet spec
-        registerSpringServlet(context, pushStore);
+        registerSpringServlet(context, pushStore, providerConfig);
 
         server.setHandler(context);
         server.start();
@@ -84,10 +85,14 @@ public class GitProxyWithDashboardApplication {
         server.join();
     }
 
-    private static void registerSpringServlet(ServletContextHandler context, PushStore pushStore) {
+    private static void registerSpringServlet(
+            ServletContextHandler context, PushStore pushStore, ProviderConfigurationSource providers) {
         var appContext = new AnnotationConfigWebApplicationContext();
         appContext.register(SpringWebConfig.class);
-        appContext.addBeanFactoryPostProcessor(bf -> bf.registerSingleton("pushStore", pushStore));
+        appContext.addBeanFactoryPostProcessor(bf -> {
+            bf.registerSingleton("pushStore", pushStore);
+            bf.registerSingleton("providers", providers);
+        });
 
         var dispatcher = new DispatcherServlet(appContext);
         var holder = new ServletHolder("spring-dispatcher", dispatcher);

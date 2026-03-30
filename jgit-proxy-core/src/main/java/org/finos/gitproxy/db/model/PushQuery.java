@@ -15,6 +15,9 @@ public class PushQuery {
     private String authorEmail;
     private String commitTo;
 
+    /** Free-text search: matches records where project OR repo_name contains this value (case-insensitive LIKE). */
+    private String search;
+
     /** Maximum number of results to return. */
     @Builder.Default
     private int limit = 100;

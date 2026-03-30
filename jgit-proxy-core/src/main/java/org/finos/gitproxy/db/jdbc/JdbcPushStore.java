@@ -132,6 +132,12 @@ public class JdbcPushStore implements PushStore {
             sql.append(" AND author_email = ?");
             params.add(query.getAuthorEmail());
         }
+        if (query.getSearch() != null && !query.getSearch().isBlank()) {
+            sql.append(" AND (LOWER(project) LIKE ? OR LOWER(repo_name) LIKE ?)");
+            String term = "%" + query.getSearch().toLowerCase() + "%";
+            params.add(term);
+            params.add(term);
+        }
 
         sql.append(" ORDER BY timestamp ");
         sql.append(query.isNewestFirst() ? "DESC" : "ASC");
