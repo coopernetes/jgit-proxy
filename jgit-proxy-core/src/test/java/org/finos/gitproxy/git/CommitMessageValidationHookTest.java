@@ -192,8 +192,11 @@ class CommitMessageValidationHookTest {
 
         hook.onPreReceive(rp, List.of(newBranchCommand(wip)));
 
-        assertFalse(pushCtx.getSteps().isEmpty());
-        assertEquals(StepStatus.FAIL, pushCtx.getSteps().get(0).getStatus());
+        assertFalse(ctx.getIssues().isEmpty());
+        assertEquals(
+                "Message: WIP: blocked",
+                ctx.getIssues().get(0).detail(),
+                "Invalid commit message must record FAIL step");
     }
 
     @Test

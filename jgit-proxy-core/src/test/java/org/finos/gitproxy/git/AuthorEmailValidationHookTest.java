@@ -156,8 +156,11 @@ class AuthorEmailValidationHookTest {
 
         hook.onPreReceive(rp, List.of(newBranchCommand(badCommit)));
 
-        assertFalse(pushCtx.getSteps().isEmpty());
-        assertEquals(StepStatus.FAIL, pushCtx.getSteps().get(0).getStatus(), "Invalid email must record FAIL step");
+        assertFalse(ctx.getIssues().isEmpty());
+        assertEquals(
+                "Illegal author email: dev@badomain.io",
+                ctx.getIssues().get(0).summary(),
+                "Invalid email must record FAIL step");
     }
 
     @Test
