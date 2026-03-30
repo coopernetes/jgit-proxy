@@ -19,7 +19,7 @@ jobs:
           cache: gradle
 
       - name: Build and test
-        run: ./gradlew build test
+        run: ./gradlew build
 
       - name: Publish test results
         if: always()
@@ -49,6 +49,7 @@ jobs:
 
       - name: Run e2e tests
         run: ./gradlew :jgit-proxy-server:e2eTest
+        timeout-minutes: 5
 
       - name: Publish e2e test results
         if: always()
