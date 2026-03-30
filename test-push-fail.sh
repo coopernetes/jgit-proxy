@@ -4,8 +4,9 @@
 # Each test clones fresh to avoid leftover state from failed pushes
 set -uo pipefail
 
-PAT=$(cat ~/.github-pat)
-PUSH_URL="http://coopernetes:${PAT}@localhost:8080/push/github.com/coopernetes/test-repo.git"
+GIT_USERNAME=${GIT_USERNAME:-"me"}
+GIT_REPO=${GIT_REPO:-"github.com/coopernetes/test-repo.git"}
+PUSH_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/push/${GIT_REPO}"
 PASS=0
 FAIL=0
 
@@ -127,7 +128,7 @@ test_multi_failure() {
 
 echo "=========================================================="
 echo "  STORE-AND-FORWARD VALIDATION FAILURE TEST SUITE"
-echo "  Push URL: ${PUSH_URL//${PAT}/***}"
+echo "  Push URL: ${PUSH_URL//${GIT_PASSWORD}/***}"
 echo "=========================================================="
 
 # Author email failures

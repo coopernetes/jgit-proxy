@@ -1,4 +1,4 @@
-package org.finos.gitproxy.api.controller;
+package org.finos.gitproxy.dashboard.controller;
 
 import java.util.List;
 import java.util.Map;

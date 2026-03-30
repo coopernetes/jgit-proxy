@@ -16,7 +16,7 @@ java {
 }
 
 application {
-    mainClass = 'org.finos.gitproxy.api.GitProxyWithDashboardApplication'
+    mainClass = 'org.finos.gitproxy.dashboard.GitProxyWithDashboardApplication'
     applicationDefaultJvmArgs = ["-Djgitproxy.pidfile=${buildDir}/jgit-proxy.pid"]
 }
 

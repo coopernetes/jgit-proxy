@@ -1,4 +1,4 @@
-package org.finos.gitproxy.api;
+package org.finos.gitproxy.dashboard;
 
 import java.nio.file.Files;
 import java.util.List;
@@ -41,7 +41,7 @@ public class GitProxyWithDashboardApplication {
         var configBuilder = new JettyConfigurationBuilder(configLoader);
 
         var threadPool = new QueuedThreadPool();
-        threadPool.setName("jgit-proxy-api");
+        threadPool.setName("jgit-proxy-dashboard");
 
         var server = new Server(threadPool);
         var connector = new ServerConnector(server);

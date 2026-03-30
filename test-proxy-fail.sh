@@ -4,8 +4,9 @@
 # Each test clones fresh to avoid leftover state from failed pushes
 set -uo pipefail
 
-PAT=$(cat ~/.github-pat)
-PROXY_URL="http://coopernetes:${PAT}@localhost:8080/proxy/github.com/coopernetes/test-repo.git"
+GIT_USERNAME=${GIT_USERNAME:-"me"}
+GIT_REPO=${GIT_REPO:-"github.com/coopernetes/test-repo.git"}
+PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${GIT_REPO}"
 PASS=0
 FAIL=0
 
@@ -115,7 +116,7 @@ test_token_in_message() {
 
 echo "=========================================================="
 echo "  PROXY FILTER FAILURE TEST SUITE"
-echo "  Proxy URL: ${PROXY_URL//${PAT}/***}"
+echo "  Proxy URL: ${PROXY_URL//${GIT_PASSWORD}/***}"
 echo "=========================================================="
 
 # Author email failures

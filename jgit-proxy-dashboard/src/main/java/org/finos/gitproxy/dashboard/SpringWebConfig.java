@@ -1,4 +1,4 @@
-package org.finos.gitproxy.api;
+package org.finos.gitproxy.dashboard;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -17,7 +17,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
 @EnableWebMvc
-@ComponentScan("org.finos.gitproxy.api.controller")
+@ComponentScan("org.finos.gitproxy.dashboard.controller")
 public class SpringWebConfig implements WebMvcConfigurer {
 
     @Override

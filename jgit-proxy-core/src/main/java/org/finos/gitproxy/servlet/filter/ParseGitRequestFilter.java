@@ -99,7 +99,7 @@ public class ParseGitRequestFilter extends AbstractProviderAwareGitProxyFilter i
                 gr.setCommitFrom(pushInfo.getOldCommit());
                 gr.setCommitTo(pushInfo.getNewCommit());
 
-                if (log.isDebugEnabled()) {
+                if (null != System.getenv("GITPROXY_DEBUG_PACKET")) {
                     logPushDetails(gr.getId(), packetLine, packData);
                 }
             } catch (IOException e) {

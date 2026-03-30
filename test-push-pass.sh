@@ -4,16 +4,17 @@
 set -euo pipefail
 
 REPO_DIR=$(mktemp -d /tmp/push-test-pass-XXXX)
-PAT=$(cat ~/.github-pat)
-PUSH_URL="http://coopernetes:${PAT}@localhost:8080/push/github.com/coopernetes/test-repo.git"
+GIT_USERNAME=${GIT_USERNAME:-"me"}
+GIT_REPO=${GIT_REPO:-"github.com/coopernetes/test-repo.git"}
+PUSH_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/push/${GIT_REPO}"
 
 echo "=== SETUP: Cloning to ${REPO_DIR} ==="
 git clone "${PUSH_URL}" "${REPO_DIR}"
 cd "${REPO_DIR}"
 
-# Use a valid author email (proton.me domain is in the allow list)
-git config user.name "Thomas Cooper"
-git config user.email "coopernetes@proton.me"
+# Use a valid author email (example.com domain is in the allow list)
+git config user.name "John Developer"
+git config user.email "john.developer@example.com"
 
 echo ""
 echo "============================================="

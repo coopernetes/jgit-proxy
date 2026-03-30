@@ -4,16 +4,17 @@
 set -euo pipefail
 
 REPO_DIR=$(mktemp -d /tmp/proxy-test-pass-XXXX)
-PAT=$(cat ~/.github-pat)
-PROXY_URL="http://coopernetes:${PAT}@localhost:8080/proxy/github.com/coopernetes/test-repo.git"
+GIT_USERNAME=${GIT_USERNAME:-"me"}
+GIT_REPO=${GIT_REPO:-"github.com/coopernetes/test-repo.git"}
+PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${GIT_REPO}"
 
 echo "=== SETUP: Cloning to ${REPO_DIR} ==="
 git clone "${PROXY_URL}" "${REPO_DIR}" 2>&1
 cd "${REPO_DIR}"
 
-# Use a valid author email (proton.me domain is in the allow list)
-git config user.name "Thomas Cooper"
-git config user.email "coopernetes@proton.me"
+# Use a valid author email (example.com domain is in the allow list)
+git config user.name "Jane Developer"
+git config user.email "jane.developer@example.com"
 
 echo ""
 echo "============================================="

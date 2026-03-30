@@ -1,0 +1,33 @@
+name: CVE Scanning
+
+on:
+  push:
+
+jobs:
+  depcheck:
+    runs-on: ubuntu-latest
+    name: depecheck
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
+      - name: Build project with Gradle
+        run: ./gradlew clean build
+      - name: Depcheck
+        uses: dependency-check/Dependency-Check_Action@1e54355a8b4c8abaa8cc7d0b70aa655a3bb15a6c
+        id: Depcheck
+        with:
+          project: 'jgit-proxy'
+          path: '.'
+          format: 'HTML'
+          out: 'reports' # this is the default, no need to specify unless you wish to override it
+          args: >
+            --suppression ./gradle/allow-list.xml
+            --failOnCVSS 5
+            --enableRetired
+
+      - name: Upload Test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # ratchet:actions/upload-artifact@v7
+        with:
+          name: Depcheck report
+          path: ${{ github.workspace }}/reports

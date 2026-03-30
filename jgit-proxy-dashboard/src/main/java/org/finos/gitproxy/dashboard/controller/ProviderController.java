@@ -1,10 +1,8 @@
-package org.finos.gitproxy.api.controller;
+package org.finos.gitproxy.dashboard.controller;
 
 import jakarta.annotation.Resource;
 import java.util.List;
-
 import org.finos.gitproxy.config.ProviderConfigurationSource;
-import org.finos.gitproxy.provider.GitProxyProvider;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -26,6 +24,5 @@ public class ProviderController {
                 .toList();
     }
 
-    public record ProviderInfo(
-            String name, String uri, String host, String pushPath, String proxyPath) {}
+    public record ProviderInfo(String name, String uri, String host, String pushPath, String proxyPath) {}
 }
