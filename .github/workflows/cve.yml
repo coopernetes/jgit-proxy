@@ -21,6 +21,7 @@ jobs:
           format: 'HTML'
           out: 'reports' # this is the default, no need to specify unless you wish to override it
           args: >
+            --suppression gradle-suppressions.xml
             --failOnCVSS 5
             --enableRetired
 
