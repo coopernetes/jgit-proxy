@@ -58,6 +58,7 @@ public class CheckEmptyBranchHook implements PreReceiveHook {
     }
 
     private List<Commit> getCommits(Repository repo, ReceiveCommand cmd) throws Exception {
-        return CommitInspectionService.getCommitRange(repo, cmd.getOldId().name(), cmd.getNewId().name());
+        return CommitInspectionService.getCommitRange(
+                repo, cmd.getOldId().name(), cmd.getNewId().name());
     }
 }

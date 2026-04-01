@@ -23,8 +23,8 @@ import org.finos.gitproxy.git.HttpOperation;
  *       state problem.
  * </ul>
  *
- * <p>This filter short-circuits immediately via {@link #rejectAndSendError} without recording to {@link
- * org.finos.gitproxy.servlet.filter.ValidationSummaryFilter}.
+ * <p>This filter short-circuits immediately via {@link #rejectAndSendError} without recording to
+ * {@link org.finos.gitproxy.servlet.filter.ValidationSummaryFilter}.
  *
  * <p>Runs at order 2050, before all other content validation filters.
  */

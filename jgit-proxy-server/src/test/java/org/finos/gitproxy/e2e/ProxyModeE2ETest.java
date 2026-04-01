@@ -69,9 +69,7 @@ class ProxyModeE2ETest {
         return proxy.getPushStore();
     }
 
-    /**
-     * Clones, commits, and pushes. Returns the push result (exit code + output) so the caller can assert on it.
-     */
+    /** Clones, commits, and pushes. Returns the push result (exit code + output) so the caller can assert on it. */
     private GitHelper.PushResult cloneCommitPush(String dirSuffix, String authorEmail, String commitMessage)
             throws Exception {
         GitHelper git = helper();
@@ -107,12 +105,15 @@ class ProxyModeE2ETest {
         assertEquals(PushStatus.BLOCKED, record.get().getStatus(), "push should be BLOCKED pending review");
 
         // Approve the push
-        pushStore().approve(pushId, Attestation.builder()
-                .pushId(pushId)
-                .type(Attestation.Type.APPROVAL)
-                .reviewerUsername("e2e-test-reviewer")
-                .reason("Approved by e2e test")
-                .build());
+        pushStore()
+                .approve(
+                        pushId,
+                        Attestation.builder()
+                                .pushId(pushId)
+                                .type(Attestation.Type.APPROVAL)
+                                .reviewerUsername("e2e-test-reviewer")
+                                .reason("Approved by e2e test")
+                                .build());
 
         // Re-push — should succeed now
         var rePush = git.pushWithResult(repo);
@@ -147,12 +148,15 @@ class ProxyModeE2ETest {
         String pushId = firstPush.extractPushId();
 
         // Approve
-        pushStore().approve(pushId, Attestation.builder()
-                .pushId(pushId)
-                .type(Attestation.Type.APPROVAL)
-                .reviewerUsername("e2e-test-reviewer")
-                .reason("Approved by e2e test")
-                .build());
+        pushStore()
+                .approve(
+                        pushId,
+                        Attestation.builder()
+                                .pushId(pushId)
+                                .type(Attestation.Type.APPROVAL)
+                                .reviewerUsername("e2e-test-reviewer")
+                                .reason("Approved by e2e test")
+                                .build());
 
         // Re-push — should succeed
         var rePush = git.pushWithResult(repo);
@@ -180,8 +184,7 @@ class ProxyModeE2ETest {
     @Test
     @Order(12)
     void nonAllowedEmailDomain_rejected() throws Exception {
-        var result = cloneCommitPush(
-                "proxy-fail-domain", "developer@internal.corp.net", "feat: non-allowed domain");
+        var result = cloneCommitPush("proxy-fail-domain", "developer@internal.corp.net", "feat: non-allowed domain");
         assertFalse(result.succeeded(), "push with disallowed email domain should be rejected");
     }
 
@@ -196,8 +199,7 @@ class ProxyModeE2ETest {
     @Test
     @Order(20)
     void wipCommitMessage_rejected() throws Exception {
-        var result =
-                cloneCommitPush("proxy-fail-wip", GiteaContainer.VALID_AUTHOR_EMAIL, "WIP: still working on this");
+        var result = cloneCommitPush("proxy-fail-wip", GiteaContainer.VALID_AUTHOR_EMAIL, "WIP: still working on this");
         assertFalse(result.succeeded(), "push with WIP message should be rejected");
     }
 

@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
@@ -60,7 +59,8 @@ public class CheckHiddenCommitsHook implements PreReceiveHook {
                     + " and pushed to the remote.\n"
                     + "Please get approval on the commits, push them and try again.";
 
-            rp.sendMessage(RED + "[git-proxy] " + NO_ENTRY.emoji() + "  Push blocked — hidden commits detected" + RESET);
+            rp.sendMessage(
+                    RED + "[git-proxy] " + NO_ENTRY.emoji() + "  Push blocked — hidden commits detected" + RESET);
             rp.sendMessage(YELLOW + "[git-proxy]   " + WARNING.emoji() + "  " + msg + RESET);
 
             for (ReceiveCommand cmd : commands) {
@@ -74,12 +74,14 @@ public class CheckHiddenCommitsHook implements PreReceiveHook {
         }
     }
 
-    private Set<String> collectIntroducedCommits(Repository repo, Collection<ReceiveCommand> commands) throws Exception {
+    private Set<String> collectIntroducedCommits(Repository repo, Collection<ReceiveCommand> commands)
+            throws Exception {
         Set<String> introduced = new HashSet<>();
         for (ReceiveCommand cmd : commands) {
             if (cmd.getResult() != ReceiveCommand.Result.NOT_ATTEMPTED) continue;
             if (cmd.getType() == ReceiveCommand.Type.DELETE) continue;
-            CommitInspectionService.getCommitRange(repo, cmd.getOldId().name(), cmd.getNewId().name())
+            CommitInspectionService.getCommitRange(
+                            repo, cmd.getOldId().name(), cmd.getNewId().name())
                     .stream()
                     .map(Commit::getSha)
                     .forEach(introduced::add);

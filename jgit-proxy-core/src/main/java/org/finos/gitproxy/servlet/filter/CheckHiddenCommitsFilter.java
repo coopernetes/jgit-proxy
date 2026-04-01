@@ -17,7 +17,6 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.finos.gitproxy.git.Commit;
-import org.finos.gitproxy.git.CommitInspectionService;
 import org.finos.gitproxy.git.GitClient;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
@@ -38,9 +37,9 @@ import org.finos.gitproxy.provider.GitProxyProvider;
  *   <li><b>hidden</b> = {@code allNew} ∖ {@code introduced}.
  * </ol>
  *
- * <p>This filter short-circuits immediately via {@link #rejectAndSendError} without recording to {@link
- * ValidationSummaryFilter}. Requires {@link EnrichPushCommitsFilter} to have run first (for both {@code pushedCommits}
- * and the unpacked local repository).
+ * <p>This filter short-circuits immediately via {@link #rejectAndSendError} without recording to
+ * {@link ValidationSummaryFilter}. Requires {@link EnrichPushCommitsFilter} to have run first (for both
+ * {@code pushedCommits} and the unpacked local repository).
  *
  * <p>Runs at order 2060, before all other content validation filters.
  */
@@ -73,9 +72,7 @@ public class CheckHiddenCommitsFilter extends AbstractProviderAwareGitProxyFilte
 
         Set<String> introduced = requestDetails.getPushedCommits() == null
                 ? Set.of()
-                : requestDetails.getPushedCommits().stream()
-                        .map(Commit::getSha)
-                        .collect(Collectors.toSet());
+                : requestDetails.getPushedCommits().stream().map(Commit::getSha).collect(Collectors.toSet());
 
         try {
             String remoteUrl = constructRemoteUrl(requestDetails);
@@ -100,7 +97,8 @@ public class CheckHiddenCommitsFilter extends AbstractProviderAwareGitProxyFilte
                     + " and pushed to the remote.\n"
                     + "Please get approval on the commits, push them and try again.";
 
-            rejectAndSendError(request, response, "Hidden commits detected", GitClient.format(title, message, RED, null));
+            rejectAndSendError(
+                    request, response, "Hidden commits detected", GitClient.format(title, message, RED, null));
 
         } catch (Exception e) {
             log.error("Failed to check hidden commits", e);
