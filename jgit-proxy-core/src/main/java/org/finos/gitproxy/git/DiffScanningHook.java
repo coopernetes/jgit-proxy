@@ -1,0 +1,146 @@
+package org.finos.gitproxy.git;
+
+import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
+import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Pattern;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.transport.PreReceiveHook;
+import org.eclipse.jgit.transport.ReceiveCommand;
+import org.eclipse.jgit.transport.ReceivePack;
+import org.finos.gitproxy.config.CommitConfig;
+import org.finos.gitproxy.db.model.PushStep;
+import org.finos.gitproxy.db.model.StepStatus;
+
+/**
+ * Pre-receive hook that scans the diff content of incoming pushes for blocked literals and patterns. Runs after
+ * {@link DiffGenerationHook} so the diff is already available for review, but independently generates its own diff for
+ * scanning.
+ *
+ * <p>Only added lines (those prefixed with {@code +} in the unified diff) are scanned — deletions and context lines are
+ * ignored. Violations are reported via sideband and recorded in the shared {@link ValidationContext}.
+ */
+@Slf4j
+@RequiredArgsConstructor
+public class DiffScanningHook implements PreReceiveHook {
+
+    private final CommitConfig commitConfig;
+    private final ValidationContext validationContext;
+    private final PushContext pushContext;
+
+    @Override
+    public void onPreReceive(ReceivePack rp, Collection<ReceiveCommand> commands) {
+        rp.sendMessage(CYAN + "[git-proxy] " + KEY.emoji() + "  Scanning diff content..." + RESET);
+
+        Repository repo = rp.getRepository();
+        List<String> logs = new ArrayList<>();
+        boolean anyFailed = false;
+
+        for (ReceiveCommand cmd : commands) {
+            if (cmd.getType() == ReceiveCommand.Type.DELETE) {
+                continue;
+            }
+
+            try {
+                String diff = CommitInspectionService.getFormattedDiff(
+                        repo, cmd.getOldId().name(), cmd.getNewId().name());
+
+                if (diff.isEmpty()) {
+                    rp.sendMessage(GREEN + "[git-proxy]   " + HEAVY_CHECK_MARK.emoji() + "  " + cmd.getRefName()
+                            + " — empty diff, nothing to scan" + RESET);
+                    logs.add("SKIP: " + cmd.getRefName() + " — empty diff");
+                    continue;
+                }
+
+                List<String> violations = scanDiff(diff);
+
+                if (!violations.isEmpty()) {
+                    for (String violation : violations) {
+                        validationContext.addIssue("DiffContent", violation, "ref: " + cmd.getRefName());
+                        rp.sendMessage(RED + "[git-proxy]   " + CROSS_MARK.emoji() + "  " + violation + RESET);
+                        logs.add("FAIL: " + violation);
+                    }
+                    anyFailed = true;
+                } else {
+                    rp.sendMessage(GREEN + "[git-proxy]   " + HEAVY_CHECK_MARK.emoji() + "  " + cmd.getRefName()
+                            + " — clean" + RESET);
+                    logs.add("PASS: " + cmd.getRefName());
+                }
+
+            } catch (Exception e) {
+                log.error("Failed to scan diff for {}", cmd.getRefName(), e);
+                rp.sendMessage(YELLOW + "[git-proxy]   " + WARNING.emoji() + "  Could not scan diff: " + e.getMessage()
+                        + RESET);
+                logs.add("ERROR: " + cmd.getRefName() + " — " + e.getMessage());
+            }
+        }
+
+        if (!anyFailed) {
+            pushContext.addStep(PushStep.builder()
+                    .stepName("scanDiff")
+                    .status(StepStatus.PASS)
+                    .logs(logs)
+                    .build());
+        }
+    }
+
+    /**
+     * Scans the unified diff for blocked content, returning a deduplicated list of violation descriptions. Only added
+     * lines (prefixed with {@code +}, excluding the {@code +++} header) are checked.
+     */
+    List<String> scanDiff(String diff) {
+        Set<String> violations = new LinkedHashSet<>();
+        CommitConfig.BlockConfig block = commitConfig.getDiff().getBlock();
+
+        if (block.getLiterals().isEmpty() && block.getPatterns().isEmpty()) {
+            return List.of();
+        }
+
+        String currentFile = null;
+        for (String line : diff.lines().toList()) {
+            if (line.startsWith("diff --git ")) {
+                currentFile = extractFileName(line);
+            }
+
+            // Only scan added lines; skip the +++ header line
+            if (!line.startsWith("+") || line.startsWith("+++")) {
+                continue;
+            }
+            String content = line.substring(1);
+
+            for (String literal : block.getLiterals()) {
+                if (content.toLowerCase().contains(literal.toLowerCase())) {
+                    String location = currentFile != null ? " in " + currentFile : "";
+                    violations.add("diff contains blocked term: \"" + literal + "\"" + location);
+                }
+            }
+
+            for (Pattern pattern : block.getPatterns()) {
+                if (pattern.matcher(content).find()) {
+                    String location = currentFile != null ? " in " + currentFile : "";
+                    violations.add("diff matches blocked pattern: " + pattern.pattern() + location);
+                }
+            }
+        }
+
+        return new ArrayList<>(violations);
+    }
+
+    /** Extracts the {@code b/} path from a {@code diff --git a/... b/...} header line. */
+    private static String extractFileName(String diffHeader) {
+        // "diff --git a/path/to/file b/path/to/file"
+        String[] parts = diffHeader.split(" ");
+        if (parts.length >= 4) {
+            String bPath = parts[3];
+            return bPath.startsWith("b/") ? bPath.substring(2) : bPath;
+        }
+        return diffHeader;
+    }
+}

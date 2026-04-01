@@ -5,6 +5,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Thin wrapper around the system {@code git} CLI for use in e2e tests. Mirrors the pattern in the shell test scripts:
@@ -81,6 +83,35 @@ class GitHelper {
         String output = new String(p.getInputStream().readAllBytes());
         p.waitFor();
         return output;
+    }
+
+    private static final Pattern PUSH_ID_PATTERN =
+            Pattern.compile("([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})");
+
+    /** Attempts a push and returns the result: exit code and combined output. */
+    PushResult pushWithResult(Path repoDir) throws IOException, InterruptedException {
+        String branch = currentBranch(repoDir);
+        ProcessBuilder pb = buildGitCommand(repoDir, "push", "origin", branch);
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        String output = new String(p.getInputStream().readAllBytes());
+        int exitCode = p.waitFor();
+        return new PushResult(exitCode, output);
+    }
+
+    record PushResult(int exitCode, String output) {
+        boolean succeeded() {
+            return exitCode == 0;
+        }
+
+        /** Extracts the push ID from a "blocked pending review" error message. */
+        String extractPushId() {
+            Matcher m = PUSH_ID_PATTERN.matcher(output);
+            if (!m.find()) {
+                throw new AssertionError("No push ID found in output:\n" + output);
+            }
+            return m.group(1);
+        }
     }
 
     // ---- private helpers ----

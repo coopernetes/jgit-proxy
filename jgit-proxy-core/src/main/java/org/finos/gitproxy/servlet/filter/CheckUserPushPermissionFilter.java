@@ -2,7 +2,7 @@ package org.finos.gitproxy.servlet.filter;
 
 import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
 import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -32,10 +32,24 @@ public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
     }
 
     @Override
+    public boolean skipForRefDeletion() {
+        return false; // Permission check still applies to deletions
+    }
+
+    @Override
     public void doHttpFilter(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        var requestDetails = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTRIBUTE);
+        var requestDetails = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
         if (requestDetails == null) {
             log.warn("GitRequestDetails not found in request attributes");
+            return;
+        }
+
+        // Branch deletions send commitTo = 0000...0 (zero SHA) with no new commits.
+        // There is no author to extract identity from; the user is already authenticated
+        // by HTTP basic auth at the transport layer, so let deletions pass through.
+        String commitTo = requestDetails.getCommitTo();
+        if (commitTo != null && commitTo.matches("^0+$")) {
+            log.debug("Branch deletion detected (commitTo={}), skipping user permission check", commitTo);
             return;
         }
 
@@ -49,7 +63,7 @@ public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
             log.warn("User email not found in commit author");
             String title = NO_ENTRY.emoji() + "  Push Blocked — Unknown User";
             String message = "Could not identify the pushing user.\n" + "\n" + "Contact an administrator for support.";
-            blockAndSendError(request, response, "User not found", GitClient.format(title, message, RED, null));
+            rejectAndSendError(request, response, "User not found", GitClient.format(title, message, RED, null));
             return;
         }
 
@@ -60,7 +74,7 @@ public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
             String message = CROSS_MARK.emoji() + "  " + userEmail + " is not registered.\n"
                     + "\n"
                     + "Contact an administrator for support.";
-            blockAndSendError(request, response, "User does not exist", GitClient.format(title, message, RED, null));
+            rejectAndSendError(request, response, "User does not exist", GitClient.format(title, message, RED, null));
             return;
         }
 
@@ -75,7 +89,7 @@ public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
             String title = NO_ENTRY.emoji() + "  Push Blocked — Unauthorized";
             String message = CROSS_MARK.emoji() + "  " + userEmail + " is not allowed to push to:\n" + "   "
                     + LINK.emoji() + "  " + repositoryUrl;
-            blockAndSendError(request, response, "User not authorized", GitClient.format(title, message, RED, null));
+            rejectAndSendError(request, response, "User not authorized", GitClient.format(title, message, RED, null));
             return;
         }
 

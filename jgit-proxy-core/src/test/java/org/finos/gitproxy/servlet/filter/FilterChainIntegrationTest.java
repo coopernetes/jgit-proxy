@@ -1,6 +1,6 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -93,7 +93,7 @@ class FilterChainIntegrationTest {
         when(req.getMethod()).thenReturn("POST");
         when(req.getContentType()).thenReturn("application/x-git-receive-pack-request");
         when(req.getRequestURI()).thenReturn("/proxy/github.com/owner/repo.git/git-receive-pack");
-        when(req.getAttribute(GIT_REQUEST_ATTRIBUTE)).thenReturn(details);
+        when(req.getAttribute(GIT_REQUEST_ATTR)).thenReturn(details);
         when(req.getInputStream()).thenReturn(emptyServletInputStream());
         return req;
     }
@@ -189,7 +189,7 @@ class FilterChainIntegrationTest {
 
         runFilterChain(emailFilter, messageFilter, req, fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.ALLOWED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
         // Both filters ran and recorded PASS steps
         assertTrue(
                 details.getSteps().stream()
@@ -215,15 +215,14 @@ class FilterChainIntegrationTest {
 
         runFilterChain(emailFilter, messageFilter, req, fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
         // Email filter BLOCKED step is present
         assertTrue(details.getSteps().stream()
-                .anyMatch(
-                        s -> s.getStepName().equals("CheckAuthorEmailsFilter") && s.getStatus() == StepStatus.BLOCKED));
-        // Message filter must NOT have run (response was already committed)
-        assertFalse(
+                .anyMatch(s -> s.getStepName().equals("CheckAuthorEmailsFilter") && s.getStatus() == StepStatus.FAIL));
+        // Message filter MUST have run (aggregate validation — all filters continue after recordIssue)
+        assertTrue(
                 details.getSteps().stream().anyMatch(s -> s.getStepName().equals("CheckCommitMessagesFilter")),
-                "Message filter step must not appear when email filter already blocked");
+                "Message filter must still run even after email filter recorded an issue");
     }
 
     @Test
@@ -237,18 +236,18 @@ class FilterChainIntegrationTest {
 
         runFilterChain(emailFilter, messageFilter, req, fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
         // Email filter has a PASS step
         assertTrue(details.getSteps().stream()
                 .anyMatch(s -> s.getStepName().equals("CheckAuthorEmailsFilter") && s.getStatus() == StepStatus.PASS));
         // Message filter has a BLOCKED step
         assertTrue(details.getSteps().stream()
-                .anyMatch(s ->
-                        s.getStepName().equals("CheckCommitMessagesFilter") && s.getStatus() == StepStatus.BLOCKED));
+                .anyMatch(
+                        s -> s.getStepName().equals("CheckCommitMessagesFilter") && s.getStatus() == StepStatus.FAIL));
     }
 
     @Test
-    void invalidEmailAndWipMessage_emailBlocksFirst() throws Exception {
+    void invalidEmailAndWipMessage_bothFiltersBlock() throws Exception {
         CommitConfig config = emailAndMessageConfig();
         // Commit has both bad email AND bad message - email filter fires first
         Commit both = Commit.builder()
@@ -266,13 +265,16 @@ class FilterChainIntegrationTest {
 
         runFilterChain(emailFilter, messageFilter, req, fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
         // Email filter blocked
         assertTrue(details.getSteps().stream()
-                .anyMatch(
-                        s -> s.getStepName().equals("CheckAuthorEmailsFilter") && s.getStatus() == StepStatus.BLOCKED));
-        // Message filter never ran
-        assertFalse(details.getSteps().stream().anyMatch(s -> s.getStepName().equals("CheckCommitMessagesFilter")));
+                .anyMatch(s -> s.getStepName().equals("CheckAuthorEmailsFilter") && s.getStatus() == StepStatus.FAIL));
+        // Message filter also ran and also blocked (aggregate: all failures reported)
+        assertTrue(
+                details.getSteps().stream()
+                        .anyMatch(s -> s.getStepName().equals("CheckCommitMessagesFilter")
+                                && s.getStatus() == StepStatus.FAIL),
+                "Message filter must also run and record its own BLOCKED step");
     }
 
     @Test
@@ -311,7 +313,7 @@ class FilterChainIntegrationTest {
 
         runFilterChain(emailFilter, messageFilter, req, fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.ALLOWED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
     }
 
     @Test
@@ -326,6 +328,6 @@ class FilterChainIntegrationTest {
 
         runFilterChain(emailFilter, messageFilter, req, fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 }

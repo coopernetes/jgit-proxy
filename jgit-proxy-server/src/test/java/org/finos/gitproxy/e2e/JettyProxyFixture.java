@@ -14,6 +14,7 @@ import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jgit.http.server.GitServlet;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.config.GpgConfig;
+import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.db.PushStoreFactory;
 import org.finos.gitproxy.git.*;
 import org.finos.gitproxy.provider.GenericProxyProvider;
@@ -33,6 +34,7 @@ class JettyProxyFixture implements AutoCloseable {
 
     private final Server server;
     private final int port;
+    private final PushStore pushStore;
 
     JettyProxyFixture(URI giteaUri) throws Exception {
         server = new Server();
@@ -40,7 +42,7 @@ class JettyProxyFixture implements AutoCloseable {
         connector.setPort(0); // ephemeral
         server.addConnector(connector);
 
-        var pushStore = PushStoreFactory.inMemory();
+        pushStore = PushStoreFactory.inMemory();
         var storeForwardCache = new LocalRepositoryCache(Files.createTempDirectory("jgit-proxy-e2e-sf-"), 0, true);
         var proxyCache = new LocalRepositoryCache();
 
@@ -86,14 +88,20 @@ class JettyProxyFixture implements AutoCloseable {
         proxyHolder.setInitParameter("preserveHost", "false");
         context.addServlet(proxyHolder, proxyMapping);
 
-        // Proxy-mode filter chain (mirrors GitProxyJettyApplication.registerFilters)
+        // Proxy-mode filter chain — mirrors GitProxyServletRegistrar.registerFilters()
+        String serviceUrl = "http://localhost";
         addFilter(context, proxyMapping, new PushStoreAuditFilter(pushStore));
         addFilter(context, proxyMapping, new ForceGitClientFilter());
         addFilter(context, proxyMapping, new ParseGitRequestFilter(provider, PROXY_PREFIX));
         addFilter(context, proxyMapping, new EnrichPushCommitsFilter(provider, proxyCache, PROXY_PREFIX));
+        addFilter(context, proxyMapping, new AllowApprovedPushFilter(pushStore, serviceUrl));
         addFilter(context, proxyMapping, new CheckAuthorEmailsFilter(commitConfig));
         addFilter(context, proxyMapping, new CheckCommitMessagesFilter(commitConfig));
+        addFilter(context, proxyMapping, new ScanDiffFilter(provider, commitConfig, proxyCache));
         addFilter(context, proxyMapping, new GpgSignatureFilter(GpgConfig.defaultConfig()));
+        addFilter(context, proxyMapping, new ValidationSummaryFilter());
+        addFilter(context, proxyMapping, new FetchFinalizerFilter());
+        addFilter(context, proxyMapping, new PushFinalizerFilter(serviceUrl));
         addFilter(context, proxyMapping, new AuditLogFilter());
 
         server.setHandler(context);
@@ -105,6 +113,11 @@ class JettyProxyFixture implements AutoCloseable {
     /** The port the proxy is listening on. */
     int getPort() {
         return port;
+    }
+
+    /** The in-memory push store, exposed for approval flow in tests. */
+    PushStore getPushStore() {
+        return pushStore;
     }
 
     /** Base URL for push (store-and-forward) operations: {@code http://localhost:{port}/push/localhost}. */

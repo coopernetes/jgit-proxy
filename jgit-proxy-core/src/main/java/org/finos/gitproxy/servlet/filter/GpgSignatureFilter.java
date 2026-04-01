@@ -2,13 +2,15 @@ package org.finos.gitproxy.servlet.filter;
 
 import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
 import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.security.Security;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -25,12 +27,12 @@ import org.finos.gitproxy.git.HttpOperation;
  * Filter that validates GPG signatures on commits. This filter checks that commits are signed with a trusted GPG key
  * when signature validation is enabled.
  *
- * <p>This filter runs at order 2300, which is in the built-in content filters range (2000-4999).
+ * <p>This filter runs at order 2400, which is in the built-in content filters range (2000-4999).
  */
 @Slf4j
 public class GpgSignatureFilter extends AbstractGitProxyFilter {
 
-    private static final int ORDER = 2300;
+    private static final int ORDER = 2400;
     private final GpgConfig config;
     private PGPPublicKeyRingCollection trustedKeys;
 
@@ -52,7 +54,7 @@ public class GpgSignatureFilter extends AbstractGitProxyFilter {
             return;
         }
 
-        var requestDetails = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTRIBUTE);
+        var requestDetails = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
         if (requestDetails == null) {
             log.warn("GitRequestDetails not found in request attributes");
             return;
@@ -64,43 +66,50 @@ public class GpgSignatureFilter extends AbstractGitProxyFilter {
             return;
         }
 
-        // Check each commit for signature
+        // Collect all unsigned / invalid-signature commits before reporting
+        List<String> unsignedShas = new ArrayList<>();
+        List<String> invalidShas = new ArrayList<>();
+
         for (Commit commit : commits) {
             String signature = commit.getSignature();
+            String shortSha =
+                    commit.getSha().substring(0, Math.min(7, commit.getSha().length()));
 
             if (config.isRequireSignedCommits() && (signature == null || signature.isEmpty())) {
                 log.warn("Commit {} is not signed but signatures are required", commit.getSha());
-                String shortSha =
-                        commit.getSha().substring(0, Math.min(7, commit.getSha().length()));
-                String title = NO_ENTRY.emoji() + "  Push Blocked — Unsigned Commit";
-                String message = CROSS_MARK.emoji() + "  Commit " + shortSha + " is not signed.\n"
-                        + "\n"
-                        + KEY.emoji() + "  All commits must be signed with a GPG key.\n"
-                        + "   git config commit.gpgsign true";
-                blockAndSendError(request, response, "Unsigned commit", GitClient.format(title, message, RED, null));
-                return;
+                unsignedShas.add(shortSha);
+                continue;
             }
 
-            if (signature != null && !signature.isEmpty()) {
-                boolean isValid = verifySignature(commit);
-                if (!isValid) {
-                    log.warn("Commit {} has an invalid signature", commit.getSha());
-                    String shortSha = commit.getSha()
-                            .substring(0, Math.min(7, commit.getSha().length()));
-                    String title = NO_ENTRY.emoji() + "  Push Blocked — Invalid Signature";
-                    String message = CROSS_MARK.emoji() + "  Commit " + shortSha
-                            + " has an invalid or untrusted\n"
-                            + "   GPG signature.\n"
-                            + "\n"
-                            + KEY.emoji() + "  Ensure commits are signed with a trusted key.";
-                    blockAndSendError(
-                            request, response, "Invalid GPG signature", GitClient.format(title, message, RED, null));
-                    return;
-                }
+            if (signature != null && !signature.isEmpty() && !verifySignature(commit)) {
+                log.warn("Commit {} has an invalid signature", commit.getSha());
+                invalidShas.add(shortSha);
             }
         }
 
-        log.debug("All commits have valid GPG signatures or are not required to be signed");
+        if (!unsignedShas.isEmpty()) {
+            String shaList = unsignedShas.stream()
+                    .map(s -> CROSS_MARK.emoji() + "  " + s)
+                    .collect(java.util.stream.Collectors.joining("\n"));
+            String title = NO_ENTRY.emoji() + "  Push Blocked — Unsigned Commit(s)";
+            String message = shaList + "\n\n" + KEY.emoji()
+                    + "  All commits must be signed with a GPG key.\n"
+                    + "   git config commit.gpgsign true";
+            recordIssue(request, "Unsigned commit(s)", GitClient.format(title, message, RED, null));
+        }
+
+        if (!invalidShas.isEmpty()) {
+            String shaList = invalidShas.stream()
+                    .map(s -> CROSS_MARK.emoji() + "  " + s)
+                    .collect(java.util.stream.Collectors.joining("\n"));
+            String title = NO_ENTRY.emoji() + "  Push Blocked — Invalid Signature(s)";
+            String message = shaList + "\n\n" + KEY.emoji() + "  Ensure commits are signed with a trusted key.";
+            recordIssue(request, "Invalid GPG signature(s)", GitClient.format(title, message, RED, null));
+        }
+
+        if (unsignedShas.isEmpty() && invalidShas.isEmpty()) {
+            log.debug("All commits have valid GPG signatures or are not required to be signed");
+        }
     }
 
     /**

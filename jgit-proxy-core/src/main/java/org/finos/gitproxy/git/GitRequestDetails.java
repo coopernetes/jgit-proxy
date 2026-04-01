@@ -25,8 +25,13 @@ public class GitRequestDetails {
     private GitProxyProvider provider;
     private List<GitProxyFilter> filters = new ArrayList<>();
     private List<PushStep> steps = new ArrayList<>(); // Filter/hook results for audit trail
-    private GitResult result = GitResult.ALLOWED;
+    private GitResult result = GitResult.PENDING;
     private String reason;
+
+    /** Returns true when this push is a ref deletion (commitTo is the all-zeros null SHA). */
+    public boolean isRefDeletion() {
+        return commitTo != null && commitTo.matches("^0+$");
+    }
 
     @Builder
     @Getter
@@ -45,6 +50,7 @@ public class GitRequestDetails {
         PENDING,
         ALLOWED,
         BLOCKED,
+        REJECTED, // hard reject with no review queue (transparent proxy mode)
         ACCEPTED, // for async where a push or fetch is accepted but not yet complete
         ERROR;
     }

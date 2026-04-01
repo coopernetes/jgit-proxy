@@ -2,7 +2,7 @@ package org.finos.gitproxy.servlet.filter;
 
 import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
 import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -38,7 +38,7 @@ public class CheckAuthorEmailsFilter extends AbstractGitProxyFilter {
 
     @Override
     public void doHttpFilter(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        var requestDetails = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTRIBUTE);
+        var requestDetails = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
         if (requestDetails == null) {
             log.warn("GitRequestDetails not found in request attributes");
             return;
@@ -71,7 +71,7 @@ public class CheckAuthorEmailsFilter extends AbstractGitProxyFilter {
                     + "\n"
                     + "Verify your Git email address is valid:\n"
                     + "  git config user.email \"you@example.com\"";
-            blockAndSendError(request, response, "Illegal author emails", GitClient.format(title, message, RED, null));
+            recordIssue(request, "Illegal author emails", GitClient.format(title, message, RED, null));
             return;
         }
 

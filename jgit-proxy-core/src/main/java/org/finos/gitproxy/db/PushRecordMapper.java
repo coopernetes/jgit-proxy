@@ -27,7 +27,7 @@ public final class PushRecordMapper {
             PushStatus status = mapResult(details.getResult());
             if (status == PushStatus.ERROR) {
                 builder.errorMessage(details.getReason());
-            } else if (status == PushStatus.BLOCKED) {
+            } else if (status == PushStatus.BLOCKED || status == PushStatus.REJECTED) {
                 builder.blockedMessage(details.getReason());
             }
         }
@@ -117,6 +117,7 @@ public final class PushRecordMapper {
             case PENDING -> PushStatus.PROCESSING;
             case ALLOWED -> PushStatus.APPROVED;
             case BLOCKED -> PushStatus.BLOCKED;
+            case REJECTED -> PushStatus.REJECTED;
             case ACCEPTED -> PushStatus.RECEIVED;
             case ERROR -> PushStatus.ERROR;
         };

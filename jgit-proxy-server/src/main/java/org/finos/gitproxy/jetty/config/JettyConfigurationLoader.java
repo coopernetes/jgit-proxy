@@ -212,6 +212,19 @@ public class JettyConfigurationLoader {
         return db != null ? db : Collections.emptyMap();
     }
 
+    /** Returns the commit validation configuration map from {@code git-proxy.commit}. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getCommitConfig() {
+        Map<String, Object> gitProxy = (Map<String, Object>) config.get("git-proxy");
+        if (gitProxy != null && gitProxy.containsKey("commit")) {
+            Object commit = gitProxy.get("commit");
+            if (commit instanceof Map) {
+                return (Map<String, Object>) commit;
+            }
+        }
+        return Collections.emptyMap();
+    }
+
     /** Returns the service URL used for dashboard links in block messages and sideband output. */
     @SuppressWarnings("unchecked")
     public String getServiceUrl() {

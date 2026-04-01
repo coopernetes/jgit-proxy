@@ -4,6 +4,40 @@ logging:
 database:
   type: h2-file
 git-proxy:
+  commit:
+    author:
+      email:
+        # Domains allowed for commit authors.
+        # Used by the local test-*.sh scripts — replace with your corporate domain in production.
+        domain:
+          allow: "(proton\\.me|gmail\\.com|outlook\\.com|yahoo\\.com|example\\.com)$"
+        # Local-parts (before @) that are always blocked regardless of domain.
+        local:
+          block: "^(noreply|no-reply|bot|nobody)$"
+    message:
+      block:
+        # Commit messages containing any of these strings (case-insensitive) are rejected.
+        literals:
+          - "WIP"
+          - "DO NOT MERGE"
+          - "fixup!"
+          - "squash!"
+        # Commit messages matching any of these patterns are rejected.
+        patterns:
+          - '(?i)(password|secret|token)\s*[=:]\s*\S+'
+    diff:
+      block:
+        # Strings that must not appear on any added line (+) in the push diff.
+        # Useful for blocking committed private keys, internal hostnames, etc.
+        literals:
+          - "PRIVATE KEY"
+          - "BEGIN RSA"
+        # Patterns matched against each added line in the push diff.
+        # Catches common secret formats that may appear in config files, scripts, etc.
+        patterns:
+          - '(?i)api[_-]?key\s*[=:]\s*\S+'
+          - '(?i)aws_secret_access_key\s*[=:]\s*\S+'
+
   filters:
     whitelists:
       - enabled: true

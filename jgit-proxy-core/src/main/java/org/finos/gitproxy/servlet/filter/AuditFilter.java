@@ -1,6 +1,6 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,7 +15,7 @@ public interface AuditFilter extends GitProxyFilter {
     @Override
     default void doHttpFilter(HttpServletRequest request, HttpServletResponse response)
             throws IOException, ServletException {
-        var requestDetails = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTRIBUTE);
+        var requestDetails = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
         audit(requestDetails);
     }
 }

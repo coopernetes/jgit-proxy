@@ -19,6 +19,10 @@ public class CommitConfig {
     @Builder.Default
     private MessageConfig message = MessageConfig.builder().build();
 
+    /** Configuration for diff content scanning. */
+    @Builder.Default
+    private DiffConfig diff = DiffConfig.builder().build();
+
     /** Configuration for author validation. */
     @Data
     @Builder
@@ -92,6 +96,16 @@ public class CommitConfig {
         /** List of compiled regex patterns that are blocked in commit messages. */
         @Builder.Default
         private List<Pattern> patterns = new ArrayList<>();
+    }
+
+    /** Configuration for diff content scanning. */
+    @Data
+    @Builder
+    public static class DiffConfig {
+
+        /** Configuration for blocking specific patterns in diff content. */
+        @Builder.Default
+        private BlockConfig block = BlockConfig.builder().build();
     }
 
     /**

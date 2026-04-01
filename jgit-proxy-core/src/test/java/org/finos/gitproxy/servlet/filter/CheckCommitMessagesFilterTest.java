@@ -1,6 +1,6 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -88,7 +88,7 @@ class CheckCommitMessagesFilterTest {
         when(req.getMethod()).thenReturn("POST");
         when(req.getContentType()).thenReturn("application/x-git-receive-pack-request");
         when(req.getRequestURI()).thenReturn("/proxy/github.com/owner/repo.git/git-receive-pack");
-        when(req.getAttribute(GIT_REQUEST_ATTRIBUTE)).thenReturn(details);
+        when(req.getAttribute(GIT_REQUEST_ATTR)).thenReturn(details);
         when(req.getInputStream()).thenReturn(emptyServletInputStream());
         return req;
     }
@@ -136,7 +136,7 @@ class CheckCommitMessagesFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.ALLOWED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
         assertFalse(fakeResponse.committed.get());
     }
 
@@ -148,8 +148,10 @@ class CheckCommitMessagesFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
-        assertTrue(fakeResponse.committed.get());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
+        assertFalse(
+                fakeResponse.committed.get(),
+                "Response must NOT be committed — recordIssue defers to ValidationSummaryFilter");
     }
 
     @Test
@@ -160,7 +162,7 @@ class CheckCommitMessagesFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -171,7 +173,7 @@ class CheckCommitMessagesFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -182,7 +184,7 @@ class CheckCommitMessagesFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -194,7 +196,7 @@ class CheckCommitMessagesFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -206,7 +208,7 @@ class CheckCommitMessagesFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -217,7 +219,7 @@ class CheckCommitMessagesFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -228,7 +230,7 @@ class CheckCommitMessagesFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -269,7 +271,7 @@ class CheckCommitMessagesFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.ALLOWED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
     }
 
     @Test
@@ -280,7 +282,7 @@ class CheckCommitMessagesFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.ALLOWED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
     }
 
     @Test
@@ -292,7 +294,7 @@ class CheckCommitMessagesFilterTest {
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
         assertFalse(details.getSteps().isEmpty());
-        assertTrue(details.getSteps().stream().anyMatch(s -> s.getStatus() == StepStatus.BLOCKED));
+        assertTrue(details.getSteps().stream().anyMatch(s -> s.getStatus() == StepStatus.FAIL));
     }
 
     @Test
@@ -304,7 +306,7 @@ class CheckCommitMessagesFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -318,7 +320,7 @@ class CheckCommitMessagesFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.ALLOWED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
     }
 
     @Test
@@ -330,6 +332,6 @@ class CheckCommitMessagesFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.ALLOWED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
     }
 }

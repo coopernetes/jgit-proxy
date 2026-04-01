@@ -58,7 +58,7 @@ public class GitProxyWithDashboardApplication {
         var providerConfig = new InMemoryProviderConfigurationSource(providers);
 
         var context = new ServletContextHandler("/", false, false);
-        var commitConfig = GitProxyServletRegistrar.buildCommitConfig();
+        var commitConfig = configBuilder.buildCommitConfig();
 
         // Register git proxy servlets (store-and-forward + transparent proxy) for each provider
         String serviceUrl = configBuilder.getServiceUrl();
@@ -109,7 +109,6 @@ public class GitProxyWithDashboardApplication {
             java.nio.file.Files.createDirectories(pidFile.getParent());
             java.nio.file.Files.writeString(
                     pidFile, String.valueOf(ProcessHandle.current().pid()));
-            pidFile.toFile().deleteOnExit();
             log.info("Wrote PID file: {}", pidFilePath);
         } catch (Exception e) {
             log.warn("Could not write PID file: {}", e.getMessage());

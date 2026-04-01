@@ -1,6 +1,6 @@
 package org.finos.gitproxy.jetty;
 
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -94,7 +94,7 @@ class ProxyModeFilterChainTest {
         when(req.getMethod()).thenReturn("POST");
         when(req.getContentType()).thenReturn("application/x-git-receive-pack-request");
         when(req.getRequestURI()).thenReturn("/proxy/github.com/owner/repo.git/git-receive-pack");
-        when(req.getAttribute(GIT_REQUEST_ATTRIBUTE)).thenReturn(details);
+        when(req.getAttribute(GIT_REQUEST_ATTR)).thenReturn(details);
         when(req.getInputStream()).thenReturn(emptyServletInputStream());
         return req;
     }
@@ -177,7 +177,7 @@ class ProxyModeFilterChainTest {
 
         runChain(config, mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -188,7 +188,7 @@ class ProxyModeFilterChainTest {
 
         runChain(config, mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -200,7 +200,7 @@ class ProxyModeFilterChainTest {
 
         runChain(config, mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -212,7 +212,7 @@ class ProxyModeFilterChainTest {
 
         runChain(config, mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -223,7 +223,7 @@ class ProxyModeFilterChainTest {
 
         runChain(config, mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -259,6 +259,6 @@ class ProxyModeFilterChainTest {
 
         runChain(config, mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 }

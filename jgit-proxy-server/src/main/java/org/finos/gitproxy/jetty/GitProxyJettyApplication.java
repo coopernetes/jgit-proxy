@@ -60,7 +60,7 @@ public class GitProxyJettyApplication {
         var providerConfig = new InMemoryProviderConfigurationSource(providers);
 
         var context = new ServletContextHandler("/", false, false);
-        var commitConfig = GitProxyServletRegistrar.buildCommitConfig();
+        var commitConfig = configBuilder.buildCommitConfig();
 
         String serviceUrl = configBuilder.getServiceUrl();
         for (GitProxyProvider provider : providerConfig.getProviders()) {
@@ -101,7 +101,6 @@ public class GitProxyJettyApplication {
             java.nio.file.Files.createDirectories(pidFile.getParent());
             java.nio.file.Files.writeString(
                     pidFile, String.valueOf(ProcessHandle.current().pid()));
-            pidFile.toFile().deleteOnExit();
             log.info("Wrote PID file: {}", pidFilePath);
         } catch (Exception e) {
             log.warn("Could not write PID file: {}", e.getMessage());

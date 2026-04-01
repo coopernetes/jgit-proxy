@@ -1,6 +1,6 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -51,7 +51,7 @@ public class EnrichPushCommitsFilter extends AbstractProviderAwareGitProxyFilter
 
     @Override
     public void doHttpFilter(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        var requestDetails = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTRIBUTE);
+        var requestDetails = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
         if (requestDetails == null) {
             log.warn("GitRequestDetails not found in request attributes");
             return;

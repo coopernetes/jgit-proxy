@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.Git;
@@ -13,6 +14,7 @@ import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.PersonIdent;
+import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -72,8 +74,17 @@ public class CommitInspectionService {
             if (fromId != null && !isNullCommit(fromCommit)) {
                 revCommits = git.log().addRange(fromId, toId).call();
             } else {
-                // New branch - get all commits up to toCommit
-                revCommits = git.log().add(toId).call();
+                // New branch — exclude commits reachable from any existing ref so we only
+                // validate commits that are genuinely new in this push.  The local cache is a
+                // bare clone, so existing branch tips live under refs/heads/ (not refs/remotes/).
+                var logCmd = git.log().add(toId);
+                Collection<Ref> existingRefs = repository.getRefDatabase().getRefsByPrefix("refs/heads/");
+                for (Ref ref : existingRefs) {
+                    if (ref.getObjectId() != null) {
+                        logCmd.not(ref.getObjectId());
+                    }
+                }
+                revCommits = logCmd.call();
             }
 
             for (RevCommit revCommit : revCommits) {
@@ -99,7 +110,10 @@ public class CommitInspectionService {
             CanonicalTreeParser oldTreeParser = new CanonicalTreeParser();
             CanonicalTreeParser newTreeParser = new CanonicalTreeParser();
 
-            ObjectId oldId = repository.resolve(fromCommit + "^{tree}");
+            // For new-branch pushes fromCommit is the all-zeros null object, which does not
+            // exist in the repository.  Guard before calling resolve() — JGit throws
+            // MissingObjectException rather than returning null for the zero SHA.
+            ObjectId oldId = isNullCommit(fromCommit) ? null : repository.resolve(fromCommit + "^{tree}");
             ObjectId newId = repository.resolve(toCommit + "^{tree}");
 
             if (oldId != null) {

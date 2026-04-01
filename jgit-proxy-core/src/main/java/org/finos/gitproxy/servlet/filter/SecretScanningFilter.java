@@ -1,6 +1,6 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -14,7 +14,7 @@ import org.finos.gitproxy.git.HttpOperation;
  * Stub filter for secret scanning functionality. This filter is designed to integrate with external secret scanning
  * tools like Gitleaks via external process execution.
  *
- * <p>This filter runs at order 2400, which is in the built-in content filters range (2000-4999).
+ * <p>This filter runs at order 2500, which is in the built-in content filters range (2000-4999).
  *
  * <p>Future implementation will:
  *
@@ -41,7 +41,7 @@ import org.finos.gitproxy.git.HttpOperation;
 @Slf4j
 public class SecretScanningFilter extends AbstractGitProxyFilter {
 
-    private static final int ORDER = 2400;
+    private static final int ORDER = 2500;
     private final boolean enabled;
 
     public SecretScanningFilter(boolean enabled) {
@@ -60,7 +60,7 @@ public class SecretScanningFilter extends AbstractGitProxyFilter {
             return;
         }
 
-        var requestDetails = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTRIBUTE);
+        var requestDetails = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
         if (requestDetails == null) {
             log.warn("GitRequestDetails not found in request attributes");
             return;

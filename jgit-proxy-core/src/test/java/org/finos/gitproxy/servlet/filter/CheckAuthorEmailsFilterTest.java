@@ -1,6 +1,6 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import org.finos.gitproxy.config.CommitConfig;
+import org.finos.gitproxy.db.model.StepStatus;
 import org.finos.gitproxy.git.Commit;
 import org.finos.gitproxy.git.Contributor;
 import org.finos.gitproxy.git.GitRequestDetails;
@@ -87,7 +88,7 @@ class CheckAuthorEmailsFilterTest {
         when(req.getMethod()).thenReturn("POST");
         when(req.getContentType()).thenReturn("application/x-git-receive-pack-request");
         when(req.getRequestURI()).thenReturn("/proxy/github.com/owner/repo.git/git-receive-pack");
-        when(req.getAttribute(GIT_REQUEST_ATTRIBUTE)).thenReturn(details);
+        when(req.getAttribute(GIT_REQUEST_ATTR)).thenReturn(details);
         when(req.getInputStream()).thenReturn(emptyServletInputStream());
         return req;
     }
@@ -133,7 +134,7 @@ class CheckAuthorEmailsFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.ALLOWED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
         assertFalse(fakeResponse.committed.get(), "Response must not be committed for allowed email");
     }
 
@@ -145,7 +146,7 @@ class CheckAuthorEmailsFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.ALLOWED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
         assertFalse(fakeResponse.committed.get());
     }
 
@@ -157,8 +158,10 @@ class CheckAuthorEmailsFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
-        assertTrue(fakeResponse.committed.get(), "Response must be committed when push is blocked");
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
+        assertFalse(
+                fakeResponse.committed.get(),
+                "Response must NOT be committed — recordIssue defers to ValidationSummaryFilter");
     }
 
     @Test
@@ -171,8 +174,7 @@ class CheckAuthorEmailsFilterTest {
 
         assertFalse(details.getSteps().isEmpty(), "At least one step must be recorded");
         assertTrue(
-                details.getSteps().stream()
-                        .anyMatch(s -> s.getStatus() == org.finos.gitproxy.db.model.StepStatus.BLOCKED),
+                details.getSteps().stream().anyMatch(s -> s.getStatus() == StepStatus.FAIL),
                 "A BLOCKED step must be recorded");
     }
 
@@ -184,7 +186,7 @@ class CheckAuthorEmailsFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -195,7 +197,7 @@ class CheckAuthorEmailsFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -206,7 +208,7 @@ class CheckAuthorEmailsFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -217,7 +219,7 @@ class CheckAuthorEmailsFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -230,7 +232,7 @@ class CheckAuthorEmailsFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.ALLOWED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
     }
 
     @Test
@@ -241,7 +243,7 @@ class CheckAuthorEmailsFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.ALLOWED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
     }
 
     @Test
@@ -250,7 +252,7 @@ class CheckAuthorEmailsFilterTest {
         when(req.getMethod()).thenReturn("POST");
         when(req.getContentType()).thenReturn("application/x-git-receive-pack-request");
         when(req.getRequestURI()).thenReturn("/proxy/github.com/owner/repo.git/git-receive-pack");
-        when(req.getAttribute(GIT_REQUEST_ATTRIBUTE)).thenReturn(null);
+        when(req.getAttribute(GIT_REQUEST_ATTR)).thenReturn(null);
         when(req.getInputStream()).thenReturn(emptyServletInputStream());
 
         CheckAuthorEmailsFilter filter = new CheckAuthorEmailsFilter(testConfig());
@@ -269,7 +271,7 @@ class CheckAuthorEmailsFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.ALLOWED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
     }
 
     @Test
@@ -281,7 +283,7 @@ class CheckAuthorEmailsFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -292,6 +294,6 @@ class CheckAuthorEmailsFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
-        assertEquals(GitRequestDetails.GitResult.ALLOWED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
     }
 }

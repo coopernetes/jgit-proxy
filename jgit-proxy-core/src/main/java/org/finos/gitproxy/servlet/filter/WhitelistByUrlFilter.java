@@ -1,6 +1,6 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -28,7 +28,6 @@ public class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter im
 
     private final List<String> whitelist;
     private final Target target;
-    private static final Set<HttpOperation> DEFAULT_OPERATIONS = Set.of(HttpOperation.PUSH, HttpOperation.FETCH);
     public static final String WHITELISTED_BY_ATTRIBUTE =
             "org.finos.gitproxy.servlet.filter.WhitelistByUrlFilter.whitelistedBy";
 
@@ -86,7 +85,7 @@ public class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter im
 
     @Override
     public Predicate<String> createPredicate(Target target, HttpServletRequest request) {
-        var details = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTRIBUTE);
+        var details = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
         if (target == AuthorizedByUrlFilter.Target.OWNER) {
             return o -> o.equals(details.getRepository().getOwner());
         }

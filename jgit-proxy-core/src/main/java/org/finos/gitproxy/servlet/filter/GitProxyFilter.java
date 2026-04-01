@@ -1,7 +1,8 @@
 package org.finos.gitproxy.servlet.filter;
 
 import static jakarta.servlet.http.HttpServletResponse.SC_OK;
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.GitProxyProviderServlet.*;
+import static org.finos.gitproxy.servlet.GitProxyServlet.*;
 
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
@@ -48,6 +49,7 @@ import org.finos.gitproxy.git.HttpOperation;
 public interface GitProxyFilter extends Filter {
 
     Set<HttpOperation> ALL_OPERATIONS = Set.of(HttpOperation.values());
+    Set<HttpOperation> DEFAULT_OPERATIONS = Set.of(HttpOperation.PUSH, HttpOperation.FETCH);
 
     /**
      * Implement the filtering of git operations for HTTP requests. This method is called when the request is determined
@@ -78,6 +80,15 @@ public interface GitProxyFilter extends Filter {
      * response to {@link HttpServletRequest} and {@link HttpServletResponse} respectively. There is no reason to
      * override this method.
      */
+    /**
+     * Whether this filter should be skipped for ref-deletion pushes (commitTo = zero SHA). Content validation filters
+     * return {@code true} (the default) because there are no commits to validate. Auth and whitelist filters that must
+     * still gate deletions should override this to return {@code false}.
+     */
+    default boolean skipForRefDeletion() {
+        return true;
+    }
+
     @Override
     default void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
@@ -85,7 +96,14 @@ public interface GitProxyFilter extends Filter {
         HttpServletResponse httpResponse = (HttpServletResponse) response;
 
         // Short-circuit if a prior filter pre-approved this push (e.g. AllowApprovedPushFilter)
-        if (Boolean.TRUE.equals(httpRequest.getAttribute("gitproxy.preApproved"))) {
+        if (Boolean.TRUE.equals(httpRequest.getAttribute(PRE_APPROVED_ATTR))) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        // Skip content filters for ref deletions — there are no commits to validate
+        var detailsForDeletion = (GitRequestDetails) httpRequest.getAttribute(GIT_REQUEST_ATTR);
+        if (detailsForDeletion != null && detailsForDeletion.isRefDeletion() && skipForRefDeletion()) {
             chain.doFilter(request, response);
             return;
         }
@@ -93,15 +111,22 @@ public interface GitProxyFilter extends Filter {
         // Only process if this filter should run
         if (shouldFilter().test(httpRequest)) {
             addFilterToDetails(httpRequest);
+            var details = (GitRequestDetails) httpRequest.getAttribute(GIT_REQUEST_ATTR);
+            int stepsBefore = details != null ? details.getSteps().size() : 0;
             // Execute filter logic
             doHttpFilter(httpRequest, httpResponse);
 
-            // If response was committed (filter blocked), the filter already recorded the step
-            // via blockAndSendError. If not committed, auto-record PASS.
+            // If response was committed (blockAndSendError), stop the chain immediately
             if (httpResponse.isCommitted()) {
                 return;
             }
-            recordStep(httpRequest, StepStatus.PASS, null, null);
+            // Auto-record PASS only when doHttpFilter didn't record its own step.
+            // Filters using recordIssue() add a BLOCKED step without committing the response,
+            // so we must not overwrite that with a spurious PASS.
+            int stepsAfter = details != null ? details.getSteps().size() : 0;
+            if (stepsAfter == stepsBefore) {
+                recordStep(httpRequest, StepStatus.PASS, null, null);
+            }
         }
         chain.doFilter(request, response);
     }
@@ -140,7 +165,7 @@ public interface GitProxyFilter extends Filter {
      * @param content Detailed content (e.g., the formatted error message sent to the client)
      */
     default void recordStep(HttpServletRequest request, StepStatus status, String reason, String content) {
-        var details = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTRIBUTE);
+        var details = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
         if (details == null) return;
 
         PushStep step = PushStep.builder()
@@ -153,6 +178,20 @@ public interface GitProxyFilter extends Filter {
                 .errorMessage(status == StepStatus.FAIL ? reason : null)
                 .build();
         details.getSteps().add(step);
+    }
+
+    /**
+     * Record a validation issue without committing the HTTP response. Use this in the transparent proxy pipeline to
+     * collect all validation failures before sending a combined error via {@link ValidationSummaryFilter}. Unlike
+     * {@link #rejectAndSendError}, this method does not send a response, so subsequent filters continue to run.
+     *
+     * @param request The HTTP request
+     * @param reason Short reason for the block (stored in the DB for querying/reporting)
+     * @param formattedMessage The full formatted message (stored as step content for later display)
+     */
+    default void recordIssue(HttpServletRequest request, String reason, String formattedMessage) {
+        setResult(request, GitRequestDetails.GitResult.REJECTED, reason);
+        recordStep(request, StepStatus.FAIL, reason, formattedMessage);
     }
 
     /**
@@ -171,12 +210,12 @@ public interface GitProxyFilter extends Filter {
      * @param reason Short reason for the block (stored in the DB for querying/reporting)
      * @param formattedMessage The full formatted message to display to the git client (also stored as step content)
      */
-    default void blockAndSendError(
+    default void rejectAndSendError(
             HttpServletRequest request, HttpServletResponse response, String reason, String formattedMessage)
             throws IOException {
-        setResult(request, GitRequestDetails.GitResult.BLOCKED, reason);
-        recordStep(request, StepStatus.BLOCKED, reason, formattedMessage);
-        String serviceUrl = (String) request.getAttribute("gitproxy.serviceUrl");
+        setResult(request, GitRequestDetails.GitResult.REJECTED, reason);
+        recordStep(request, StepStatus.FAIL, reason, formattedMessage);
+        String serviceUrl = (String) request.getAttribute(SERVICE_URL_ATTR);
         String fullMessage =
                 serviceUrl != null ? formattedMessage + "\n\nView pending pushes at: " + serviceUrl : formattedMessage;
         sendGitError(request, response, fullMessage);
@@ -214,14 +253,14 @@ public interface GitProxyFilter extends Filter {
     //    }
 
     default void addFilterToDetails(HttpServletRequest request) {
-        var details = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTRIBUTE);
+        var details = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
         if (details != null) {
             details.getFilters().add(this);
         }
     }
 
     default void setResult(HttpServletRequest request, GitRequestDetails.GitResult result, String reason) {
-        var details = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTRIBUTE);
+        var details = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
         if (details != null) {
             details.setResult(result);
             details.setReason(reason);

@@ -1,6 +1,6 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
@@ -42,7 +42,7 @@ public class PushStoreAuditFilter implements Filter {
         // Only persist receive-pack (push) operations
         if (!GitSmartHttpTools.isReceivePack(httpRequest)) return;
 
-        var requestDetails = (GitRequestDetails) httpRequest.getAttribute(GIT_REQUEST_ATTRIBUTE);
+        var requestDetails = (GitRequestDetails) httpRequest.getAttribute(GIT_REQUEST_ATTR);
         if (requestDetails == null) return;
 
         try {

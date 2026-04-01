@@ -12,12 +12,15 @@ import org.finos.gitproxy.git.GitRequestDetails;
 
 @Slf4j
 public class GitProxyServlet extends AsyncProxyServlet.Transparent {
-    public static final String GIT_REQUEST_ATTRIBUTE = "org.finos.gitproxy.gitproxy.gitRequest";
+    public static final String GIT_REQUEST_ATTR = "gitproxy.gitRequest";
+    public static final String ERROR_ATTR = "gitproxy.error";
+    public static final String PRE_APPROVED_ATTR = "gitproxy.preApproved";
+    public static final String SERVICE_URL_ATTR = "gitproxy.serviceUrl";
 
     @Override
     protected void service(HttpServletRequest clientRequest, HttpServletResponse proxyResponse)
             throws ServletException, IOException {
-        var details = (GitRequestDetails) clientRequest.getAttribute(GIT_REQUEST_ATTRIBUTE);
+        var details = (GitRequestDetails) clientRequest.getAttribute(GIT_REQUEST_ATTR);
         var canProxy = details != null && details.getResult() == GitRequestDetails.GitResult.ALLOWED;
         if (canProxy) {
             super.service(clientRequest, proxyResponse);

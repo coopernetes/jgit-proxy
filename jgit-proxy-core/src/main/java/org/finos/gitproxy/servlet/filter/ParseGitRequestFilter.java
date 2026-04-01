@@ -1,6 +1,6 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -52,7 +52,7 @@ public class ParseGitRequestFilter extends AbstractProviderAwareGitProxyFilter i
         GitRequestDetails requestDetails = parse(wrapper);
 
         // Add the details to the request attributes
-        wrapper.setAttribute(GIT_REQUEST_ATTRIBUTE, requestDetails);
+        wrapper.setAttribute(GIT_REQUEST_ATTR, requestDetails);
 
         // Continue with the wrapped request (important!)
         chain.doFilter(wrapper, response);
@@ -80,7 +80,9 @@ public class ParseGitRequestFilter extends AbstractProviderAwareGitProxyFilter i
                 .name(getName(request.getPathInfo()))
                 .slug(getSlug(request.getPathInfo()))
                 .build());
-
+        if (op == HttpOperation.INFO) {
+            gr.setResult(GitRequestDetails.GitResult.ALLOWED);
+        }
         if (op == HttpOperation.PUSH) {
             try {
                 // Read packet line using JGit

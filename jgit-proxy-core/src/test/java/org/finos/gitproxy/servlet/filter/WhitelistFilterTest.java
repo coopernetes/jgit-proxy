@@ -1,6 +1,6 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 import static org.finos.gitproxy.servlet.filter.WhitelistByUrlFilter.WHITELISTED_BY_ATTRIBUTE;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -86,12 +86,12 @@ class WhitelistFilterTest {
 
     private HttpServletRequest mockPushRequest(GitRequestDetails details) throws IOException {
         Map<String, Object> attrs = new HashMap<>();
-        attrs.put(GIT_REQUEST_ATTRIBUTE, details);
+        attrs.put(GIT_REQUEST_ATTR, details);
         HttpServletRequest req = mock(HttpServletRequest.class);
         when(req.getMethod()).thenReturn("POST");
         when(req.getContentType()).thenReturn("application/x-git-receive-pack-request");
         when(req.getRequestURI()).thenReturn("/proxy/github.com/owner/repo.git/git-receive-pack");
-        when(req.getAttribute(GIT_REQUEST_ATTRIBUTE)).thenReturn(details);
+        when(req.getAttribute(GIT_REQUEST_ATTR)).thenReturn(details);
         when(req.getInputStream()).thenReturn(emptyServletInputStream());
         doAnswer(inv -> {
                     attrs.put(inv.getArgument(0), inv.getArgument(1));

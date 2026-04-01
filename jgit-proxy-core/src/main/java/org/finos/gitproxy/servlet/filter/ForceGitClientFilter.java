@@ -1,6 +1,6 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.ERROR_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.GitProxyServlet.ERROR_ATTR;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -35,7 +35,7 @@ public final class ForceGitClientFilter implements GitProxyFilter {
     public void doHttpFilter(HttpServletRequest request, HttpServletResponse response) throws IOException {
         if (!GitSmartHttpTools.isGitClient(request)) {
             var error = "This endpoint is only accessible via a Git client.";
-            request.setAttribute(ERROR_ATTRIBUTE, error);
+            request.setAttribute(ERROR_ATTR, error);
             response.sendError(HttpServletResponse.SC_BAD_REQUEST, error);
         }
     }

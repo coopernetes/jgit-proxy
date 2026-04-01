@@ -1,6 +1,6 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -85,7 +85,7 @@ class GpgSignatureFilterTest {
         when(req.getMethod()).thenReturn("POST");
         when(req.getContentType()).thenReturn("application/x-git-receive-pack-request");
         when(req.getRequestURI()).thenReturn("/proxy/github.com/owner/repo.git/git-receive-pack");
-        when(req.getAttribute(GIT_REQUEST_ATTRIBUTE)).thenReturn(details);
+        when(req.getAttribute(GIT_REQUEST_ATTR)).thenReturn(details);
         when(req.getInputStream()).thenReturn(emptyServletInputStream());
         return req;
     }
@@ -129,7 +129,7 @@ class GpgSignatureFilterTest {
         when(req.getMethod()).thenReturn("POST");
         when(req.getContentType()).thenReturn("application/x-git-receive-pack-request");
         when(req.getRequestURI()).thenReturn("/proxy/github.com/owner/repo.git/git-receive-pack");
-        when(req.getAttribute(GIT_REQUEST_ATTRIBUTE)).thenReturn(null);
+        when(req.getAttribute(GIT_REQUEST_ATTR)).thenReturn(null);
         when(req.getInputStream()).thenReturn(emptyServletInputStream());
         FakeResponse resp = new FakeResponse();
 
@@ -165,8 +165,9 @@ class GpgSignatureFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), resp.mock);
 
-        assertTrue(resp.committed.get(), "Unsigned commit when required should be blocked");
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertFalse(
+                resp.committed.get(), "Response must NOT be committed — recordIssue defers to ValidationSummaryFilter");
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -210,6 +211,11 @@ class GpgSignatureFilterTest {
 
         filter.doHttpFilter(mockPushRequest(details), resp.mock);
 
-        assertTrue(resp.committed.get(), "Should block on first unsigned commit");
+        assertFalse(
+                resp.committed.get(), "Response must NOT be committed — all commits are collected before reporting");
+        assertEquals(
+                GitRequestDetails.GitResult.REJECTED,
+                details.getResult(),
+                "Multiple unsigned commits should still block");
     }
 }

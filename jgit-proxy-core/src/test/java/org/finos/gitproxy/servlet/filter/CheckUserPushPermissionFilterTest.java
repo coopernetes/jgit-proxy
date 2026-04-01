@@ -1,6 +1,6 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -85,7 +85,7 @@ class CheckUserPushPermissionFilterTest {
         when(req.getMethod()).thenReturn("POST");
         when(req.getContentType()).thenReturn("application/x-git-receive-pack-request");
         when(req.getRequestURI()).thenReturn("/proxy/github.com/owner/repo.git/git-receive-pack");
-        when(req.getAttribute(GIT_REQUEST_ATTRIBUTE)).thenReturn(details);
+        when(req.getAttribute(GIT_REQUEST_ATTR)).thenReturn(details);
         when(req.getInputStream()).thenReturn(emptyServletInputStream());
         return req;
     }
@@ -115,7 +115,7 @@ class CheckUserPushPermissionFilterTest {
         when(req.getMethod()).thenReturn("POST");
         when(req.getContentType()).thenReturn("application/x-git-receive-pack-request");
         when(req.getRequestURI()).thenReturn("/proxy/github.com/owner/repo.git/git-receive-pack");
-        when(req.getAttribute(GIT_REQUEST_ATTRIBUTE)).thenReturn(null);
+        when(req.getAttribute(GIT_REQUEST_ATTR)).thenReturn(null);
         when(req.getInputStream()).thenReturn(emptyServletInputStream());
         FakeResponse resp = new FakeResponse();
 
@@ -137,7 +137,7 @@ class CheckUserPushPermissionFilterTest {
                 .doHttpFilter(mockPushRequest(details), resp.mock);
 
         assertTrue(resp.committed.get(), "Should block when commit/author is null");
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -149,7 +149,7 @@ class CheckUserPushPermissionFilterTest {
                 .doHttpFilter(mockPushRequest(details), resp.mock);
 
         assertTrue(resp.committed.get(), "Should block when email is empty");
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -162,7 +162,7 @@ class CheckUserPushPermissionFilterTest {
         new CheckUserPushPermissionFilter(authSvc).doHttpFilter(mockPushRequest(details), resp.mock);
 
         assertTrue(resp.committed.get(), "Should block unknown user");
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -177,7 +177,7 @@ class CheckUserPushPermissionFilterTest {
         new CheckUserPushPermissionFilter(authSvc).doHttpFilter(mockPushRequest(details), resp.mock);
 
         assertTrue(resp.committed.get(), "Should block unauthorized user");
-        assertEquals(GitRequestDetails.GitResult.BLOCKED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
     @Test
@@ -189,7 +189,7 @@ class CheckUserPushPermissionFilterTest {
                 .doHttpFilter(mockPushRequest(details), resp.mock);
 
         assertFalse(resp.committed.get(), "Authorized user should not be blocked");
-        assertEquals(GitRequestDetails.GitResult.ALLOWED, details.getResult());
+        assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
     }
 
     @Test

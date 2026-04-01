@@ -38,13 +38,13 @@ public class WhitelistAggregateFilter extends AbstractProviderAwareGitProxyFilte
     }
 
     public WhitelistAggregateFilter(int order, GitProxyProvider provider, List<WhitelistByUrlFilter> whitelistFilters) {
-        super(validateWhitelistOrder(order), Set.of(HttpOperation.FETCH, HttpOperation.PUSH), provider);
+        super(validateWhitelistOrder(order), DEFAULT_OPERATIONS, provider);
         this.whitelistFilters = whitelistFilters;
     }
 
     public WhitelistAggregateFilter(
             int order, GitProxyProvider provider, List<WhitelistByUrlFilter> whitelistFilters, String pathPrefix) {
-        super(validateWhitelistOrder(order), Set.of(HttpOperation.FETCH, HttpOperation.PUSH), provider, pathPrefix);
+        super(validateWhitelistOrder(order), DEFAULT_OPERATIONS, provider, pathPrefix);
         this.whitelistFilters = whitelistFilters;
     }
 
@@ -65,6 +65,11 @@ public class WhitelistAggregateFilter extends AbstractProviderAwareGitProxyFilte
     }
 
     @Override
+    public boolean skipForRefDeletion() {
+        return false; // Deletions must still be whitelisted
+    }
+
+    @Override
     public void doHttpFilter(HttpServletRequest request, HttpServletResponse response) throws IOException {
         for (WhitelistByUrlFilter filter : whitelistFilters) {
             filter.applyWhitelist(request);
@@ -81,7 +86,7 @@ public class WhitelistAggregateFilter extends AbstractProviderAwareGitProxyFilte
                     + "\n"
                     + "Contact an administrator to add this repository\n"
                     + "to the allowlist.";
-            blockAndSendError(
+            rejectAndSendError(
                     request,
                     response,
                     "Repository not in allowlist",

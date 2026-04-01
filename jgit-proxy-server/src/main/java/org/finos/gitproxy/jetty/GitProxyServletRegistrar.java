@@ -3,7 +3,6 @@ package org.finos.gitproxy.jetty;
 import jakarta.servlet.DispatcherType;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.ee10.servlet.FilterHolder;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
@@ -110,11 +109,6 @@ public final class GitProxyServletRegistrar {
             String serviceUrl) {
         String urlPattern = PROXY_PATH_PREFIX + provider.servletPath() + "/*";
 
-        // Pre-approval check: allows previously-approved re-pushes through, and stamps serviceUrl for block messages
-        var preApprovalHolder = new FilterHolder(new AllowApprovedPushFilter(pushStore, serviceUrl));
-        preApprovalHolder.setAsyncSupported(true);
-        context.addFilter(preApprovalHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
-
         var pushStoreAuditFilterHolder = new FilterHolder(new PushStoreAuditFilter(pushStore));
         pushStoreAuditFilterHolder.setAsyncSupported(true);
         context.addFilter(pushStoreAuditFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
@@ -131,6 +125,13 @@ public final class GitProxyServletRegistrar {
                 new FilterHolder(new EnrichPushCommitsFilter(provider, repositoryCache, PROXY_PATH_PREFIX));
         enrichCommitsFilterHolder.setAsyncSupported(true);
         context.addFilter(enrichCommitsFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
+
+        // Pre-approval check: must be AFTER EnrichPushCommitsFilter (which populates commitTo/branch)
+        // but BEFORE content validation filters. If an approved record exists for this commitTo+branch+repo,
+        // sets preApproved=true which short-circuits all content filters.
+        var preApprovalHolder = new FilterHolder(new AllowApprovedPushFilter(pushStore, serviceUrl));
+        preApprovalHolder.setAsyncSupported(true);
+        context.addFilter(preApprovalHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
 
         List<WhitelistByUrlFilter> whitelistFilters = configBuilder.buildWhitelistFilters(provider);
         if (!whitelistFilters.isEmpty()) {
@@ -154,40 +155,31 @@ public final class GitProxyServletRegistrar {
         commitMessagesFilterHolder.setAsyncSupported(true);
         context.addFilter(commitMessagesFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
 
+        var scanDiffFilterHolder = new FilterHolder(new ScanDiffFilter(provider, commitConfig, repositoryCache));
+        scanDiffFilterHolder.setAsyncSupported(true);
+        context.addFilter(scanDiffFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
+
         var gpgFilterHolder = new FilterHolder(new GpgSignatureFilter(GpgConfig.defaultConfig()));
         gpgFilterHolder.setAsyncSupported(true);
         context.addFilter(gpgFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
 
+        // Terminal filter: collects all recorded issues and sends a combined rejection response
+        var validationSummaryHolder = new FilterHolder(new ValidationSummaryFilter());
+        validationSummaryHolder.setAsyncSupported(true);
+        context.addFilter(validationSummaryHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
+
         log.info("Registered content validation filters for provider {}", provider.getName());
+
+        var fetchFinalizerHolder = new FilterHolder(new FetchFinalizerFilter());
+        fetchFinalizerHolder.setAsyncSupported(true);
+        context.addFilter(fetchFinalizerHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
+
+        var pushFinalizerHolder = new FilterHolder(new PushFinalizerFilter(serviceUrl));
+        pushFinalizerHolder.setAsyncSupported(true);
+        context.addFilter(pushFinalizerHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
 
         var auditFilterHolder = new FilterHolder(new AuditLogFilter());
         auditFilterHolder.setAsyncSupported(true);
         context.addFilter(auditFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
-    }
-
-    /**
-     * Build the default commit validation config. Restricts author email domains and blocks common bad commit message
-     * patterns.
-     */
-    public static CommitConfig buildCommitConfig() {
-        return CommitConfig.builder()
-                .author(CommitConfig.AuthorConfig.builder()
-                        .email(CommitConfig.EmailConfig.builder()
-                                .domain(CommitConfig.DomainConfig.builder()
-                                        .allow(Pattern.compile(
-                                                "(proton\\.me|gmail\\.com|outlook\\.com|yahoo\\.com|example\\.com)$"))
-                                        .build())
-                                .local(CommitConfig.LocalConfig.builder()
-                                        .block(Pattern.compile("^(noreply|no-reply|bot|nobody)$"))
-                                        .build())
-                                .build())
-                        .build())
-                .message(CommitConfig.MessageConfig.builder()
-                        .block(CommitConfig.BlockConfig.builder()
-                                .literals(List.of("WIP", "DO NOT MERGE", "fixup!", "squash!"))
-                                .patterns(List.of(Pattern.compile("(?i)(password|secret|token)\\s*[=:]\\s*\\S+")))
-                                .build())
-                        .build())
-                .build();
     }
 }

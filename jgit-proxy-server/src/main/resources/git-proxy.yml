@@ -26,3 +26,30 @@ git-proxy:
 #      enabled: true
 #      servlet-path: /debian
 #      uri: https://salsa.debian.org/
+
+  # Commit validation rules applied by both the store-and-forward and transparent proxy pipelines.
+  commit:
+    author:
+      email:
+        # Regex that the email domain must match. Omit (or leave blank) to allow all domains.
+        # Example: "(corp\\.example\\.com|contractors\\.example\\.com)$"
+        domain:
+          allow: ""
+        # Regex that blocks matching local-parts (the part before @).
+        local:
+          block: "^(noreply|no-reply|bot|nobody)$"
+    message:
+      block:
+        literals:
+          - "WIP"
+          - "DO NOT MERGE"
+          - "fixup!"
+          - "squash!"
+        patterns:
+          - '(?i)(password|secret|token)\s*[=:]\s*\S+'
+    diff:
+      block:
+        # Literals and patterns scanned against added lines (+) in the push diff.
+        # Add entries here to block secrets, internal hostnames, etc. from being pushed.
+        literals: []
+        patterns: []

@@ -1,6 +1,7 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.GIT_REQUEST_ATTRIBUTE;
+import static org.finos.gitproxy.servlet.GitProxyProviderServlet.*;
+import static org.finos.gitproxy.servlet.GitProxyServlet.*;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -31,9 +32,6 @@ import org.finos.gitproxy.git.HttpOperation;
 @Slf4j
 public class AllowApprovedPushFilter extends AbstractGitProxyFilter {
 
-    private static final String PRE_APPROVED_ATTR = "gitproxy.preApproved";
-    private static final String SERVICE_URL_ATTR = "gitproxy.serviceUrl";
-
     private final PushStore pushStore;
     private final String serviceUrl;
 
@@ -53,7 +51,7 @@ public class AllowApprovedPushFilter extends AbstractGitProxyFilter {
             return;
         }
 
-        var details = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTRIBUTE);
+        var details = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
         if (details == null || details.getCommit() == null) {
             return;
         }

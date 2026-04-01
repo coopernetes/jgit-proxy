@@ -2,7 +2,10 @@ package org.finos.gitproxy.jetty.config;
 
 import java.net.URI;
 import java.util.*;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.db.PushStoreFactory;
 import org.finos.gitproxy.provider.*;
@@ -113,6 +116,72 @@ public class JettyConfigurationBuilder {
         return configLoader.getServiceUrl();
     }
 
+    /**
+     * Builds a {@link CommitConfig} from the {@code git-proxy.commit} YAML section.
+     *
+     * <p>All fields are optional; absent keys produce permissive defaults (no domain restriction, no block lists).
+     */
+    public CommitConfig buildCommitConfig() {
+        Map<String, Object> commitMap = configLoader.getCommitConfig();
+
+        // author.email.domain.allow / author.email.local.block
+        Map<String, Object> authorMap = getMap(commitMap, "author");
+        Map<String, Object> emailMap = getMap(authorMap, "email");
+
+        CommitConfig.DomainConfig domainConfig =
+                CommitConfig.DomainConfig.builder().build();
+        String domainAllow = getString(getMap(emailMap, "domain"), "allow", null);
+        if (domainAllow != null && !domainAllow.isBlank()) {
+            domainConfig = CommitConfig.DomainConfig.builder()
+                    .allow(Pattern.compile(domainAllow))
+                    .build();
+        }
+
+        CommitConfig.LocalConfig localConfig =
+                CommitConfig.LocalConfig.builder().build();
+        String localBlock = getString(getMap(emailMap, "local"), "block", null);
+        if (localBlock != null && !localBlock.isBlank()) {
+            localConfig = CommitConfig.LocalConfig.builder()
+                    .block(Pattern.compile(localBlock))
+                    .build();
+        }
+
+        CommitConfig.AuthorConfig authorConfig = CommitConfig.AuthorConfig.builder()
+                .email(CommitConfig.EmailConfig.builder()
+                        .domain(domainConfig)
+                        .local(localConfig)
+                        .build())
+                .build();
+
+        // message.block.literals / message.block.patterns
+        CommitConfig.MessageConfig messageConfig = CommitConfig.MessageConfig.builder()
+                .block(buildBlockConfig(getMap(getMap(commitMap, "message"), "block")))
+                .build();
+
+        // diff.block.literals / diff.block.patterns
+        CommitConfig.DiffConfig diffConfig = CommitConfig.DiffConfig.builder()
+                .block(buildBlockConfig(getMap(getMap(commitMap, "diff"), "block")))
+                .build();
+
+        CommitConfig config = CommitConfig.builder()
+                .author(authorConfig)
+                .message(messageConfig)
+                .diff(diffConfig)
+                .build();
+
+        log.info(
+                "Loaded commit config: domain.allow={}, local.block={}, message.literals={}, message.patterns={},"
+                        + " diff.literals={}, diff.patterns={}",
+                domainAllow != null ? domainAllow : "(none)",
+                localBlock != null ? localBlock : "(none)",
+                config.getMessage().getBlock().getLiterals().size(),
+                config.getMessage().getBlock().getPatterns().size(),
+                config.getDiff().getBlock().getLiterals().size(),
+                config.getDiff().getBlock().getPatterns().size());
+
+        return config;
+    }
+
     /** Creates a {@link PushStore} based on the database configuration. */
     public PushStore buildPushStore() {
         String type = configLoader.getDatabaseType();
@@ -184,6 +253,26 @@ public class JettyConfigurationBuilder {
             log.warn("Provider '{}' has no URI and is not a known built-in type. Skipping.", name);
             return null;
         }
+    }
+
+    private static CommitConfig.BlockConfig buildBlockConfig(Map<String, Object> blockMap) {
+        List<String> literals = getStringList(blockMap, "literals");
+        List<Pattern> patterns = getStringList(blockMap, "patterns").stream()
+                .map(Pattern::compile)
+                .collect(Collectors.toList());
+        return CommitConfig.BlockConfig.builder()
+                .literals(literals)
+                .patterns(patterns)
+                .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> getMap(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        if (value instanceof Map) {
+            return (Map<String, Object>) value;
+        }
+        return Collections.emptyMap();
     }
 
     @SuppressWarnings("unchecked")
