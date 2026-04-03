@@ -35,7 +35,10 @@ class ForwardingPostReceiveHookTest {
     @BeforeEach
     void setUp() throws Exception {
         // Local (proxy-side) repo
-        localGit = Git.init().setDirectory(localDir.toFile()).call();
+        localGit = Git.init()
+                .setDirectory(localDir.toFile())
+                .setInitialBranch("main")
+                .call();
         localRepo = localGit.getRepository();
         localRepo.getConfig().setBoolean("commit", null, "gpgsign", false);
         localRepo.getConfig().save();
