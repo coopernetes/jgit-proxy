@@ -187,13 +187,11 @@ public class GitClient {
     }
 
     private static String formatTitle(String content) {
-        return "\n\n\t" + content + "\n";
+        return "\n\n" + content + "\n";
     }
 
     private static String formatMessage(String content) {
-        // Indent each line with a tab to align with the title
-        String indented = content.lines().map(line -> "\t" + line).collect(java.util.stream.Collectors.joining("\n"));
-        return "\n" + indented + "\n";
+        return "\n" + content + "\n";
     }
 
     private static String convertSymbolsToPlain(String content) {
@@ -253,9 +251,10 @@ public class GitClient {
                                 "  " + sym(SymbolCodes.HEAVY_CHECK_MARK) + "  " + step.getStepName() + " — passed"))
                         .append("\n");
             } else if (step.getStatus() == StepStatus.FAIL) {
+                String detail = step.getErrorMessage() != null ? step.getErrorMessage() : "failed";
                 sb.append(color(
                                 AnsiColor.RED,
-                                "  " + sym(SymbolCodes.CROSS_MARK) + "  " + step.getStepName() + " — failed"))
+                                "  " + sym(SymbolCodes.CROSS_MARK) + "  " + step.getStepName() + " — " + detail))
                         .append("\n");
             }
         }

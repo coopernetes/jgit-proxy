@@ -110,10 +110,13 @@ public class CommitInspectionService {
             CanonicalTreeParser oldTreeParser = new CanonicalTreeParser();
             CanonicalTreeParser newTreeParser = new CanonicalTreeParser();
 
-            // For new-branch pushes fromCommit is the all-zeros null object, which does not
-            // exist in the repository.  Guard before calling resolve() — JGit throws
-            // MissingObjectException rather than returning null for the zero SHA.
-            ObjectId oldId = isNullCommit(fromCommit) ? null : repository.resolve(fromCommit + "^{tree}");
+            // For new-branch pushes fromCommit is the all-zeros null object.  Rather than
+            // diffing against an empty tree (which would show the entire repo snapshot and
+            // trigger false-positive secret findings from existing files like package-lock.json),
+            // find the parent of the oldest new commit so only the genuinely new content is scanned.
+            ObjectId oldId = isNullCommit(fromCommit)
+                    ? findNewBranchBase(repository, toCommit)
+                    : repository.resolve(fromCommit + "^{tree}");
             ObjectId newId = repository.resolve(toCommit + "^{tree}");
 
             if (oldId != null) {
@@ -169,6 +172,41 @@ public class CommitInspectionService {
      */
     private static boolean isNullCommit(String commitId) {
         return commitId == null || commitId.matches("^0+$");
+    }
+
+    /**
+     * For a new-branch push, find the tree that should be used as the diff base so that only the genuinely new content
+     * is scanned. Walks commits reachable from {@code toCommit} that are NOT reachable from any existing
+     * {@code refs/heads/*} branch tip, then returns the tree of the oldest such commit's first parent. Returns
+     * {@code null} if the oldest new commit is a root commit (base is the empty tree).
+     */
+    private static ObjectId findNewBranchBase(Repository repository, String toCommit) throws IOException {
+        ObjectId toId = repository.resolve(toCommit);
+        if (toId == null) return null;
+
+        try (Git git = new Git(repository)) {
+            var logCmd = git.log().add(toId);
+            Collection<Ref> existingRefs = repository.getRefDatabase().getRefsByPrefix("refs/heads/");
+            for (Ref ref : existingRefs) {
+                if (ref.getObjectId() != null) logCmd.not(ref.getObjectId());
+            }
+
+            List<RevCommit> newCommits = new ArrayList<>();
+            for (RevCommit c : logCmd.call()) {
+                newCommits.add(c);
+            }
+
+            if (newCommits.isEmpty()) return null;
+
+            // logCmd returns newest-first; last entry is the oldest new commit
+            RevCommit oldest = newCommits.get(newCommits.size() - 1);
+            if (oldest.getParentCount() == 0) return null; // root commit — empty tree is correct
+
+            String parentSha = oldest.getParent(0).getName();
+            return repository.resolve(parentSha + "^{tree}");
+        } catch (GitAPIException e) {
+            throw new IOException("Failed to find new-branch base commit", e);
+        }
     }
 
     /**

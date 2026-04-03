@@ -97,6 +97,8 @@ public class GitleaksRunner {
 
             ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(false);
+            // Run in /tmp so gitleaks doesn't walk the server's working directory
+            pb.directory(reportFile.getParent().toFile());
             Process process = pb.start();
 
             // Write diff to stdin in a daemon thread; closing stdin signals EOF to gitleaks
@@ -127,6 +129,7 @@ public class GitleaksRunner {
                 return Optional.of(Collections.emptyList());
             } else if (exitCode == 1) {
                 List<Finding> findings = readFindings(reportFile);
+                enrichFindings(findings, diff);
                 log.debug("gitleaks: {} finding(s)", findings.size());
                 return Optional.of(findings);
             } else {
@@ -340,7 +343,6 @@ public class GitleaksRunner {
         List<String> cmd = new ArrayList<>();
         cmd.add(binaryPath.toString());
         cmd.add("detect");
-        cmd.add("--no-git");
         cmd.add("--pipe");
         cmd.add("--report-format");
         cmd.add("json");
@@ -376,6 +378,66 @@ public class GitleaksRunner {
     }
 
     // -------------------------------------------------------------------------
+    // Diff-line enrichment
+    // -------------------------------------------------------------------------
+
+    /**
+     * Gitleaks {@code --pipe} mode reports {@code StartLine} as the 0-indexed line number within the raw diff text and
+     * leaves {@code File} empty. This method parses the diff to map each finding back to the actual file path and the
+     * file-relative (1-indexed) line number.
+     */
+    private static void enrichFindings(List<Finding> findings, String diff) {
+        if (findings.isEmpty()) return;
+
+        String[] lines = diff.split("\n", -1);
+        String[] fileAtLine = new String[lines.length];
+        int[] fileLineAtLine = new int[lines.length];
+
+        String currentFile = null;
+        int nextFileLine = 0;
+
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            if (line.startsWith("+++ b/")) {
+                currentFile = line.substring("+++ b/".length());
+            } else if (line.startsWith("+++ /dev/null")) {
+                currentFile = null;
+            } else if (line.startsWith("@@")) {
+                nextFileLine = parseHunkNewStart(line);
+            } else if (line.startsWith("+")) {
+                fileAtLine[i] = currentFile;
+                fileLineAtLine[i] = nextFileLine;
+                nextFileLine++;
+            } else if (line.startsWith(" ")) {
+                nextFileLine++;
+            }
+        }
+
+        for (Finding f : findings) {
+            int idx = f.getStartLine(); // 0-indexed line in diff
+            if (idx >= 0 && idx < lines.length && fileAtLine[idx] != null) {
+                f.setFile(fileAtLine[idx]);
+                f.setStartLine(fileLineAtLine[idx]);
+            }
+        }
+    }
+
+    private static int parseHunkNewStart(String hunkHeader) {
+        // "@@ -old_start[,old_count] +new_start[,new_count] @@"
+        int plusIdx = hunkHeader.indexOf(" +");
+        if (plusIdx < 0) return 1;
+        int start = plusIdx + 2;
+        int end = hunkHeader.indexOf(',', start);
+        if (end < 0) end = hunkHeader.indexOf(' ', start);
+        if (end < 0) return 1;
+        try {
+            return Integer.parseInt(hunkHeader.substring(start, end));
+        } catch (NumberFormatException e) {
+            return 1;
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Finding model
     // -------------------------------------------------------------------------
 
@@ -396,6 +458,9 @@ public class GitleaksRunner {
         @JsonProperty("StartLine")
         private int startLine;
 
+        @JsonProperty("Commit")
+        private String commit;
+
         /**
          * The matched text with the actual secret value partially redacted by gitleaks (the {@code Match} field) rather
          * than the raw {@code Secret} field, to avoid logging plaintext secrets.
@@ -403,21 +468,32 @@ public class GitleaksRunner {
         @JsonProperty("Match")
         private String match;
 
-        /** Human-readable summary suitable for a push error message. */
+        /**
+         * Multi-line summary suitable for a push error message. Each line is kept short to fit the git sideband 80-char
+         * width limit (git prefixes each newline with "remote: ").
+         */
         public String toMessage() {
-            StringBuilder sb = new StringBuilder("Secret detected");
-            if (ruleId != null && !ruleId.isBlank()) {
-                sb.append(" [").append(ruleId).append("]");
-            }
-            if (description != null && !description.isBlank()) {
-                sb.append(": ").append(description);
-            }
+            StringBuilder sb = new StringBuilder();
+
+            // Line 1: rule ID + location
+            sb.append("[").append(ruleId != null ? ruleId : "unknown").append("]");
             if (file != null && !file.isBlank()) {
-                sb.append(" in ").append(file);
+                sb.append("  ").append(file);
                 if (startLine > 0) {
                     sb.append(":").append(startLine);
                 }
             }
+
+            // Line 2: commit hash (short)
+            if (commit != null && commit.length() >= 7) {
+                sb.append("\n  commit: ").append(commit, 0, 7);
+            }
+
+            // Line 3: redacted match snippet
+            if (match != null && !match.isBlank()) {
+                sb.append("\n  match:  ").append(match);
+            }
+
             return sb.toString();
         }
     }

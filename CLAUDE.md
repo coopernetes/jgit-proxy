@@ -8,7 +8,7 @@ Java rewrite of [FINOS git-proxy](https://github.com/finos/git-proxy) (Node.js).
 |--------|---------|
 | `jgit-proxy-core` | Shared library: filter chain, JGit hooks, push store, provider model, approval abstraction |
 | `jgit-proxy-server` | Standalone proxy-only server (`GitProxyJettyApplication`) — no dashboard, no Spring |
-| `jgit-proxy-api` | Dashboard + REST API (`GitProxyWithDashboardApplication`) — Spring MVC, approval UI, depends on `jgit-proxy-server` |
+| `jgit-proxy-dashboard` | Dashboard + REST API (`GitProxyWithDashboardApplication`) — Spring MVC, approval UI, depends on `jgit-proxy-server` |
 
 ## Architecture
 
@@ -40,8 +40,8 @@ Unit tests live under each module's `src/test/`. E2e tests are in `jgit-proxy-se
 ./gradlew :jgit-proxy-server:stop
 
 # Proxy + dashboard + REST API (http://localhost:8080/):
-./gradlew :jgit-proxy-api:run &
-./gradlew :jgit-proxy-api:stop
+./gradlew :jgit-proxy-dashboard:run &
+./gradlew :jgit-proxy-dashboard:stop
 
 # Logs: jgit-proxy-server/logs/application.log  (DEBUG for org.finos.gitproxy)
 # Default DB: h2-file — persisted to jgit-proxy-server/.data/gitproxy.mv.db
