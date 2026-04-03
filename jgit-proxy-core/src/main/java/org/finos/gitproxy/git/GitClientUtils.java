@@ -9,7 +9,10 @@ import lombok.RequiredArgsConstructor;
 import org.finos.gitproxy.db.model.PushStep;
 import org.finos.gitproxy.db.model.StepStatus;
 
-public class GitClient {
+public class GitClientUtils {
+
+    /** The zero/null OID used by git when a ref does not yet exist (new-branch push). */
+    public static final String ZERO_OID = "0000000000000000000000000000000000000000";
 
     /**
      * ANSI color codes used to display colored messages in the console. Note that not all clients support ANSI color.

@@ -1,7 +1,7 @@
 package org.finos.gitproxy.git;
 
-import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
+import static org.finos.gitproxy.git.GitClientUtils.AnsiColor.*;
+import static org.finos.gitproxy.git.GitClientUtils.SymbolCodes.*;
 
 import java.util.ArrayList;
 import java.util.Collection;

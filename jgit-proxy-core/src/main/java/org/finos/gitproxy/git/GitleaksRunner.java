@@ -1,5 +1,7 @@
 package org.finos.gitproxy.git;
 
+import static org.finos.gitproxy.git.GitClientUtils.ZERO_OID;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -139,6 +141,89 @@ public class GitleaksRunner {
 
         } catch (Exception e) {
             log.warn("Failed to run gitleaks — secret scanning skipped (fail-open): {}", e.getMessage(), e);
+            return Optional.empty();
+        } finally {
+            if (reportFile != null) {
+                try {
+                    Files.deleteIfExists(reportFile);
+                } catch (IOException ignored) {
+                }
+            }
+        }
+    }
+
+    /**
+     * Scans a commit range in a local git repository for secrets using {@code gitleaks git}.
+     *
+     * <p>Unlike {@link #scan(String, CommitConfig.SecretScanningConfig)}, this mode runs gitleaks natively against the
+     * git object graph, so path-based allowlists and per-file context in gitleaks rules are applied correctly. No
+     * post-hoc diff enrichment is needed — gitleaks populates {@code File}, {@code StartLine}, and {@code Commit} in
+     * each finding directly.
+     *
+     * <p>For a new-branch push ({@code commitFrom} equals {@link GitClientUtils#ZERO_OID }), the scan covers all
+     * commits reachable from {@code commitTo} that are not yet reachable from any existing ref ({@code --not --all}).
+     * For a branch update, the scan covers {@code commitFrom..commitTo}.
+     *
+     * @param repoDir path to the git repository root (bare or non-bare)
+     * @param commitFrom old-tip OID; use {@link GitClientUtils#ZERO_OID} for a new-branch push
+     * @param commitTo new-tip OID
+     * @param config secret scanning configuration
+     * @return {@link Optional#empty()} if the scanner is unavailable or errored (fail-open); otherwise the (possibly
+     *     empty) list of findings
+     */
+    public Optional<List<Finding>> scanGit(
+            Path repoDir, String commitFrom, String commitTo, CommitConfig.SecretScanningConfig config) {
+        Path binaryPath = resolveBinaryPath(config);
+        if (binaryPath == null) {
+            log.warn("gitleaks binary not available — secret scanning skipped (fail-open). "
+                    + "Set commit.secretScanning.auto-install: true or provide scanner-path.");
+            return Optional.empty();
+        }
+
+        // New-branch push: scan only commits not reachable from any existing ref.
+        // Branch update: scan only the new commits introduced by this push.
+        String logOpts = ZERO_OID.equals(commitFrom) ? commitTo + " --not --all" : commitFrom + ".." + commitTo;
+
+        Path reportFile = null;
+        try {
+            reportFile = Files.createTempFile("gitleaks-report-", ".json");
+            List<String> cmd = buildGitCommand(binaryPath, logOpts, reportFile, config);
+            log.debug("Running gitleaks git: {}", cmd);
+
+            ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.redirectErrorStream(false);
+            // Run inside the repo so gitleaks can traverse the git object graph
+            pb.directory(repoDir.toFile());
+            Process process = pb.start();
+
+            // Gitleaks git writes findings to the JSON report file; drain output to avoid blocking
+            process.getInputStream().transferTo(OutputStream.nullOutputStream());
+            process.getErrorStream().transferTo(OutputStream.nullOutputStream());
+
+            boolean completed = process.waitFor(config.getTimeoutSeconds(), TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                log.warn(
+                        "gitleaks timed out after {}s — secret scanning skipped (fail-open)",
+                        config.getTimeoutSeconds());
+                return Optional.empty();
+            }
+
+            int exitCode = process.exitValue();
+            if (exitCode == 0) {
+                log.debug("gitleaks git: no findings");
+                return Optional.of(Collections.emptyList());
+            } else if (exitCode == 1) {
+                List<Finding> findings = readFindings(reportFile);
+                log.debug("gitleaks git: {} finding(s)", findings.size());
+                return Optional.of(findings);
+            } else {
+                log.warn("gitleaks git exited with code {} — secret scanning skipped (fail-open)", exitCode);
+                return Optional.empty();
+            }
+
+        } catch (Exception e) {
+            log.warn("Failed to run gitleaks git — secret scanning skipped (fail-open): {}", e.getMessage(), e);
             return Optional.empty();
         } finally {
             if (reportFile != null) {
@@ -348,6 +433,27 @@ public class GitleaksRunner {
         cmd.add("json");
         cmd.add("--report-path");
         cmd.add(reportFile.toString());
+
+        if (config.getConfigFile() != null && !config.getConfigFile().isBlank()) {
+            cmd.add("--config");
+            cmd.add(config.getConfigFile());
+        }
+
+        return cmd;
+    }
+
+    private static List<String> buildGitCommand(
+            Path binaryPath, String logOpts, Path reportFile, CommitConfig.SecretScanningConfig config) {
+        List<String> cmd = new ArrayList<>();
+        cmd.add(binaryPath.toString());
+        cmd.add("git");
+        cmd.add("--log-opts=" + logOpts);
+        cmd.add("--report-format");
+        cmd.add("json");
+        cmd.add("--report-path");
+        cmd.add(reportFile.toString());
+        cmd.add("--no-banner");
+        cmd.add("--redact");
 
         if (config.getConfigFile() != null && !config.getConfigFile().isBlank()) {
             cmd.add("--config");

@@ -1,8 +1,8 @@
 package org.finos.gitproxy.validation;
 
-import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
-import static org.finos.gitproxy.git.GitClient.sym;
+import static org.finos.gitproxy.git.GitClientUtils.AnsiColor.*;
+import static org.finos.gitproxy.git.GitClientUtils.SymbolCodes.*;
+import static org.finos.gitproxy.git.GitClientUtils.sym;
 
 import java.io.*;
 import java.security.Security;
@@ -16,7 +16,7 @@ import org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator;
 import org.bouncycastle.openpgp.operator.bc.BcPGPContentVerifierBuilderProvider;
 import org.finos.gitproxy.config.GpgConfig;
 import org.finos.gitproxy.git.Commit;
-import org.finos.gitproxy.git.GitClient;
+import org.finos.gitproxy.git.GitClientUtils;
 
 /**
  * Validates GPG signatures on commits.
@@ -57,7 +57,7 @@ public class GpgSignatureCheck implements CommitCheck {
                 String message = sym(CROSS_MARK) + "  " + shortSha + "\n\n"
                         + sym(KEY) + "  All commits must be signed with a GPG key.\n"
                         + "   git config commit.gpgsign true";
-                violations.add(new Violation(shortSha, reason, GitClient.format(title, message, RED, null)));
+                violations.add(new Violation(shortSha, reason, GitClientUtils.format(title, message, RED, null)));
                 continue;
             }
 
@@ -66,7 +66,7 @@ public class GpgSignatureCheck implements CommitCheck {
                 String title = sym(NO_ENTRY) + "  Push Blocked — Invalid Signature(s)";
                 String message = sym(CROSS_MARK) + "  " + shortSha + "\n\n" + sym(KEY)
                         + "  Ensure commits are signed with a trusted key.";
-                violations.add(new Violation(shortSha, reason, GitClient.format(title, message, RED, null)));
+                violations.add(new Violation(shortSha, reason, GitClientUtils.format(title, message, RED, null)));
             }
         }
         return violations;

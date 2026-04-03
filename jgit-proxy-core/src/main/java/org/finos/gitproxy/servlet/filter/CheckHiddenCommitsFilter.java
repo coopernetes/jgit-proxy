@@ -1,7 +1,7 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
+import static org.finos.gitproxy.git.GitClientUtils.AnsiColor.*;
+import static org.finos.gitproxy.git.GitClientUtils.SymbolCodes.*;
 import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,7 +17,7 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.finos.gitproxy.git.Commit;
-import org.finos.gitproxy.git.GitClient;
+import org.finos.gitproxy.git.GitClientUtils;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
 import org.finos.gitproxy.git.LocalRepositoryCache;
@@ -103,7 +103,7 @@ public class CheckHiddenCommitsFilter extends AbstractProviderAwareGitProxyFilte
                     + "Please get approval on the commits, push them and try again.";
 
             rejectAndSendError(
-                    request, response, "Hidden commits detected", GitClient.format(title, message, RED, null));
+                    request, response, "Hidden commits detected", GitClientUtils.format(title, message, RED, null));
 
         } catch (Exception e) {
             log.error("Failed to check hidden commits", e);

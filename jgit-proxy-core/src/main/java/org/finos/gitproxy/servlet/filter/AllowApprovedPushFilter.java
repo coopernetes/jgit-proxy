@@ -1,6 +1,5 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.*;
 import static org.finos.gitproxy.servlet.GitProxyServlet.*;
 
 import jakarta.servlet.http.HttpServletRequest;

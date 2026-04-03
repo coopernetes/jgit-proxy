@@ -1,5 +1,6 @@
 package org.finos.gitproxy.git;
 
+import static org.finos.gitproxy.git.GitClientUtils.ZERO_OID;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
@@ -17,8 +18,6 @@ class GitReceivePackParserTest {
     // Push 2 constants
     private static final String PUSH2_OLD = "3348d03785fdeb43cc0b72077e9d2d7512c01a72";
     private static final String PUSH2_NEW = "5b8690554d2ddd65f28466b829fc9b6879e2ba2d";
-
-    private static final String ZERO_SHA = "0000000000000000000000000000000000000000";
 
     // ---- Resource helpers ----
 
@@ -200,12 +199,12 @@ class GitReceivePackParserTest {
     @Test
     void parsePush_branchDeletion_returnsNullCommit() throws IOException {
         // newCommit = all zeros signals a branch deletion
-        String deletionPacketLine = PUSH1_OLD + " " + ZERO_SHA + " refs/heads/feature";
+        String deletionPacketLine = PUSH1_OLD + " " + ZERO_OID + " refs/heads/feature";
 
         GitReceivePackParser.PushInfo info = GitReceivePackParser.parsePush(deletionPacketLine, new byte[0]);
 
         assertNull(info.getCommit(), "Commit must be null for branch deletion");
-        assertEquals(ZERO_SHA, info.getNewCommit());
+        assertEquals(ZERO_OID, info.getNewCommit());
     }
 
     // ---- parsePackData ----

@@ -1,7 +1,7 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
+import static org.finos.gitproxy.git.GitClientUtils.AnsiColor.*;
+import static org.finos.gitproxy.git.GitClientUtils.SymbolCodes.*;
 import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -9,7 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
-import org.finos.gitproxy.git.GitClient;
+import org.finos.gitproxy.git.GitClientUtils;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
 
@@ -69,6 +69,6 @@ public class CheckEmptyBranchFilter extends AbstractGitProxyFilter {
         }
 
         log.warn("checkEmptyBranch: rejecting push — {}", message);
-        rejectAndSendError(request, response, title, GitClient.format(title, message, RED, null));
+        rejectAndSendError(request, response, title, GitClientUtils.format(title, message, RED, null));
     }
 }

@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Set;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
-import org.finos.gitproxy.git.GitClient;
+import org.finos.gitproxy.git.GitClientUtils;
 import org.finos.gitproxy.git.HttpOperation;
 import org.finos.gitproxy.provider.GitProxyProvider;
 
@@ -85,7 +85,8 @@ public class WhitelistAggregateFilter extends AbstractProviderAwareGitProxyFilte
         } else {
             var operation = determineOperation(request);
             String action = operation == HttpOperation.PUSH ? "Push" : "Fetch";
-            String title = GitClient.SymbolCodes.NO_ENTRY.emoji() + "  " + action + " Blocked — Repository Not Allowed";
+            String title =
+                    GitClientUtils.SymbolCodes.NO_ENTRY.emoji() + "  " + action + " Blocked — Repository Not Allowed";
             String verb = operation == HttpOperation.PUSH ? "Pushes to" : "Fetches from";
             String message = verb + " this repository are not permitted.\n"
                     + "\n"
@@ -95,7 +96,7 @@ public class WhitelistAggregateFilter extends AbstractProviderAwareGitProxyFilte
                     request,
                     response,
                     "Repository not in allowlist",
-                    GitClient.formatForOperation(title, message, GitClient.AnsiColor.RED, operation));
+                    GitClientUtils.formatForOperation(title, message, GitClientUtils.AnsiColor.RED, operation));
         }
     }
 }

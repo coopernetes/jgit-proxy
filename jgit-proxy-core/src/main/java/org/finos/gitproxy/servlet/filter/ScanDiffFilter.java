@@ -1,7 +1,7 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
+import static org.finos.gitproxy.git.GitClientUtils.AnsiColor.*;
+import static org.finos.gitproxy.git.GitClientUtils.SymbolCodes.*;
 import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,7 +19,7 @@ import org.finos.gitproxy.db.model.PushStep;
 import org.finos.gitproxy.db.model.StepStatus;
 import org.finos.gitproxy.git.CommitInspectionService;
 import org.finos.gitproxy.git.DiffGenerationHook;
-import org.finos.gitproxy.git.GitClient;
+import org.finos.gitproxy.git.GitClientUtils;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
 import org.finos.gitproxy.git.LocalRepositoryCache;
@@ -109,7 +109,7 @@ public class ScanDiffFilter extends AbstractProviderAwareGitProxyFilter {
                         .map(v -> CROSS_MARK.emoji() + "  " + v)
                         .collect(Collectors.joining("\n"));
                 String message = "Diff content contains blocked patterns:\n\n" + violationList;
-                recordIssue(request, "Diff contains blocked content", GitClient.format(title, message, RED, null));
+                recordIssue(request, "Diff contains blocked content", GitClientUtils.format(title, message, RED, null));
             } else {
                 log.debug("Diff scan passed for {}..{}", fromCommit, toCommit);
                 recordStep(request, StepStatus.PASS, null, null);

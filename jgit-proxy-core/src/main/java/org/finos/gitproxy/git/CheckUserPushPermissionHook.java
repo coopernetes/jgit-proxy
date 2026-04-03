@@ -1,9 +1,9 @@
 package org.finos.gitproxy.git;
 
-import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
-import static org.finos.gitproxy.git.GitClient.color;
-import static org.finos.gitproxy.git.GitClient.sym;
+import static org.finos.gitproxy.git.GitClientUtils.AnsiColor.*;
+import static org.finos.gitproxy.git.GitClientUtils.SymbolCodes.*;
+import static org.finos.gitproxy.git.GitClientUtils.color;
+import static org.finos.gitproxy.git.GitClientUtils.sym;
 
 import java.util.Collection;
 import lombok.RequiredArgsConstructor;
@@ -48,7 +48,7 @@ public class CheckUserPushPermissionHook implements PreReceiveHook {
 
         if (!userAuthorizationService.userExists(pushUser)) {
             log.warn("Push user {} does not exist", pushUser);
-            String detail = GitClient.format(
+            String detail = GitClientUtils.format(
                     sym(NO_ENTRY) + "  Push Blocked — User Not Registered",
                     sym(CROSS_MARK) + "  " + pushUser + " is not registered.\n\nContact an administrator for support.",
                     RED,
@@ -60,7 +60,7 @@ public class CheckUserPushPermissionHook implements PreReceiveHook {
 
         if (!userAuthorizationService.isUserAuthorizedToPush(pushUser, null)) {
             log.warn("Push user {} is not authorized", pushUser);
-            String detail = GitClient.format(
+            String detail = GitClientUtils.format(
                     sym(NO_ENTRY) + "  Push Blocked — Unauthorized",
                     sym(CROSS_MARK) + "  " + pushUser + " is not authorized to push to this repository.",
                     RED,

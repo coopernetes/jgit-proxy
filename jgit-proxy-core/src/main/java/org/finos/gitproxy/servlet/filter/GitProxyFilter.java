@@ -1,7 +1,6 @@
 package org.finos.gitproxy.servlet.filter;
 
 import static jakarta.servlet.http.HttpServletResponse.SC_OK;
-import static org.finos.gitproxy.servlet.GitProxyProviderServlet.*;
 import static org.finos.gitproxy.servlet.GitProxyServlet.*;
 
 import jakarta.servlet.*;
@@ -25,10 +24,10 @@ import org.finos.gitproxy.git.HttpOperation;
 
 /**
  * A {@link Filter} with additional methods that are designed to be registered with a
- * {@link org.finos.gitproxy.servlet.GitProxyProviderServlet} for the purposes of filtering git operations. This
- * interface presumes that the filter is designed to be used with HTTP requests and provides a method to filter only
- * HTTP requests. Classes implementing this interface signal whether this filter should be applied to a given request
- * using a {@link Predicate}.
+ * {@link org.finos.gitproxy.servlet.GitProxyServlet} for the purposes of filtering git operations. This interface
+ * presumes that the filter is designed to be used with HTTP requests and provides a method to filter only HTTP
+ * requests. Classes implementing this interface signal whether this filter should be applied to a given request using a
+ * {@link Predicate}.
  *
  * <p>Custom filters should generally extend {@link AbstractGitProxyFilter} or
  * {@link AbstractProviderAwareGitProxyFilter} {@see AbstractGitProxyFilter} {@see AbstractProviderAwareGitProxyFilter}

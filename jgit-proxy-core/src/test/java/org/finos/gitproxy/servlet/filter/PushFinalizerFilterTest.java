@@ -1,5 +1,6 @@
 package org.finos.gitproxy.servlet.filter;
 
+import static org.finos.gitproxy.git.GitClientUtils.ZERO_OID;
 import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 import static org.finos.gitproxy.servlet.GitProxyServlet.PRE_APPROVED_ATTR;
 import static org.junit.jupiter.api.Assertions.*;
@@ -152,7 +153,7 @@ class PushFinalizerFilterTest {
     @Test
     void refDeletion_isAllowed() throws Exception {
         GitRequestDetails details = pendingPushDetails();
-        details.setCommitTo("0000000000000000000000000000000000000000");
+        details.setCommitTo(ZERO_OID);
         PushFinalizerFilter filter = new PushFinalizerFilter("http://localhost:8080");
         FakeResponse fakeResponse = new FakeResponse();
 

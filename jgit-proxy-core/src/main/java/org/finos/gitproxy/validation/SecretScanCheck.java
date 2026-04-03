@@ -1,7 +1,7 @@
 package org.finos.gitproxy.validation;
 
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
-import static org.finos.gitproxy.git.GitClient.sym;
+import static org.finos.gitproxy.git.GitClientUtils.SymbolCodes.*;
+import static org.finos.gitproxy.git.GitClientUtils.sym;
 
 import java.util.List;
 import java.util.Optional;

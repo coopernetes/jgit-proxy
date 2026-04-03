@@ -16,6 +16,8 @@ public class GitProxyServlet extends AsyncProxyServlet.Transparent {
     public static final String ERROR_ATTR = "gitproxy.error";
     public static final String PRE_APPROVED_ATTR = "gitproxy.preApproved";
     public static final String SERVICE_URL_ATTR = "gitproxy.serviceUrl";
+    public static final String REQUEST_ID_HEADER = "X-Request-Id";
+    public static final String GITHUB_REQUEST_ID_HEADER = "X-Github-Request-Id";
 
     @Override
     protected void service(HttpServletRequest clientRequest, HttpServletResponse proxyResponse)

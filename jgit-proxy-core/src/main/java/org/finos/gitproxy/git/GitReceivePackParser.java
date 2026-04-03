@@ -1,5 +1,7 @@
 package org.finos.gitproxy.git;
 
+import static org.finos.gitproxy.git.GitClientUtils.ZERO_OID;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Instant;
@@ -38,7 +40,7 @@ public class GitReceivePackParser {
 
         // For branch deletion (newCommit is all zeros), there's no pack data
         Commit commit = null;
-        if (!newCommit.equals("0000000000000000000000000000000000000000") && packData != null && packData.length > 0) {
+        if (!newCommit.equals(ZERO_OID) && packData != null && packData.length > 0) {
             // Parse the commit content from pack data
             try {
                 commit = parsePackData(packData);
@@ -50,7 +52,7 @@ public class GitReceivePackParser {
                     // If parent is empty from pack data, use the old commit SHA
                     if (commit.getParent() == null
                             || commit.getParent().isEmpty()
-                            || commit.getParent().equals("0000000000000000000000000000000000000000")) {
+                            || commit.getParent().equals(ZERO_OID)) {
                         commit.setParent(oldCommit);
                     }
                 }

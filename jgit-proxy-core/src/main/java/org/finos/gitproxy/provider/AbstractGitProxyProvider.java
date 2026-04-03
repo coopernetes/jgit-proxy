@@ -17,7 +17,7 @@ public abstract class AbstractGitProxyProvider implements GitProxyProvider {
     /**
      * Returns the path that the servlet will be mapped to. This is based on the host of the target URL or a custom path
      * if set along with an optional application-wide base path. To configure a
-     * {@link org.finos.gitproxy.servlet.GitProxyProviderServlet} for proxying, use {@link #servletMapping()} instead.
+     * {@link org.finos.gitproxy.servlet.GitProxyServlet} for proxying, use {@link #servletMapping()} instead.
      *
      * @return The base path that this provider will be mapped to.
      */

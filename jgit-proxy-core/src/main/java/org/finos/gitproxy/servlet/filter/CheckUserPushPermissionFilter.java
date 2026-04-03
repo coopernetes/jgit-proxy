@@ -1,7 +1,7 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
+import static org.finos.gitproxy.git.GitClientUtils.AnsiColor.*;
+import static org.finos.gitproxy.git.GitClientUtils.SymbolCodes.*;
 import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -9,7 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
-import org.finos.gitproxy.git.GitClient;
+import org.finos.gitproxy.git.GitClientUtils;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
 import org.finos.gitproxy.service.UserAuthorizationService;
@@ -68,7 +68,7 @@ public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
             log.warn("User email not found in commit author");
             String title = NO_ENTRY.emoji() + "  Push Blocked — Unknown User";
             String message = "Could not identify the pushing user.\n" + "\n" + "Contact an administrator for support.";
-            rejectAndSendError(request, response, "User not found", GitClient.format(title, message, RED, null));
+            rejectAndSendError(request, response, "User not found", GitClientUtils.format(title, message, RED, null));
             return;
         }
 
@@ -79,7 +79,8 @@ public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
             String message = CROSS_MARK.emoji() + "  " + userEmail + " is not registered.\n"
                     + "\n"
                     + "Contact an administrator for support.";
-            rejectAndSendError(request, response, "User does not exist", GitClient.format(title, message, RED, null));
+            rejectAndSendError(
+                    request, response, "User does not exist", GitClientUtils.format(title, message, RED, null));
             return;
         }
 
@@ -94,7 +95,8 @@ public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
             String title = NO_ENTRY.emoji() + "  Push Blocked — Unauthorized";
             String message = CROSS_MARK.emoji() + "  " + userEmail + " is not allowed to push to:\n" + "   "
                     + LINK.emoji() + "  " + repositoryUrl;
-            rejectAndSendError(request, response, "User not authorized", GitClient.format(title, message, RED, null));
+            rejectAndSendError(
+                    request, response, "User not authorized", GitClientUtils.format(title, message, RED, null));
             return;
         }
 

@@ -1,9 +1,9 @@
 package org.finos.gitproxy.git;
 
-import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
-import static org.finos.gitproxy.git.GitClient.color;
-import static org.finos.gitproxy.git.GitClient.sym;
+import static org.finos.gitproxy.git.GitClientUtils.AnsiColor.*;
+import static org.finos.gitproxy.git.GitClientUtils.SymbolCodes.*;
+import static org.finos.gitproxy.git.GitClientUtils.color;
+import static org.finos.gitproxy.git.GitClientUtils.sym;
 
 import java.util.Collection;
 import java.util.List;

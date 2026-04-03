@@ -1,9 +1,9 @@
 package org.finos.gitproxy.git;
 
-import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
-import static org.finos.gitproxy.git.GitClient.color;
-import static org.finos.gitproxy.git.GitClient.sym;
+import static org.finos.gitproxy.git.GitClientUtils.AnsiColor.*;
+import static org.finos.gitproxy.git.GitClientUtils.SymbolCodes.*;
+import static org.finos.gitproxy.git.GitClientUtils.color;
+import static org.finos.gitproxy.git.GitClientUtils.sym;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -146,7 +146,7 @@ public class PushStorePersistenceHook {
                                 record.getId());
 
                         // Emit validation summary (passing steps + failing steps, sorted by order)
-                        String summary = GitClient.buildValidationSummary(allSteps);
+                        String summary = GitClientUtils.buildValidationSummary(allSteps);
                         if (!summary.isBlank()) {
                             rp.sendMessage(summary);
                         }
@@ -192,7 +192,7 @@ public class PushStorePersistenceHook {
                     record.setSteps(steps);
 
                     // Show validation summary before the approval wait message
-                    String summary = GitClient.buildValidationSummary(steps);
+                    String summary = GitClientUtils.buildValidationSummary(steps);
                     if (!summary.isBlank()) {
                         rp.sendMessage(summary);
                     }

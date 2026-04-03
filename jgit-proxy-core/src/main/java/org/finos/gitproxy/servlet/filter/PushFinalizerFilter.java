@@ -1,10 +1,10 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.git.GitClient.AnsiColor.CYAN;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.LINK;
-import static org.finos.gitproxy.git.GitClient.buildValidationSummary;
-import static org.finos.gitproxy.git.GitClient.color;
-import static org.finos.gitproxy.git.GitClient.sym;
+import static org.finos.gitproxy.git.GitClientUtils.AnsiColor.CYAN;
+import static org.finos.gitproxy.git.GitClientUtils.SymbolCodes.LINK;
+import static org.finos.gitproxy.git.GitClientUtils.buildValidationSummary;
+import static org.finos.gitproxy.git.GitClientUtils.color;
+import static org.finos.gitproxy.git.GitClientUtils.sym;
 import static org.finos.gitproxy.servlet.GitProxyServlet.*;
 
 import jakarta.servlet.*;
