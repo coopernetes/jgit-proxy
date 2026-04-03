@@ -94,7 +94,7 @@ class ProxyModeE2ETest {
         // First push — should be blocked pending review
         var firstPush = git.pushWithResult(repo);
         assertFalse(firstPush.succeeded(), "first push should be blocked pending review");
-        assertTrue(firstPush.output().contains("pending push"), "should contain pending push link");
+        assertTrue(firstPush.output().contains("/#/push/"), "should contain link to push record");
 
         String pushId = firstPush.extractPushId();
         assertNotNull(pushId, "push ID should be present in blocked message");
@@ -171,7 +171,7 @@ class ProxyModeE2ETest {
     void noreplyLocalPart_rejected() throws Exception {
         var result = cloneCommitPush("proxy-fail-noreply", "noreply@example.com", "feat: noreply author");
         assertFalse(result.succeeded(), "push with noreply@ should be rejected");
-        assertTrue(result.output().contains("check(s) failed"), "should contain validation failure summary");
+        assertTrue(result.output().contains("validation issue(s)"), "should contain validation failure summary");
     }
 
     @Test
