@@ -40,14 +40,13 @@ public class SlowApprovalPreReceiveHook implements PreReceiveHook {
     public void onPreReceive(ReceivePack rp, Collection<ReceiveCommand> commands) {
         OutputStream msgOut = rp.getMessageOutputStream();
 
-        sendAndFlush(
-                rp, msgOut, color(CYAN, "[git-proxy] " + sym(KEY) + "  Push received, submitting for approval..."));
+        sendAndFlush(rp, msgOut, color(CYAN, "" + sym(KEY) + "  Push received, submitting for approval..."));
         sendAndFlush(
                 rp,
                 msgOut,
                 color(
                         YELLOW,
-                        "[git-proxy] " + sym(WARNING)
+                        "" + sym(WARNING)
                                 + String.format("  Waiting for external approval (%ds timeout)...", TOTAL_SECONDS)));
 
         for (int elapsed = 0; elapsed < TOTAL_SECONDS; elapsed += INTERVAL_SECONDS) {
@@ -55,7 +54,7 @@ public class SlowApprovalPreReceiveHook implements PreReceiveHook {
                 Thread.sleep(INTERVAL_SECONDS * 1000L);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                sendAndFlush(rp, msgOut, color(RED, "[git-proxy] " + sym(CROSS_MARK) + "  Approval check interrupted"));
+                sendAndFlush(rp, msgOut, color(RED, "" + sym(CROSS_MARK) + "  Approval check interrupted"));
                 pushContext.addStep(PushStep.builder()
                         .stepName("approval")
                         .status(StepStatus.FAIL)
@@ -72,12 +71,12 @@ public class SlowApprovalPreReceiveHook implements PreReceiveHook {
                         msgOut,
                         color(
                                 YELLOW,
-                                "[git-proxy] " + sym(WARNING)
+                                "" + sym(WARNING)
                                         + String.format("  Still waiting for approval... (%ds remaining)", remaining)));
             }
         }
 
-        sendAndFlush(rp, msgOut, color(GREEN, "[git-proxy] " + sym(HEAVY_CHECK_MARK) + "  Approval granted"));
+        sendAndFlush(rp, msgOut, color(GREEN, "" + sym(HEAVY_CHECK_MARK) + "  Approval granted"));
         pushContext.addStep(PushStep.builder()
                 .stepName("approval")
                 .status(StepStatus.PASS)

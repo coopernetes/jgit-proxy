@@ -41,6 +41,11 @@ public class SecretScanningFilter extends AbstractGitProxyFilter {
     }
 
     @Override
+    public String getStepName() {
+        return "scanSecrets";
+    }
+
+    @Override
     public void doHttpFilter(HttpServletRequest request, HttpServletResponse response) throws IOException {
         var requestDetails = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
         if (requestDetails == null) {

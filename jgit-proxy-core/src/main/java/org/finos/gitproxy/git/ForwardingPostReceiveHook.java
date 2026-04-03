@@ -37,7 +37,7 @@ public class ForwardingPostReceiveHook implements PostReceiveHook {
                 .toList();
 
         if (accepted.isEmpty()) {
-            rp.sendMessage(YELLOW + "[git-proxy] " + WARNING.emoji() + "  No refs to forward" + RESET);
+            log.debug("No refs to forward — all commands rejected in pre-receive");
             pushContext.addStep(PushStep.builder()
                     .stepName("forward")
                     .status(StepStatus.PASS)
@@ -50,8 +50,8 @@ public class ForwardingPostReceiveHook implements PostReceiveHook {
         String upstreamUrl = repo.getConfig().getString("gitproxy", null, "upstreamUrl");
 
         if (upstreamUrl == null) {
-            rp.sendMessage(RED + "[git-proxy] " + NO_ENTRY.emoji()
-                    + "  ERROR - no upstream URL configured, cannot forward" + RESET);
+            rp.sendMessage(
+                    RED + "" + NO_ENTRY.emoji() + "  ERROR - no upstream URL configured, cannot forward" + RESET);
             log.error("No gitproxy.upstreamUrl in repo config for {}", repo.getDirectory());
             pushContext.addStep(PushStep.builder()
                     .stepName("forward")
@@ -62,7 +62,7 @@ public class ForwardingPostReceiveHook implements PostReceiveHook {
             return;
         }
 
-        rp.sendMessage(CYAN + "[git-proxy] " + LINK.emoji() + "  Forwarding to " + upstreamUrl + "..." + RESET);
+        rp.sendMessage(CYAN + "" + LINK.emoji() + "  Forwarding to " + upstreamUrl + "..." + RESET);
 
         List<String> logs = new ArrayList<>();
         logs.add("Forwarding to " + upstreamUrl);
@@ -73,8 +73,7 @@ public class ForwardingPostReceiveHook implements PostReceiveHook {
             URIish upstream = new URIish(upstreamUrl);
             forwardFailed = pushToUpstream(rp, repo, upstream, accepted, logs);
         } catch (Exception e) {
-            rp.sendMessage(RED + "[git-proxy] " + CROSS_MARK.emoji() + "  ERROR forwarding to upstream: "
-                    + e.getMessage() + RESET);
+            rp.sendMessage(RED + "" + CROSS_MARK.emoji() + "  ERROR forwarding to upstream: " + e.getMessage() + RESET);
             log.error("Failed to push to upstream {}", upstreamUrl, e);
             logs.add("ERROR: " + e.getMessage());
             forwardFailed = true;
@@ -102,7 +101,7 @@ public class ForwardingPostReceiveHook implements PostReceiveHook {
 
             List<RemoteRefUpdate> updates = buildRefUpdates(repo, commands);
 
-            rp.sendMessage(CYAN + "[git-proxy]   Pushing " + updates.size() + " ref(s) to upstream..." + RESET);
+            rp.sendMessage(CYAN + "  Pushing " + updates.size() + " ref(s) to upstream..." + RESET);
 
             PushResult result = transport.push(NullProgressMonitor.INSTANCE, updates);
 
@@ -113,13 +112,13 @@ public class ForwardingPostReceiveHook implements PostReceiveHook {
                 switch (status) {
                     case OK:
                     case UP_TO_DATE:
-                        rp.sendMessage(GREEN + "[git-proxy]   " + HEAVY_CHECK_MARK.emoji() + "  " + remoteName + " -> "
-                                + status + RESET);
+                        rp.sendMessage(
+                                GREEN + "  " + HEAVY_CHECK_MARK.emoji() + "  " + remoteName + " -> " + status + RESET);
                         logs.add("PASS: " + remoteName + " -> " + status);
                         break;
                     default:
                         String message = update.getMessage();
-                        rp.sendMessage(RED + "[git-proxy]   " + CROSS_MARK.emoji() + "  " + remoteName + " -> " + status
+                        rp.sendMessage(RED + "  " + CROSS_MARK.emoji() + "  " + remoteName + " -> " + status
                                 + (message != null ? " (" + message + ")" : "") + RESET);
                         log.warn("Upstream push ref {} status: {} {}", remoteName, status, message);
                         logs.add("FAIL: " + remoteName + " -> " + status
@@ -128,7 +127,7 @@ public class ForwardingPostReceiveHook implements PostReceiveHook {
                 }
             }
 
-            rp.sendMessage(GREEN + "[git-proxy] " + HEAVY_CHECK_MARK.emoji() + "  Forwarding complete" + RESET);
+            rp.sendMessage(GREEN + "" + HEAVY_CHECK_MARK.emoji() + "  Forwarding complete" + RESET);
         }
         return anyFailed;
     }

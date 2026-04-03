@@ -1,13 +1,5 @@
 package org.finos.gitproxy.git;
 
-import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.CROSS_MARK;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.HEAVY_CHECK_MARK;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.KEY;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.WARNING;
-import static org.finos.gitproxy.git.GitClient.color;
-import static org.finos.gitproxy.git.GitClient.sym;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -40,8 +32,6 @@ public class CommitMessageValidationHook implements PreReceiveHook {
 
     @Override
     public void onPreReceive(ReceivePack rp, Collection<ReceiveCommand> commands) {
-        rp.sendMessage(color(CYAN, "[git-proxy] " + sym(KEY) + "  Checking commit messages..."));
-
         var check = new CommitMessageCheck(commitConfig);
         Repository repo = rp.getRepository();
         List<Violation> allViolations = new ArrayList<>();
@@ -51,18 +41,11 @@ public class CommitMessageValidationHook implements PreReceiveHook {
             try {
                 List<Violation> violations = check.check(getCommits(repo, cmd));
                 for (Violation v : violations) {
-                    rp.sendMessage(
-                            color(RED, "[git-proxy]   " + sym(CROSS_MARK) + "  " + v.subject() + " — " + v.reason()));
-                    validationContext.addIssue("CommitMessage", v.reason(), v.formattedDetail());
+                    validationContext.addIssue("checkCommitMessages", v.reason(), v.formattedDetail());
                     allViolations.add(v);
-                }
-                if (violations.isEmpty()) {
-                    rp.sendMessage(color(GREEN, "[git-proxy]   " + sym(HEAVY_CHECK_MARK) + "  messages OK"));
                 }
             } catch (Exception e) {
                 log.error("Failed to validate commit messages for {}", cmd.getRefName(), e);
-                rp.sendMessage(color(
-                        YELLOW, "[git-proxy]   " + sym(WARNING) + "  Could not validate messages: " + e.getMessage()));
             }
         }
 

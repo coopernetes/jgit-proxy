@@ -27,7 +27,7 @@ public class RepositoryWhitelistHook implements PreReceiveHook {
     public void onPreReceive(ReceivePack rp, Collection<ReceiveCommand> commands) {
         log.debug("Repository whitelist check: passed (resolver already validated)");
         pushContext.addStep(PushStep.builder()
-                .stepName("RepositoryWhitelistHook")
+                .stepName("checkWhitelist")
                 .stepOrder(STEP_ORDER)
                 .status(StepStatus.PASS)
                 .build());

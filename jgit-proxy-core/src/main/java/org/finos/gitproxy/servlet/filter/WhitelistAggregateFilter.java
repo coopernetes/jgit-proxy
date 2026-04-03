@@ -65,6 +65,11 @@ public class WhitelistAggregateFilter extends AbstractProviderAwareGitProxyFilte
     }
 
     @Override
+    public String getStepName() {
+        return "checkWhitelist";
+    }
+
+    @Override
     public boolean skipForRefDeletion() {
         return false; // Deletions must still be whitelisted
     }

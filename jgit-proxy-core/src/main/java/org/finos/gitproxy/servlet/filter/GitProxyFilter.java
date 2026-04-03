@@ -193,13 +193,17 @@ public interface GitProxyFilter extends Filter {
      * @param reason Short reason (for BLOCKED/FAIL steps)
      * @param content Detailed content (e.g., the formatted error message sent to the client)
      */
+    default String getStepName() {
+        return getClass().getSimpleName();
+    }
+
     default void recordStep(HttpServletRequest request, StepStatus status, String reason, String content) {
         var details = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
         if (details == null) return;
 
         PushStep step = PushStep.builder()
                 .pushId(details.getId().toString())
-                .stepName(this.getClass().getSimpleName())
+                .stepName(getStepName())
                 .stepOrder(this.getOrder())
                 .status(status)
                 .content(content)

@@ -17,6 +17,14 @@ Two proxy modes, both configurable per-provider:
 - **Store-and-forward** (`/push/<provider>/<owner>/<repo>.git`) — JGit ReceivePack receives the push locally, runs a pre-receive hook chain (`AuthorEmailValidationHook` → `CommitMessageValidationHook` → `ValidationVerifierHook`), then `ForwardingPostReceiveHook` pushes upstream using the client's credentials.
 - **Transparent proxy** (`/proxy/<provider>/<owner>/<repo>.git`) — Jetty's `ProxyServlet` forwards the request; a servlet filter chain (`ParseGitRequestFilter` → `EnrichPushCommitsFilter` → validation filters) inspects the pack data before it reaches the upstream.
 
+## Client output — streaming constraint
+
+**Store-and-forward** uses JGit `ReceivePack` pre-receive hooks. Each hook can call `rp.sendMessage()` at any point and the message streams to the git client immediately as a sideband progress packet (`remote: …`). This is how per-step progress lines are sent live.
+
+**Transparent proxy** uses servlet filters. The HTTP response is a single buffered reply — there is no mechanism to stream partial output mid-filter-chain. Validation filters must _accumulate_ their result and return; `ValidationSummaryFilter` (order 4999) and `PushFinalizerFilter` (order 5000) collect everything and write one response at the end using `sendGitError`.
+
+**Consequence for UX work:** to make proxy output look like S&F streaming, use `buildValidationSummary()` which formats each step in the same two-line style (`🔑  Checking X...\n  ✅  result`) and is sent as a single batch. Do NOT try to stream from individual proxy filters — it will not work.
+
 ## Reference implementation
 
 The Node.js original lives at `/home/tom/repos/git-proxy`. Refer to it for the Action/Step model, Sink interface, and filter chain patterns when porting features.

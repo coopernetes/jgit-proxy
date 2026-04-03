@@ -1,6 +1,5 @@
 package org.finos.gitproxy.validation;
 
-import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
 import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
 import static org.finos.gitproxy.git.GitClient.sym;
 
@@ -13,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import org.apache.commons.validator.routines.EmailValidator;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.git.Commit;
-import org.finos.gitproxy.git.GitClient;
 
 /**
  * Validates that every author email in the pushed commits passes format checks and matches the configured domain/local
@@ -32,11 +30,9 @@ public class AuthorEmailCheck implements CommitCheck {
         for (String email : emails) {
             String reason = violationReason(email);
             if (reason != null) {
-                String title = sym(NO_ENTRY) + "  Push Blocked — Invalid Author Email";
-                String message = sym(CROSS_MARK) + "  " + email + "\n\n" + reason + "\n\n"
-                        + "Verify your Git email address:\n"
-                        + "  git config user.email \"you@example.com\"";
-                violations.add(new Violation(email, reason, GitClient.format(title, message, RED, null)));
+                String detail = sym(CROSS_MARK) + "  " + email + ": " + reason + "\n"
+                        + "  \u2192 git config user.email \"you@example.com\"";
+                violations.add(new Violation(email, reason, detail));
             }
         }
         return violations;

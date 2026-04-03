@@ -29,10 +29,10 @@ public class ServiceNowApprovalGateway implements ApprovalGateway {
     public ApprovalResult waitForApproval(String pushId, ProgressSender progress, Duration timeout) {
         // TODO: Create a ServiceNow change request ticket and poll for approval
         // String ticketId = createChangeRequest(pushId);
-        // progress.send("[git-proxy] ServiceNow ticket created: " + ticketId);
+        // progress.send("ServiceNow ticket created: " + ticketId);
         // return pollTicketApproval(ticketId, progress, timeout);
         log.info("ServiceNow approval stub: would create ticket for push {}, returning APPROVED", pushId);
-        progress.send("[git-proxy] ServiceNow approval stub: auto-approving push " + pushId);
+        progress.send("ServiceNow approval stub: auto-approving push " + pushId);
         return ApprovalResult.APPROVED;
     }
 }

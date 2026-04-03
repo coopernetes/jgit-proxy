@@ -28,27 +28,26 @@ public class ValidationVerifierHook implements PreReceiveHook {
     @Override
     public void onPreReceive(ReceivePack rp, Collection<ReceiveCommand> commands) {
         if (!validationContext.hasIssues()) {
-            rp.sendMessage(color(GREEN, "[git-proxy] " + sym(HEAVY_CHECK_MARK) + "  All checks passed"));
+            rp.sendMessage(color(GREEN, "" + sym(HEAVY_CHECK_MARK) + "  All checks passed"));
             return;
         }
 
         List<ValidationContext.ValidationIssue> issues = validationContext.getIssues();
 
         rp.sendMessage("");
-        rp.sendMessage(
-                color(RED, "[git-proxy] " + sym(NO_ENTRY) + "  Push rejected — " + issues.size() + " issue(s) found:"));
+        rp.sendMessage(color(RED, "" + sym(NO_ENTRY) + "  Push rejected — " + issues.size() + " issue(s) found:"));
         rp.sendMessage("");
 
         for (int i = 0; i < issues.size(); i++) {
             var issue = issues.get(i);
-            rp.sendMessage(color(RED, "[git-proxy]   " + (i + 1) + ". [" + issue.hookName() + "] " + issue.summary()));
+            rp.sendMessage(color(RED, "  " + (i + 1) + ". [" + issue.hookName() + "] " + issue.summary()));
             if (issue.detail() != null && !issue.detail().isEmpty()) {
-                rp.sendMessage(color(YELLOW, "[git-proxy]      " + issue.detail()));
+                rp.sendMessage(color(YELLOW, "     " + issue.detail()));
             }
         }
 
         rp.sendMessage("");
-        rp.sendMessage(color(YELLOW, "[git-proxy] " + sym(WARNING) + "  Fix all issues and push again"));
+        rp.sendMessage(color(YELLOW, "" + sym(WARNING) + "  Fix all issues and push again"));
 
         // Reject all commands
         String rejectMessage = issues.size() + " validation issue(s) — see above";

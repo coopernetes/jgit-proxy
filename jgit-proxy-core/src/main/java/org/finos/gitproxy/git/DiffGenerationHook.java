@@ -1,8 +1,5 @@
 package org.finos.gitproxy.git;
 
-import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
-
 import java.io.IOException;
 import java.util.Collection;
 import lombok.RequiredArgsConstructor;
@@ -70,14 +67,8 @@ public class DiffGenerationHook implements PreReceiveHook {
     private void generatePushDiff(
             ReceivePack rp, Repository repo, String refName, String commitFrom, String commitTo, boolean isNewBranch) {
         try {
-            String baseLabel = isNewBranch ? "(empty tree)" : commitFrom.substring(0, 7);
-            rp.sendMessage(CYAN + "[git-proxy] " + LINK.emoji() + "  Generating push diff " + baseLabel + ".."
-                    + commitTo.substring(0, 7) + RESET);
-
             String diff = CommitInspectionService.getFormattedDiff(repo, commitFrom, commitTo);
             int lines = diff.isEmpty() ? 0 : (int) diff.lines().count();
-
-            rp.sendMessage(CYAN + "[git-proxy]   " + lines + " line(s) of diff" + RESET);
 
             PushStep step = PushStep.builder()
                     .stepName(STEP_NAME_PUSH_DIFF)
@@ -92,8 +83,7 @@ public class DiffGenerationHook implements PreReceiveHook {
             pushContext.addStep(step);
         } catch (IOException e) {
             log.error("Failed to generate push diff for {}", refName, e);
-            rp.sendMessage(YELLOW + "[git-proxy]   " + WARNING.emoji() + "  Could not generate push diff: "
-                    + e.getMessage() + RESET);
+            log.warn("Could not generate push diff for {}: {}", refName, e.getMessage());
         }
     }
 
@@ -123,12 +113,8 @@ public class DiffGenerationHook implements PreReceiveHook {
             String defaultBranchTip = defaultRef.getObjectId().name();
             String shortBranch = shortenRef(defaultBranch);
 
-            rp.sendMessage(CYAN + "[git-proxy] " + LINK.emoji() + "  Generating diff vs " + shortBranch + RESET);
-
             String diff = CommitInspectionService.getFormattedDiff(repo, defaultBranchTip, commitTo);
             int lines = diff.isEmpty() ? 0 : (int) diff.lines().count();
-
-            rp.sendMessage(CYAN + "[git-proxy]   " + lines + " line(s) vs " + shortBranch + RESET);
 
             PushStep step = PushStep.builder()
                     .stepName(STEP_NAME_BRANCH_DIFF)

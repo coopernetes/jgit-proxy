@@ -59,16 +59,17 @@ public class ValidationSummaryFilter extends AbstractGitProxyFilter {
         int count = messages.size();
         log.warn("Blocking push pending review — {} validation check(s) failed", count);
 
-        String divider = "\n────────────────────────────────────────\n";
+        String divider = "────────────────────────────────────────";
         String summary = buildValidationSummary(details.getSteps());
-        String header = color(RED, sym(NO_ENTRY) + "  Push Blocked — " + count + " check(s) failed");
-        String body = messages.stream().map(m -> color(RED, m)).collect(Collectors.joining(divider));
-        String combined = summary + divider + header + divider + body;
+        String header = color(RED, sym(NO_ENTRY) + "  Push Blocked — " + count + " validation issue(s)");
+        String body = String.join("\n", messages);
+        String combined = summary + divider + "\n" + header + "\n" + body;
 
-        setResult(request, GitRequestDetails.GitResult.REJECTED, count + " validation check(s) failed");
+        setResult(request, GitRequestDetails.GitResult.REJECTED, count + " validation issue(s)");
         String serviceUrl = (String) request.getAttribute(SERVICE_URL_ATTR);
         String link = serviceUrl != null ? serviceUrl + "/#/push/" + details.getId() : null;
-        String fullMessage = link != null ? combined + "\n\nView push record: " + link : combined;
-        sendGitError(request, response, fullMessage);
+        String tail =
+                "\n" + divider + (link != null ? "\n" + color(CYAN, sym(LINK) + "  View push record: " + link) : "");
+        sendGitError(request, response, combined + tail);
     }
 }

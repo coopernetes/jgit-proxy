@@ -39,7 +39,7 @@ public class CheckUserPushPermissionHook implements PreReceiveHook {
         if (pushUser == null || pushUser.isEmpty()) {
             log.debug("No push user found in repo config, skipping permission check");
             pushContext.addStep(PushStep.builder()
-                    .stepName("CheckUserPushPermissionHook")
+                    .stepName("checkUserPermission")
                     .stepOrder(STEP_ORDER)
                     .status(StepStatus.PASS)
                     .build());
@@ -54,7 +54,7 @@ public class CheckUserPushPermissionHook implements PreReceiveHook {
                     RED,
                     null);
             validationContext.addIssue("CheckUserPushPermissionHook", "User does not exist: " + pushUser, detail);
-            rp.sendMessage(color(RED, "[git-proxy]   " + sym(CROSS_MARK) + "  " + pushUser + " — not registered"));
+            rp.sendMessage(color(RED, "  " + sym(CROSS_MARK) + "  " + pushUser + " — not registered"));
             return;
         }
 
@@ -66,14 +66,13 @@ public class CheckUserPushPermissionHook implements PreReceiveHook {
                     RED,
                     null);
             validationContext.addIssue("CheckUserPushPermissionHook", "User not authorized: " + pushUser, detail);
-            rp.sendMessage(color(RED, "[git-proxy]   " + sym(CROSS_MARK) + "  " + pushUser + " — not authorized"));
+            rp.sendMessage(color(RED, "  " + sym(CROSS_MARK) + "  " + pushUser + " — not authorized"));
             return;
         }
 
         log.debug("Push user {} is authorized", pushUser);
-        rp.sendMessage(color(GREEN, "[git-proxy]   " + sym(HEAVY_CHECK_MARK) + "  " + pushUser + " authorized"));
         pushContext.addStep(PushStep.builder()
-                .stepName("CheckUserPushPermissionHook")
+                .stepName("checkUserPermission")
                 .stepOrder(STEP_ORDER)
                 .status(StepStatus.PASS)
                 .build());

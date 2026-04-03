@@ -32,6 +32,11 @@ public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
     }
 
     @Override
+    public String getStepName() {
+        return "checkUserPermission";
+    }
+
+    @Override
     public boolean skipForRefDeletion() {
         return false; // Permission check still applies to deletions
     }

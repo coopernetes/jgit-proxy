@@ -38,6 +38,11 @@ public class CheckEmptyBranchFilter extends AbstractGitProxyFilter {
     }
 
     @Override
+    public String getStepName() {
+        return "checkEmptyBranch";
+    }
+
+    @Override
     public void doHttpFilter(HttpServletRequest request, HttpServletResponse response) throws IOException {
         var requestDetails = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
         if (requestDetails == null) {

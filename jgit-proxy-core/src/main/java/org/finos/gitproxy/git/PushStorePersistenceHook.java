@@ -7,6 +7,7 @@ import static org.finos.gitproxy.git.GitClient.sym;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -44,9 +45,9 @@ public class PushStorePersistenceHook {
      * sort validation steps in the same order as proxy mode.
      */
     private static final Map<String, Integer> HOOK_STEP_ORDER = Map.of(
-            "AuthorEmail", 2100,
-            "CommitMessage", 2200,
-            "DiffContent", 2300,
+            "checkAuthorEmails", 2100,
+            "checkCommitMessages", 2200,
+            "scanDiff", 2300,
             "scanSecrets", 2500);
 
     private final PushStore pushStore;
@@ -108,10 +109,18 @@ public class PushStorePersistenceHook {
 
                     // Validation issues → reject outright (no human review queue)
                     if (validationContext.hasIssues()) {
+                        // Build merged step list: passing steps first, then failing steps
+                        List<PushStep> allSteps = new ArrayList<>();
+                        if (pushContext != null) {
+                            for (PushStep step : pushContext.getSteps()) {
+                                step.setPushId(recordId);
+                                allSteps.add(step);
+                            }
+                        }
                         int fallbackOrder = 0;
                         for (var issue : validationContext.getIssues()) {
                             int stepOrder = HOOK_STEP_ORDER.getOrDefault(issue.hookName(), fallbackOrder);
-                            steps.add(PushStep.builder()
+                            allSteps.add(PushStep.builder()
                                     .pushId(recordId)
                                     .stepName(issue.hookName())
                                     .stepOrder(stepOrder)
@@ -121,18 +130,13 @@ public class PushStorePersistenceHook {
                                     .build());
                             fallbackOrder++;
                         }
+
+                        allSteps.sort(Comparator.comparingInt(PushStep::getStepOrder));
+
                         record.setStatus(PushStatus.REJECTED);
                         record.setAutoRejected(true);
                         record.setBlockedMessage(validationContext.getIssues().size() + " validation issue(s) found");
-
-                        // Steps from push context (diffs, scans, etc.)
-                        if (pushContext != null) {
-                            for (PushStep step : pushContext.getSteps()) {
-                                step.setPushId(recordId);
-                                steps.add(step);
-                            }
-                        }
-                        record.setSteps(steps);
+                        record.setSteps(allSteps);
                         pushStore.save(record);
                         rp.getRepository()
                                 .getConfig()
@@ -141,10 +145,26 @@ public class PushStorePersistenceHook {
                                 "Saved validation result record: id={}, status=REJECTED (auto-rejected)",
                                 record.getId());
 
+                        // Emit validation summary (passing steps + failing steps, sorted by order)
+                        String summary = GitClient.buildValidationSummary(allSteps);
+                        if (!summary.isBlank()) {
+                            rp.sendMessage(summary);
+                        }
+                        // Compact rejection block with actionable detail per violation
+                        rp.sendMessage("────────────────────────────────────────");
+                        rp.sendMessage(color(
+                                RED,
+                                "" + sym(NO_ENTRY) + "  Push Blocked — "
+                                        + validationContext.getIssues().size() + " validation issue(s)"));
+                        for (var issue : validationContext.getIssues()) {
+                            rp.sendMessage("  " + issue.detail());
+                        }
+                        rp.sendMessage("────────────────────────────────────────");
+
                         if (serviceUrl != null) {
                             rp.sendMessage(color(
                                     CYAN,
-                                    "[git-proxy] " + sym(LINK) + "  View push record: " + serviceUrl + "/#/push/"
+                                    "" + sym(LINK) + "  View push record: " + serviceUrl + "/#/push/"
                                             + record.getId()));
                         }
 
@@ -168,7 +188,20 @@ public class PushStorePersistenceHook {
                             steps.add(step);
                         }
                     }
+                    steps.sort(Comparator.comparingInt(PushStep::getStepOrder));
                     record.setSteps(steps);
+
+                    // Show validation summary before the approval wait message
+                    String summary = GitClient.buildValidationSummary(steps);
+                    if (!summary.isBlank()) {
+                        rp.sendMessage(summary);
+                    }
+                    rp.sendMessage("────────────────────────────────────────");
+                    if (serviceUrl != null) {
+                        rp.sendMessage(color(
+                                CYAN,
+                                "" + sym(LINK) + "  View push record: " + serviceUrl + "/#/push/" + record.getId()));
+                    }
 
                     pushStore.save(record);
                     rp.getRepository().getConfig().setString("gitproxy", null, "validationRecordId", record.getId());

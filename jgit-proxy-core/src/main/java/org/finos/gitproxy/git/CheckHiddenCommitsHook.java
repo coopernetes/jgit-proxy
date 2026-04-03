@@ -44,7 +44,7 @@ import org.finos.gitproxy.db.model.StepStatus;
 public class CheckHiddenCommitsHook implements PreReceiveHook {
 
     private static final int STEP_ORDER = 2060;
-    private static final String STEP_NAME = "CheckHiddenCommitsHook";
+    private static final String STEP_NAME = "checkHiddenCommits";
 
     private final PushContext pushContext;
 
@@ -76,8 +76,8 @@ public class CheckHiddenCommitsHook implements PreReceiveHook {
                     + " and pushed to the remote.\n"
                     + "Please get approval on the commits, push them and try again.";
 
-            rp.sendMessage(color(RED, "[git-proxy] " + sym(NO_ENTRY) + "  Push blocked — hidden commits detected"));
-            rp.sendMessage(color(YELLOW, "[git-proxy]   " + sym(WARNING) + "  " + msg));
+            rp.sendMessage(color(RED, "" + sym(NO_ENTRY) + "  Push blocked — hidden commits detected"));
+            rp.sendMessage(color(YELLOW, "  " + sym(WARNING) + "  " + msg));
 
             for (ReceiveCommand cmd : commands) {
                 if (cmd.getResult() == ReceiveCommand.Result.NOT_ATTEMPTED) {

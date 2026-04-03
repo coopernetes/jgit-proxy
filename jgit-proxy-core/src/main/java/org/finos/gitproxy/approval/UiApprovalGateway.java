@@ -43,8 +43,8 @@ public class UiApprovalGateway implements ApprovalGateway {
                 Thread.sleep(POLL_INTERVAL.toMillis());
                 elapsedSecs += POLL_INTERVAL.toSeconds();
                 long remainingSecs = (deadlineMs - System.currentTimeMillis()) / 1000;
-                progress.send(String.format(
-                        "[git-proxy] Awaiting review... (%ds elapsed, ~%ds remaining)", elapsedSecs, remainingSecs));
+                progress.send(
+                        String.format("Awaiting review... (%ds elapsed, ~%ds remaining)", elapsedSecs, remainingSecs));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return ApprovalResult.TIMED_OUT;

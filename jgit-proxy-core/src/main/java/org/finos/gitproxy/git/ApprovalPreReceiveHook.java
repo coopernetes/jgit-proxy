@@ -75,28 +75,20 @@ public class ApprovalPreReceiveHook implements PreReceiveHook {
 
         // Safety net: already approved before this hook ran (race condition or re-push)
         if (record.getStatus() == PushStatus.APPROVED) {
-            sendAndFlush(
-                    rp,
-                    msgOut,
-                    color(GREEN, "[git-proxy] " + sym(HEAVY_CHECK_MARK) + "  Push already approved — forwarding"));
+            sendAndFlush(rp, msgOut, color(GREEN, "" + sym(HEAVY_CHECK_MARK) + "  Push already approved — forwarding"));
             return;
         }
 
         // All clean pushes are BLOCKED pending human review
         if (record.getStatus() == PushStatus.BLOCKED) {
             sendAndFlush(
-                    rp,
-                    msgOut,
-                    color(YELLOW, "[git-proxy] " + sym(WARNING) + "  Push requires review. Waiting for approval..."));
-            sendAndFlush(rp, msgOut, color(CYAN, "[git-proxy] " + sym(KEY) + "  Push ID: " + validationRecordId));
+                    rp, msgOut, color(YELLOW, "" + sym(WARNING) + "  Push requires review. Waiting for approval..."));
+            sendAndFlush(rp, msgOut, color(CYAN, "" + sym(KEY) + "  Push ID: " + validationRecordId));
             if (serviceUrl != null) {
-                sendAndFlush(
-                        rp,
-                        msgOut,
-                        color(CYAN, "[git-proxy]    Review at: " + serviceUrl + "/#/push/" + validationRecordId));
+                sendAndFlush(rp, msgOut, color(CYAN, "   Review at: " + serviceUrl + "/#/push/" + validationRecordId));
             }
             if (record.getBlockedMessage() != null) {
-                sendAndFlush(rp, msgOut, color(YELLOW, "[git-proxy]    Reason: " + record.getBlockedMessage()));
+                sendAndFlush(rp, msgOut, color(YELLOW, "   Reason: " + record.getBlockedMessage()));
             }
 
             ApprovalResult result =
@@ -104,21 +96,17 @@ public class ApprovalPreReceiveHook implements PreReceiveHook {
 
             switch (result) {
                 case APPROVED ->
-                    sendAndFlush(
-                            rp,
-                            msgOut,
-                            color(GREEN, "[git-proxy] " + sym(HEAVY_CHECK_MARK) + "  Push approved by reviewer"));
+                    sendAndFlush(rp, msgOut, color(GREEN, "" + sym(HEAVY_CHECK_MARK) + "  Push approved by reviewer"));
                 case REJECTED -> {
                     var updated = pushStore.findById(validationRecordId).orElse(null);
                     String reason = updated != null && updated.getAttestation() != null
                             ? updated.getAttestation().getReason()
                             : "Push rejected by reviewer";
-                    sendAndFlush(
-                            rp, msgOut, color(RED, "[git-proxy] " + sym(CROSS_MARK) + "  Push rejected: " + reason));
+                    sendAndFlush(rp, msgOut, color(RED, "" + sym(CROSS_MARK) + "  Push rejected: " + reason));
                     rejectAll(commands, reason);
                 }
                 case CANCELED -> {
-                    sendAndFlush(rp, msgOut, color(YELLOW, "[git-proxy] " + sym(WARNING) + "  Push canceled"));
+                    sendAndFlush(rp, msgOut, color(YELLOW, "" + sym(WARNING) + "  Push canceled"));
                     rejectAll(commands, "Push canceled");
                 }
                 case TIMED_OUT -> {
@@ -127,8 +115,8 @@ public class ApprovalPreReceiveHook implements PreReceiveHook {
                             msgOut,
                             color(
                                     RED,
-                                    "[git-proxy] " + sym(CROSS_MARK) + "  Approval timed out after "
-                                            + timeout.toMinutes() + " minutes"));
+                                    "" + sym(CROSS_MARK) + "  Approval timed out after " + timeout.toMinutes()
+                                            + " minutes"));
                     rejectAll(commands, "Approval timed out");
                 }
             }

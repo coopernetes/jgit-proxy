@@ -1,6 +1,5 @@
 package org.finos.gitproxy.validation;
 
-import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
 import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
 import static org.finos.gitproxy.git.GitClient.sym;
 
@@ -10,7 +9,6 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.config.CommitConfig.SecretScanningConfig;
-import org.finos.gitproxy.git.GitClient;
 import org.finos.gitproxy.git.GitleaksRunner;
 
 /**
@@ -56,14 +54,8 @@ public class SecretScanCheck implements DiffCheck {
         }
 
         log.warn("Secret scan found {} finding(s)", findings.size());
-        String title = sym(NO_ENTRY) + "  Push Blocked — " + findings.size() + " Secret(s) Detected";
-        String body = "Secret scan findings:\n\n"
-                + findings.stream()
-                        .map(f -> sym(CROSS_MARK) + "  " + f.toMessage())
-                        .collect(Collectors.joining("\n\n"));
-
         List<Violation> violations = findings.stream()
-                .map(f -> new Violation(f.toMessage(), f.toMessage(), GitClient.format(title, body, RED, null)))
+                .map(f -> new Violation(f.toMessage(), f.toMessage(), sym(CROSS_MARK) + "  " + f.toMessage()))
                 .collect(Collectors.toList());
 
         return Optional.of(violations);

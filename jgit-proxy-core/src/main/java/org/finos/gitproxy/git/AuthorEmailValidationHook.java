@@ -1,10 +1,5 @@
 package org.finos.gitproxy.git;
 
-import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
-import static org.finos.gitproxy.git.GitClient.color;
-import static org.finos.gitproxy.git.GitClient.sym;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -37,8 +32,6 @@ public class AuthorEmailValidationHook implements PreReceiveHook {
 
     @Override
     public void onPreReceive(ReceivePack rp, Collection<ReceiveCommand> commands) {
-        rp.sendMessage(color(CYAN, "[git-proxy] " + sym(KEY) + "  Checking author emails..."));
-
         var check = new AuthorEmailCheck(commitConfig);
         Repository repo = rp.getRepository();
         List<Violation> allViolations = new ArrayList<>();
@@ -48,18 +41,11 @@ public class AuthorEmailValidationHook implements PreReceiveHook {
             try {
                 List<Violation> violations = check.check(getCommits(repo, cmd));
                 for (Violation v : violations) {
-                    rp.sendMessage(
-                            color(RED, "[git-proxy]   " + sym(CROSS_MARK) + "  " + v.subject() + " — " + v.reason()));
-                    validationContext.addIssue("AuthorEmail", v.reason(), v.formattedDetail());
+                    validationContext.addIssue("checkAuthorEmails", v.reason(), v.formattedDetail());
                     allViolations.add(v);
-                }
-                if (violations.isEmpty()) {
-                    rp.sendMessage(color(GREEN, "[git-proxy]   " + sym(HEAVY_CHECK_MARK) + "  emails OK"));
                 }
             } catch (Exception e) {
                 log.error("Failed to validate author emails for {}", cmd.getRefName(), e);
-                rp.sendMessage(color(
-                        YELLOW, "[git-proxy]   " + sym(WARNING) + "  Could not validate emails: " + e.getMessage()));
             }
         }
 

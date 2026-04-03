@@ -34,7 +34,7 @@ import org.finos.gitproxy.db.model.StepStatus;
 public class CheckEmptyBranchHook implements PreReceiveHook {
 
     private static final int STEP_ORDER = 2050;
-    private static final String STEP_NAME = "CheckEmptyBranchHook";
+    private static final String STEP_NAME = "checkEmptyBranch";
 
     private final PushContext pushContext;
 
@@ -56,7 +56,7 @@ public class CheckEmptyBranchHook implements PreReceiveHook {
                     msg = "Push blocked: Commit data not found. Please contact an administrator for support.";
                 }
 
-                rp.sendMessage(color(RED, "[git-proxy] " + sym(NO_ENTRY) + "  " + msg));
+                rp.sendMessage(color(RED, "" + sym(NO_ENTRY) + "  " + msg));
                 cmd.setResult(ReceiveCommand.Result.REJECTED_OTHER_REASON, msg);
                 // Chain stops once a command is rejected; remaining commands will be skipped
                 return;

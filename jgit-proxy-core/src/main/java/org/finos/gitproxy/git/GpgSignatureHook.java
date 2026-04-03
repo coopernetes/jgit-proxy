@@ -46,22 +46,19 @@ public class GpgSignatureHook implements PreReceiveHook {
             try {
                 List<Violation> violations = check.check(getCommits(repo, cmd));
                 for (Violation v : violations) {
-                    rp.sendMessage(
-                            color(RED, "[git-proxy]   " + sym(CROSS_MARK) + "  " + v.subject() + " — " + v.reason()));
+                    rp.sendMessage(color(RED, "" + sym(CROSS_MARK) + "  " + v.subject() + " — " + v.reason()));
                     validationContext.addIssue("GpgSignatureHook", v.reason(), v.formattedDetail());
                     allViolations.add(v);
                 }
             } catch (Exception e) {
                 log.error("Failed to check GPG signatures for {}", cmd.getRefName(), e);
-                rp.sendMessage(color(
-                        YELLOW,
-                        "[git-proxy]   " + sym(WARNING) + "  Could not check GPG signature: " + e.getMessage()));
+                rp.sendMessage(color(YELLOW, "" + sym(WARNING) + "  Could not check GPG signature: " + e.getMessage()));
             }
         }
 
         if (allViolations.isEmpty()) {
             pushContext.addStep(PushStep.builder()
-                    .stepName("GpgSignatureHook")
+                    .stepName("checkSignatures")
                     .stepOrder(STEP_ORDER)
                     .status(StepStatus.PASS)
                     .build());

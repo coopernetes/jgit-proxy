@@ -1,6 +1,8 @@
 package org.finos.gitproxy.git;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -232,29 +234,67 @@ public class GitClient {
     }
 
     /**
-     * Builds a one-line-per-filter validation summary string for the transparent proxy pipeline. Only shows steps in
-     * the content-filter order range (1000–4999) — infrastructure and finalizer steps are omitted. Returns an empty
-     * string if there are no relevant steps.
+     * Builds a validation summary in the same two-line format as store-and-forward streaming output:
+     *
+     * <pre>
+     *   🔑  Checking author emails...
+     *     ✅  emails OK
+     * </pre>
+     *
+     * <p>Used by the transparent proxy pipeline (which cannot stream mid-request) to produce output that looks
+     * identical to S&amp;F sideband streaming, just delivered as a single batch at the end. Only shows steps in the
+     * content-filter order range (1000–4998); data steps (diff generation) and infrastructure steps are excluded.
+     * Returns an empty string if there are no relevant steps.
      */
     public static String buildValidationSummary(List<PushStep> steps) {
+        // Pure data / infrastructure steps that don't represent a user-visible check
+        Set<String> skipSteps = Set.of("diff", "diff:default-branch", "forward", "inspection");
+
+        // Human-readable label for each step name (header line)
+        Map<String, String> labels = Map.of(
+                "checkWhitelist", "Checking repository whitelist",
+                "checkUserPermission", "Checking user permission",
+                "checkEmptyBranch", "Checking branch",
+                "checkHiddenCommits", "Checking for hidden commits",
+                "checkAuthorEmails", "Checking author emails",
+                "checkCommitMessages", "Checking commit messages",
+                "scanDiff", "Scanning diff content",
+                "checkSignatures", "Checking GPG signatures",
+                "scanSecrets", "Scanning for secrets");
+
+        // Short pass-result text shown on the second line
+        Map<String, String> passResults = Map.of(
+                "checkWhitelist", "repository allowed",
+                "checkUserPermission", "user authorized",
+                "checkEmptyBranch", "branch OK",
+                "checkHiddenCommits", "no hidden commits",
+                "checkAuthorEmails", "emails OK",
+                "checkCommitMessages", "messages OK",
+                "scanDiff", "clean",
+                "checkSignatures", "signatures OK",
+                "scanSecrets", "No secrets detected");
+
         List<PushStep> relevant = steps.stream()
-                .filter(s -> s.getStepOrder() >= 1000 && s.getStepOrder() < 5000)
+                .filter(s -> s.getStepOrder() >= 1000 && s.getStepOrder() < 4999)
+                .filter(s -> !skipSteps.contains(s.getStepName()))
                 .collect(Collectors.toList());
         if (relevant.isEmpty()) return "";
 
         StringBuilder sb = new StringBuilder();
-        sb.append(color(AnsiColor.CYAN, "[git-proxy] Validation Summary")).append("\n");
         for (PushStep step : relevant) {
+            String label = labels.getOrDefault(step.getStepName(), step.getStepName());
+            sb.append(color(AnsiColor.CYAN, sym(SymbolCodes.KEY) + "  " + label + "..."))
+                    .append("\n");
             if (step.getStatus() == StepStatus.PASS) {
-                sb.append(color(
-                                AnsiColor.GREEN,
-                                "  " + sym(SymbolCodes.HEAVY_CHECK_MARK) + "  " + step.getStepName() + " — passed"))
+                String result = passResults.getOrDefault(step.getStepName(), "passed");
+                sb.append(color(AnsiColor.GREEN, "  " + sym(SymbolCodes.HEAVY_CHECK_MARK) + "  " + result))
                         .append("\n");
             } else if (step.getStatus() == StepStatus.FAIL) {
                 String detail = step.getErrorMessage() != null ? step.getErrorMessage() : "failed";
-                sb.append(color(
-                                AnsiColor.RED,
-                                "  " + sym(SymbolCodes.CROSS_MARK) + "  " + step.getStepName() + " — " + detail))
+                sb.append(color(AnsiColor.RED, "  " + sym(SymbolCodes.CROSS_MARK) + "  " + detail))
+                        .append("\n");
+            } else if (step.getStatus() == StepStatus.SKIPPED) {
+                sb.append(color(AnsiColor.YELLOW, "  " + sym(SymbolCodes.WARNING) + "  skipped"))
                         .append("\n");
             }
         }
