@@ -19,7 +19,7 @@ public class AuditLogFilter extends AbstractGitProxyFilter implements AuditFilte
                 requestDetails.getResult(),
                 requestDetails.getReason(),
                 requestDetails.getProvider().getName(),
-                requestDetails.getRepository(),
+                requestDetails.getRepoRef(),
                 requestDetails.getOperation());
     }
 }

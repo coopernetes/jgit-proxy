@@ -132,8 +132,8 @@ class ParseGitRequestFilterTest {
 
         GitRequestDetails details = makeFilter().parse(wrapper);
 
-        assertNotNull(details.getRepository());
-        assertEquals("owner", details.getRepository().getOwner());
+        assertNotNull(details.getRepoRef());
+        assertEquals("owner", details.getRepoRef().getOwner());
     }
 
     @Test
@@ -143,8 +143,8 @@ class ParseGitRequestFilterTest {
 
         GitRequestDetails details = makeFilter().parse(wrapper);
 
-        assertNotNull(details.getRepository());
-        assertEquals("repo", details.getRepository().getName());
+        assertNotNull(details.getRepoRef());
+        assertEquals("repo", details.getRepoRef().getName());
     }
 
     @Test

@@ -157,7 +157,7 @@ public final class GitProxyServletRegistrar {
         emptyBranchFilterHolder.setAsyncSupported(true);
         context.addFilter(emptyBranchFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
 
-        var hiddenCommitsFilterHolder = new FilterHolder(new CheckHiddenCommitsFilter(provider, repositoryCache));
+        var hiddenCommitsFilterHolder = new FilterHolder(new CheckHiddenCommitsFilter(provider));
         hiddenCommitsFilterHolder.setAsyncSupported(true);
         context.addFilter(hiddenCommitsFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
 
@@ -169,7 +169,7 @@ public final class GitProxyServletRegistrar {
         commitMessagesFilterHolder.setAsyncSupported(true);
         context.addFilter(commitMessagesFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
 
-        var scanDiffFilterHolder = new FilterHolder(new ScanDiffFilter(provider, commitConfig, repositoryCache));
+        var scanDiffFilterHolder = new FilterHolder(new ScanDiffFilter(provider, commitConfig));
         scanDiffFilterHolder.setAsyncSupported(true);
         context.addFilter(scanDiffFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
 

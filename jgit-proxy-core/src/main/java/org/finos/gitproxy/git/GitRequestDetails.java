@@ -7,6 +7,7 @@ import java.util.UUID;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
+import org.eclipse.jgit.lib.Repository;
 import org.finos.gitproxy.db.model.PushStep;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.servlet.filter.GitProxyFilter;
@@ -16,7 +17,13 @@ public class GitRequestDetails {
     private UUID id = UUID.randomUUID();
     private Instant timestamp = Instant.now();
     private HttpOperation operation;
-    private Repository repository;
+    private RepoRef repoRef;
+    /**
+     * The local JGit repository for this push, populated by {@code EnrichPushCommitsFilter} after cloning/fetching the
+     * upstream. Available to all downstream filters — no need to inject {@code LocalRepositoryCache} separately.
+     */
+    private Repository localRepository;
+
     private String branch; // null for fetch requests
     private Commit commit; // Head/parent commit from the push
     private String commitFrom; // Old ref SHA from the packet line (the push range start)
@@ -35,7 +42,7 @@ public class GitRequestDetails {
 
     @Builder
     @Getter
-    public static class Repository {
+    public static class RepoRef {
         private String owner; // may not be set for all providers
         private String name; // may not be set for all providers
         private String slug;

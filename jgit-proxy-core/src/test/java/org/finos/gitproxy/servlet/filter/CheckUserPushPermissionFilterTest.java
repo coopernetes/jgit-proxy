@@ -93,7 +93,7 @@ class CheckUserPushPermissionFilterTest {
     private GitRequestDetails makeDetailsWithEmail(String email) {
         GitRequestDetails details = new GitRequestDetails();
         details.setOperation(HttpOperation.PUSH);
-        details.setRepository(GitRequestDetails.Repository.builder()
+        details.setRepoRef(GitRequestDetails.RepoRef.builder()
                 .owner("owner")
                 .name("repo")
                 .slug("owner/repo")
@@ -128,8 +128,8 @@ class CheckUserPushPermissionFilterTest {
     void nullCommit_blocks() throws Exception {
         GitRequestDetails details = new GitRequestDetails();
         details.setOperation(HttpOperation.PUSH);
-        details.setRepository(
-                GitRequestDetails.Repository.builder().slug("owner/repo").build());
+        details.setRepoRef(
+                GitRequestDetails.RepoRef.builder().slug("owner/repo").build());
         // no commit set
         FakeResponse resp = new FakeResponse();
 

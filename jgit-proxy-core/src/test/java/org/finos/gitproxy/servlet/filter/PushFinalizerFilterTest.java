@@ -91,8 +91,8 @@ class PushFinalizerFilterTest {
         GitRequestDetails details = new GitRequestDetails();
         details.setOperation(HttpOperation.PUSH);
         details.setCommitTo("abc123");
-        details.setRepository(
-                GitRequestDetails.Repository.builder().slug("owner/repo").build());
+        details.setRepoRef(
+                GitRequestDetails.RepoRef.builder().slug("owner/repo").build());
         return details;
     }
 

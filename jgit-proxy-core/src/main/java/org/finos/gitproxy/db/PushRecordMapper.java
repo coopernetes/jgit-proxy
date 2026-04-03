@@ -32,10 +32,10 @@ public final class PushRecordMapper {
             }
         }
 
-        if (details.getRepository() != null) {
-            builder.url(details.getRepository().getSlug());
-            builder.project(details.getRepository().getOwner());
-            builder.repoName(details.getRepository().getName());
+        if (details.getRepoRef() != null) {
+            builder.url(details.getRepoRef().getSlug());
+            builder.project(details.getRepoRef().getOwner());
+            builder.repoName(details.getRepoRef().getName());
         }
 
         if (details.getProvider() != null) {
@@ -45,8 +45,7 @@ public final class PushRecordMapper {
             }
             // Construct the upstream URL from provider URI + repo slug
             String providerUri = details.getProvider().getUri().toString();
-            String slug =
-                    details.getRepository() != null ? details.getRepository().getSlug() : null;
+            String slug = details.getRepoRef() != null ? details.getRepoRef().getSlug() : null;
             if (slug != null) {
                 String upstreamUrl = providerUri.endsWith("/") ? providerUri + slug : providerUri + "/" + slug;
                 builder.upstreamUrl(upstreamUrl);

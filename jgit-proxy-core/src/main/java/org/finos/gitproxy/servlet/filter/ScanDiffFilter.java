@@ -22,7 +22,6 @@ import org.finos.gitproxy.git.DiffGenerationHook;
 import org.finos.gitproxy.git.GitClientUtils;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
-import org.finos.gitproxy.git.LocalRepositoryCache;
 import org.finos.gitproxy.provider.GitProxyProvider;
 
 /**
@@ -41,12 +40,10 @@ public class ScanDiffFilter extends AbstractProviderAwareGitProxyFilter {
     private static final int ORDER = 2300;
 
     private final CommitConfig commitConfig;
-    private final LocalRepositoryCache repositoryCache;
 
-    public ScanDiffFilter(GitProxyProvider provider, CommitConfig commitConfig, LocalRepositoryCache repositoryCache) {
+    public ScanDiffFilter(GitProxyProvider provider, CommitConfig commitConfig) {
         super(ORDER, Set.of(HttpOperation.PUSH), provider, PROXY_PATH_PREFIX);
         this.commitConfig = commitConfig != null ? commitConfig : CommitConfig.defaultConfig();
-        this.repositoryCache = repositoryCache;
     }
 
     private static final String PROXY_PATH_PREFIX = "/proxy";
@@ -72,8 +69,12 @@ public class ScanDiffFilter extends AbstractProviderAwareGitProxyFilter {
         }
 
         try {
-            String remoteUrl = constructRemoteUrl(requestDetails);
-            org.eclipse.jgit.lib.Repository repository = repositoryCache.getOrClone(remoteUrl);
+            org.eclipse.jgit.lib.Repository repository = requestDetails.getLocalRepository();
+            if (repository == null) {
+                log.warn(
+                        "localRepository not set on request — EnrichPushCommitsFilter may not have run; skipping diff scan");
+                return;
+            }
 
             String diff = CommitInspectionService.getFormattedDiff(repository, fromCommit, toCommit);
 
@@ -165,11 +166,5 @@ public class ScanDiffFilter extends AbstractProviderAwareGitProxyFilter {
             return bPath.startsWith("b/") ? bPath.substring(2) : bPath;
         }
         return diffHeader;
-    }
-
-    private String constructRemoteUrl(GitRequestDetails requestDetails) {
-        String providerHost = provider.getUri().getHost();
-        String slug = requestDetails.getRepository().getSlug();
-        return String.format("https://%s/%s.git", providerHost, slug);
     }
 }

@@ -57,8 +57,7 @@ public class AllowApprovedPushFilter extends AbstractGitProxyFilter {
 
         String commitTo = details.getCommitTo();
         String branch = details.getBranch();
-        String repoName =
-                details.getRepository() != null ? details.getRepository().getName() : null;
+        String repoName = details.getRepoRef() != null ? details.getRepoRef().getName() : null;
 
         if (commitTo == null || commitTo.isBlank()) {
             return;

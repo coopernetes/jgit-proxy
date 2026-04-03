@@ -106,7 +106,7 @@ class WhitelistFilterTest {
     private GitRequestDetails makeDetails(String owner, String name, String slug) {
         GitRequestDetails details = new GitRequestDetails();
         details.setOperation(HttpOperation.PUSH);
-        details.setRepository(GitRequestDetails.Repository.builder()
+        details.setRepoRef(GitRequestDetails.RepoRef.builder()
                 .owner(owner)
                 .name(name)
                 .slug(slug)

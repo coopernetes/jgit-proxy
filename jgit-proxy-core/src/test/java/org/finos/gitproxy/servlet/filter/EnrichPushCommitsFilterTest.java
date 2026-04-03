@@ -95,7 +95,7 @@ class EnrichPushCommitsFilterTest {
         details.setOperation(HttpOperation.PUSH);
         details.setCommitFrom(fromSha);
         details.setCommitTo(toSha);
-        details.setRepository(GitRequestDetails.Repository.builder()
+        details.setRepoRef(GitRequestDetails.RepoRef.builder()
                 .owner("owner")
                 .name("repo")
                 .slug("owner/repo")

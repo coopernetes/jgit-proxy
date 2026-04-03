@@ -109,7 +109,7 @@ class PushRecordMapperTest {
     @Test
     void fromRequestDetails_withRepository_setsFields() {
         GitRequestDetails details = new GitRequestDetails();
-        details.setRepository(GitRequestDetails.Repository.builder()
+        details.setRepoRef(GitRequestDetails.RepoRef.builder()
                 .owner("myorg")
                 .name("myrepo")
                 .slug("myorg/myrepo")
@@ -128,8 +128,8 @@ class PushRecordMapperTest {
         when(provider.getUri()).thenReturn(URI.create("https://github.com/"));
 
         GitRequestDetails details = new GitRequestDetails();
-        details.setRepository(
-                GitRequestDetails.Repository.builder().slug("myorg/myrepo").build());
+        details.setRepoRef(
+                GitRequestDetails.RepoRef.builder().slug("myorg/myrepo").build());
         details.setProvider(provider);
 
         PushRecord record = PushRecordMapper.fromRequestDetails(details);

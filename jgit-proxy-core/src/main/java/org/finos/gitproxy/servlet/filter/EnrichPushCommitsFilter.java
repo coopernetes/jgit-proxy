@@ -69,8 +69,10 @@ public class EnrichPushCommitsFilter extends AbstractProviderAwareGitProxyFilter
             String remoteUrl = constructRemoteUrl(requestDetails);
             log.info("Enriching push commits from repository: {}", remoteUrl);
 
-            // Step 1: Get or clone the upstream repo
+            // Step 1: Get or clone the upstream repo, then publish it on the request so downstream
+            // filters can use it without needing their own LocalRepositoryCache reference.
             Repository repository = repositoryCache.getOrClone(remoteUrl);
+            requestDetails.setLocalRepository(repository);
 
             // Step 2: Unpack the inflight push's pack data into the local clone.
             // The pushed objects don't exist upstream yet — this is the equivalent of
@@ -164,7 +166,7 @@ public class EnrichPushCommitsFilter extends AbstractProviderAwareGitProxyFilter
 
     private String constructRemoteUrl(GitRequestDetails requestDetails) {
         String providerHost = provider.getUri().getHost();
-        String slug = requestDetails.getRepository().getSlug();
+        String slug = requestDetails.getRepoRef().getSlug();
         return String.format("https://%s/%s.git", providerHost, slug);
     }
 }

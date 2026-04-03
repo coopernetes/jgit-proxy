@@ -75,7 +75,7 @@ public class ParseGitRequestFilter extends AbstractProviderAwareGitProxyFilter i
         gr.getFilters().add(this);
         var op = determineOperation(request);
         gr.setOperation(op);
-        gr.setRepository(GitRequestDetails.Repository.builder()
+        gr.setRepoRef(GitRequestDetails.RepoRef.builder()
                 .owner(getOwner(request.getPathInfo()))
                 .name(getName(request.getPathInfo()))
                 .slug(getSlug(request.getPathInfo()))

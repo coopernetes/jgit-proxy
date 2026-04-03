@@ -112,9 +112,9 @@ public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
     private String getRepositoryUrl(GitRequestDetails requestDetails) {
         if (requestDetails.getProvider() != null) {
             String providerName = requestDetails.getProvider().getName();
-            String slug = requestDetails.getRepository().getSlug();
+            String slug = requestDetails.getRepoRef().getSlug();
             return String.format("https://%s/%s", providerName, slug);
         }
-        return requestDetails.getRepository().getSlug();
+        return requestDetails.getRepoRef().getSlug();
     }
 }

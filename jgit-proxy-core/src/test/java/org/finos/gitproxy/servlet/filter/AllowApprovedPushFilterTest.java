@@ -29,7 +29,7 @@ class AllowApprovedPushFilterTest {
         GitRequestDetails details = new GitRequestDetails();
         details.setCommitTo(commitTo);
         details.setBranch(branch);
-        details.setRepository(GitRequestDetails.Repository.builder()
+        details.setRepoRef(GitRequestDetails.RepoRef.builder()
                 .owner("owner")
                 .name(repoName)
                 .slug("owner/" + repoName)

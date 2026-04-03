@@ -20,7 +20,6 @@ import org.finos.gitproxy.git.Commit;
 import org.finos.gitproxy.git.GitClientUtils;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
-import org.finos.gitproxy.git.LocalRepositoryCache;
 import org.finos.gitproxy.provider.GitProxyProvider;
 
 /**
@@ -39,7 +38,7 @@ import org.finos.gitproxy.provider.GitProxyProvider;
  *
  * <p>This filter short-circuits immediately via {@link #rejectAndSendError} without recording to
  * {@link ValidationSummaryFilter}. Requires {@link EnrichPushCommitsFilter} to have run first (for both
- * {@code pushedCommits} and the unpacked local repository).
+ * {@code pushedCommits} and the local repository on {@link GitRequestDetails#getLocalRepository()}).
  *
  * <p>Runs at order 2060, before all other content validation filters.
  */
@@ -49,11 +48,8 @@ public class CheckHiddenCommitsFilter extends AbstractProviderAwareGitProxyFilte
     private static final int ORDER = 2060;
     private static final String PROXY_PATH_PREFIX = "/proxy";
 
-    private final LocalRepositoryCache repositoryCache;
-
-    public CheckHiddenCommitsFilter(GitProxyProvider provider, LocalRepositoryCache repositoryCache) {
+    public CheckHiddenCommitsFilter(GitProxyProvider provider) {
         super(ORDER, Set.of(HttpOperation.PUSH), provider, PROXY_PATH_PREFIX);
-        this.repositoryCache = repositoryCache;
     }
 
     @Override
@@ -80,8 +76,12 @@ public class CheckHiddenCommitsFilter extends AbstractProviderAwareGitProxyFilte
                 : requestDetails.getPushedCommits().stream().map(Commit::getSha).collect(Collectors.toSet());
 
         try {
-            String remoteUrl = constructRemoteUrl(requestDetails);
-            Repository repository = repositoryCache.getOrClone(remoteUrl);
+            Repository repository = requestDetails.getLocalRepository();
+            if (repository == null) {
+                log.warn(
+                        "localRepository not set on request — EnrichPushCommitsFilter may not have run; skipping hidden commits check");
+                return;
+            }
 
             Set<String> allNew = collectAllNewCommits(repository, toCommit);
 
@@ -141,11 +141,5 @@ public class CheckHiddenCommitsFilter extends AbstractProviderAwareGitProxyFilte
         }
 
         return result;
-    }
-
-    private String constructRemoteUrl(GitRequestDetails requestDetails) {
-        String providerHost = provider.getUri().getHost();
-        String slug = requestDetails.getRepository().getSlug();
-        return String.format("https://%s/%s.git", providerHost, slug);
     }
 }

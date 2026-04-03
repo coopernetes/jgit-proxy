@@ -87,13 +87,13 @@ public class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter im
     public Predicate<String> createPredicate(Target target, HttpServletRequest request) {
         var details = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
         if (target == AuthorizedByUrlFilter.Target.OWNER) {
-            return o -> o.equals(details.getRepository().getOwner());
+            return o -> o.equals(details.getRepoRef().getOwner());
         }
         if (target == AuthorizedByUrlFilter.Target.NAME) {
-            return o -> o.equals(details.getRepository().getName());
+            return o -> o.equals(details.getRepoRef().getName());
         }
         if (target == AuthorizedByUrlFilter.Target.SLUG) {
-            return o -> o.equals(details.getRepository().getSlug());
+            return o -> o.equals(details.getRepoRef().getSlug());
         }
         throw new IllegalArgumentException("Unknown target type: " + target);
     }
