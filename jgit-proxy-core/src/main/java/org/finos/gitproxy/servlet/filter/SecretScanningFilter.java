@@ -2,7 +2,6 @@ package org.finos.gitproxy.servlet.filter;
 
 import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
 import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
-import static org.finos.gitproxy.git.GitClient.color;
 import static org.finos.gitproxy.git.GitClient.sym;
 import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 
@@ -12,6 +11,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.db.model.PushStep;
@@ -92,10 +92,11 @@ public class SecretScanningFilter extends AbstractGitProxyFilter {
         }
 
         log.warn("Secret scan found {} finding(s)", findings.size());
-        for (GitleaksRunner.Finding finding : findings) {
-            String title = sym(NO_ENTRY) + "  Push Blocked — Secret Detected";
-            String body = color(RED, sym(CROSS_MARK) + "  " + finding.toMessage());
-            recordIssue(request, "Secret detected", GitClient.format(title, body, RED, null));
-        }
+        String findingList = findings.stream()
+                .map(f -> sym(CROSS_MARK) + "  " + f.toMessage())
+                .collect(Collectors.joining("\n\n"));
+        String title = sym(NO_ENTRY) + "  Push Blocked — " + findings.size() + " Secret(s) Detected";
+        String body = "Secret scan findings:\n\n" + findingList;
+        recordIssue(request, findings.size() + " secret(s) detected", GitClient.format(title, body, RED, null));
     }
 }

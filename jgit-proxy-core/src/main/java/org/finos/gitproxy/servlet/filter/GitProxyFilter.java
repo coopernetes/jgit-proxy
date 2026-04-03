@@ -7,11 +7,16 @@ import static org.finos.gitproxy.servlet.GitProxyServlet.*;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.function.Predicate;
 import org.eclipse.jgit.http.server.GitSmartHttpTools;
+import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.transport.PacketLineOut;
+import org.eclipse.jgit.transport.SideBandOutputStream;
 import org.finos.gitproxy.db.model.PushStep;
 import org.finos.gitproxy.db.model.StepStatus;
 import org.finos.gitproxy.git.GitRequestDetails;
@@ -132,27 +137,51 @@ public interface GitProxyFilter extends Filter {
     }
 
     /**
-     * Send a Git error response to the client. This is a convenience method to send a 200 response with a message that
-     * a git client will understand. The message is written to the response output stream and the request body is
-     * consumed. git will interpret the message as an error message.
+     * Sends a git sideband error message to the client.
      *
-     * <p>When used inside a {@link #doHttpFilter} method, ensure to follow this pattern:
+     * <p>Each line of {@code message} is written as a separate {@code CH_PROGRESS} (0x02) sideband packet, which the
+     * git client prints prefixed with {@code "remote: "}. A short {@code CH_ERROR} (0x03) packet is written last to
+     * trigger {@code die()} on the client side. This matches how GitHub and GitLab produce multi-line {@code remote:}
+     * output in response to a rejected push.
+     *
+     * <p>When used inside a {@link #doHttpFilter} method, always return immediately after calling this:
      *
      * <pre>
      *     sendGitError(httpRequest, httpResponse, "failure message");
      *     return;
      * </pre>
      *
-     * This is necessary so that the server doesn't attempt any further processing. Failing to do so will result in
-     * runtime application errors.
-     *
      * @param httpRequest The request
      * @param httpResponse The response
-     * @param message The message to send
+     * @param message The message to send; newlines produce separate {@code remote:} lines
      */
     default void sendGitError(HttpServletRequest httpRequest, HttpServletResponse httpResponse, String message)
             throws IOException {
-        GitSmartHttpTools.sendError(httpRequest, httpResponse, SC_OK, message);
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        // CH_PROGRESS: each line printed by git client as "remote: <line>"
+        try (OutputStream progress =
+                new SideBandOutputStream(SideBandOutputStream.CH_PROGRESS, SideBandOutputStream.MAX_BUF, buf)) {
+            for (String line : message.split("\n", -1)) {
+                progress.write(Constants.encode(line + "\n"));
+                progress.flush(); // one flush per line → one sideband packet → one "remote:" line
+            }
+        }
+        // CH_ERROR: causes git client to call die() — keep it short
+        try (OutputStream error =
+                new SideBandOutputStream(SideBandOutputStream.CH_ERROR, SideBandOutputStream.MAX_BUF, buf)) {
+            error.write(Constants.encode("push rejected by git-proxy\n"));
+            error.flush();
+        }
+        // pkt-line flush (0000) signals end-of-stream
+        new PacketLineOut(buf).end();
+        if (!httpResponse.isCommitted()) {
+            httpResponse.setStatus(SC_OK);
+            httpResponse.setContentType("application/x-git-receive-pack-result");
+            httpResponse.setContentLength(buf.size());
+        }
+        try (OutputStream os = httpResponse.getOutputStream()) {
+            buf.writeTo(os);
+        }
     }
 
     /**
