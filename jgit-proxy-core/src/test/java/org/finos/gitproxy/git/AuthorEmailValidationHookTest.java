@@ -158,7 +158,7 @@ class AuthorEmailValidationHookTest {
 
         assertFalse(ctx.getIssues().isEmpty());
         assertEquals(
-                "Illegal author email: dev@badomain.io",
+                "domain not allowed (badomain.io)",
                 ctx.getIssues().get(0).summary(),
                 "Invalid email must record FAIL step");
     }

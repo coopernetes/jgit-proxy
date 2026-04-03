@@ -1,529 +1,834 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>git-proxy dashboard</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css" />
-  <script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-</head>
-<body class="bg-gray-100 min-h-screen" x-data="app()" x-init="init()">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>git-proxy dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
+    ></script>
+  </head>
+  <body class="bg-gray-100 min-h-screen" x-data="app()" x-init="init()">
+    <header
+      class="bg-slate-800 text-white px-6 py-4 flex items-center gap-4 shadow"
+    >
+      <h1
+        class="text-xl font-semibold tracking-wide cursor-pointer shrink-0"
+        @click="navigate('dashboard')"
+      >
+        &#9889; git-proxy
+      </h1>
+      <nav class="flex gap-1 ml-2">
+        <button
+          @click="navigate('dashboard')"
+          :class="view === 'dashboard' ? 'bg-slate-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700'"
+          class="px-3 py-1 rounded text-sm transition-colors"
+        >
+          Push Records
+        </button>
+        <button
+          @click="navigate('providers')"
+          :class="view === 'providers' ? 'bg-slate-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700'"
+          class="px-3 py-1 rounded text-sm transition-colors"
+        >
+          Providers
+        </button>
+        <button
+          @click="navigate('repos')"
+          :class="view === 'repos' ? 'bg-slate-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700'"
+          class="px-3 py-1 rounded text-sm transition-colors"
+        >
+          Repositories
+        </button>
+      </nav>
+      <div class="ml-auto text-sm text-slate-400" x-show="view === 'dashboard'">
+        <span x-text="pushes.length"></span> records &nbsp;
+        <span x-text="lastRefresh ? 'refreshed ' + lastRefresh : ''"></span>
+      </div>
+    </header>
 
-  <header class="bg-slate-800 text-white px-6 py-4 flex items-center gap-4 shadow">
-    <h1 class="text-xl font-semibold tracking-wide cursor-pointer shrink-0" @click="navigate('dashboard')">&#9889; git-proxy</h1>
-    <nav class="flex gap-1 ml-2">
-      <button @click="navigate('dashboard')"
-              :class="view === 'dashboard' ? 'bg-slate-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700'"
-              class="px-3 py-1 rounded text-sm transition-colors">Push Records</button>
-      <button @click="navigate('providers')"
-              :class="view === 'providers' ? 'bg-slate-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700'"
-              class="px-3 py-1 rounded text-sm transition-colors">Providers</button>
-      <button @click="navigate('repos')"
-              :class="view === 'repos' ? 'bg-slate-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700'"
-              class="px-3 py-1 rounded text-sm transition-colors">Repositories</button>
-    </nav>
-    <div class="ml-auto text-sm text-slate-400" x-show="view === 'dashboard'">
-      <span x-text="pushes.length"></span> records &nbsp;
-      <span x-text="lastRefresh ? 'refreshed ' + lastRefresh : ''"></span>
+    <!-- DASHBOARD VIEW -->
+    <div x-show="view === 'dashboard'">
+      <div
+        class="max-w-7xl mx-auto px-4 py-4 flex gap-3 flex-wrap items-center"
+      >
+        <select
+          x-model="filterStatus"
+          @change="loadList()"
+          class="border border-gray-300 rounded px-3 py-1.5 text-sm bg-white shadow-sm"
+        >
+          <option value="">All statuses</option>
+          <option value="BLOCKED">Blocked (pending review)</option>
+          <option value="APPROVED">Approved</option>
+          <option value="REJECTED">Rejected</option>
+          <option value="FORWARDED">Forwarded</option>
+          <option value="RECEIVED">Received</option>
+          <option value="ERROR">Error</option>
+        </select>
+        <input
+          x-model="filterRepo"
+          @input.debounce.300ms="loadList()"
+          type="text"
+          placeholder="Filter by project or repo..."
+          class="border border-gray-300 rounded px-3 py-1.5 text-sm bg-white shadow-sm w-52"
+        />
+        <button
+          @click="loadList()"
+          class="ml-auto text-sm text-blue-600 hover:underline"
+        >
+          &#8635; Refresh
+        </button>
+      </div>
+
+      <div class="max-w-7xl mx-auto px-4 space-y-2 pb-12">
+        <template x-if="pushes.length === 0">
+          <div class="text-center text-gray-400 py-16">
+            No push records found.
+          </div>
+        </template>
+        <template x-for="push in pushes" :key="push.id">
+          <div
+            class="bg-white rounded-lg shadow border border-gray-200 hover:border-blue-300 cursor-pointer transition-colors"
+            @click="navigate('detail', push.id)"
+          >
+            <div class="flex items-center gap-4 px-5 py-3">
+              <span
+                class="text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap shrink-0"
+                :class="statusClass(push.status)"
+                x-text="push.status"
+              ></span>
+              <div class="flex-1 min-w-0">
+                <div
+                  class="font-medium text-gray-900 truncate"
+                  x-text="(push.project || '') + '/' + (push.repoName || push.url || 'unknown')"
+                ></div>
+                <div class="text-sm text-gray-500 truncate">
+                  <span x-text="push.branch || '&#8212;'"></span>
+                  <span class="mx-1 text-gray-300">&middot;</span>
+                  <span
+                    class="font-mono text-xs"
+                    x-text="(push.commitTo || '').substring(0,8)"
+                  ></span>
+                  <template x-if="push.message">
+                    <span> &middot; <em x-text="push.message"></em></span>
+                  </template>
+                </div>
+              </div>
+              <div class="text-right text-sm text-gray-500 shrink-0">
+                <div x-text="push.author || push.user || '&#8212;'"></div>
+                <div
+                  class="text-xs text-gray-400"
+                  x-text="formatTime(push.timestamp)"
+                ></div>
+              </div>
+              <svg
+                class="w-4 h-4 text-gray-300 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </div>
+          </div>
+        </template>
+      </div>
     </div>
-  </header>
 
-  <!-- DASHBOARD VIEW -->
-  <div x-show="view === 'dashboard'">
-    <div class="max-w-7xl mx-auto px-4 py-4 flex gap-3 flex-wrap items-center">
-      <select x-model="filterStatus" @change="loadList()"
-              class="border border-gray-300 rounded px-3 py-1.5 text-sm bg-white shadow-sm">
-        <option value="">All statuses</option>
-        <option value="BLOCKED">Blocked (pending review)</option>
-        <option value="APPROVED">Approved</option>
-        <option value="REJECTED">Rejected</option>
-        <option value="FORWARDED">Forwarded</option>
-        <option value="RECEIVED">Received</option>
-        <option value="ERROR">Error</option>
-      </select>
-      <input x-model="filterRepo" @input.debounce.300ms="loadList()" type="text" placeholder="Filter by project or repo..."
-             class="border border-gray-300 rounded px-3 py-1.5 text-sm bg-white shadow-sm w-52" />
-      <button @click="loadList()" class="ml-auto text-sm text-blue-600 hover:underline">&#8635; Refresh</button>
-    </div>
-
-    <div class="max-w-7xl mx-auto px-4 space-y-2 pb-12">
-      <template x-if="pushes.length === 0">
-        <div class="text-center text-gray-400 py-16">No push records found.</div>
+    <!-- PUSH DETAIL VIEW -->
+    <div
+      x-show="view === 'detail'"
+      class="max-w-5xl mx-auto px-4 py-6 space-y-6"
+    >
+      <template x-if="detailLoading">
+        <div class="text-center text-gray-400 py-16">Loading&#8230;</div>
       </template>
-      <template x-for="push in pushes" :key="push.id">
-        <div class="bg-white rounded-lg shadow border border-gray-200 hover:border-blue-300 cursor-pointer transition-colors"
-             @click="navigate('detail', push.id)">
-          <div class="flex items-center gap-4 px-5 py-3">
-            <span class="text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap shrink-0"
-                  :class="statusClass(push.status)" x-text="push.status"></span>
-            <div class="flex-1 min-w-0">
-              <div class="font-medium text-gray-900 truncate"
-                   x-text="(push.project || '') + '/' + (push.repoName || push.url || 'unknown')"></div>
-              <div class="text-sm text-gray-500 truncate">
-                <span x-text="push.branch || '&#8212;'"></span>
-                <span class="mx-1 text-gray-300">&middot;</span>
-                <span class="font-mono text-xs" x-text="(push.commitTo || '').substring(0,8)"></span>
-                <template x-if="push.message">
-                  <span> &middot; <em x-text="push.message"></em></span>
+      <template x-if="detailError">
+        <div class="text-red-600 py-8 text-center" x-text="detailError"></div>
+      </template>
+
+      <template x-if="detail && !detailLoading">
+        <div class="space-y-6">
+          <!-- Header card -->
+          <div
+            class="bg-white rounded-lg shadow border border-gray-200 px-6 py-4"
+          >
+            <div class="flex items-start gap-4">
+              <span
+                class="text-sm font-semibold px-2 py-0.5 rounded-full whitespace-nowrap shrink-0 mt-1"
+                :class="statusClass(detail.status)"
+                x-text="detail.status"
+              ></span>
+              <div class="flex-1">
+                <div
+                  class="text-lg font-semibold text-gray-900"
+                  x-text="(detail.project || '') + '/' + (detail.repoName || detail.url || '')"
+                ></div>
+                <div
+                  class="text-sm text-gray-500 mt-0.5 font-mono"
+                  x-text="detail.branch"
+                ></div>
+                <template x-if="detail.message">
+                  <div
+                    class="text-sm text-gray-700 italic mt-1"
+                    x-text="detail.message"
+                  ></div>
+                </template>
+              </div>
+              <div class="text-right text-sm text-gray-500 shrink-0">
+                <div x-text="detail.author || detail.user || '&#8212;'"></div>
+                <template
+                  x-if="detail.committer && detail.committer !== detail.author"
+                >
+                  <div class="text-xs text-gray-400">
+                    committer: <span x-text="detail.committer"></span>
+                  </div>
+                </template>
+                <div
+                  class="text-xs font-mono text-gray-400 mt-0.5"
+                  x-text="detail.commitTo || ''"
+                ></div>
+                <div
+                  class="text-xs text-gray-400"
+                  x-text="formatTime(detail.timestamp)"
+                ></div>
+              </div>
+            </div>
+            <template x-if="detail.blockedMessage">
+              <div
+                class="mt-3 flex gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2"
+              >
+                <span>&#9888;&#65039;</span
+                ><span x-text="detail.blockedMessage"></span>
+              </div>
+            </template>
+            <template x-if="detail.attestation">
+              <div
+                class="mt-3 text-sm text-gray-500 border-t border-gray-100 pt-2"
+              >
+                Reviewed by
+                <strong x-text="detail.attestation.reviewerUsername"></strong>
+                (<span x-text="detail.attestation.reviewerEmail"></span>)
+                <span
+                  x-text="detail.attestation.reason ? ' &middot; &quot;' + detail.attestation.reason + '&quot;' : ''"
+                ></span>
+              </div>
+            </template>
+          </div>
+
+          <!-- Commits -->
+          <template x-if="detail.commits && detail.commits.length">
+            <div
+              class="bg-white rounded-lg shadow border border-gray-200 px-6 py-4"
+            >
+              <h2
+                class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3"
+              >
+                Commits (<span x-text="detail.commits.length"></span>)
+              </h2>
+              <div class="space-y-2">
+                <template x-for="c in detail.commits" :key="c.sha">
+                  <div class="border border-gray-100 rounded p-3 space-y-1">
+                    <div
+                      class="font-mono text-xs text-gray-400"
+                      x-text="c.sha"
+                    ></div>
+                    <div
+                      class="text-sm text-gray-800 whitespace-pre-wrap"
+                      x-text="commitSubject(c.message)"
+                    ></div>
+                    <div class="text-xs text-gray-500">
+                      <span class="font-medium">Author:</span>
+                      <span
+                        x-text="c.authorName + ' &lt;' + c.authorEmail + '&gt;'"
+                      ></span>
+                    </div>
+                    <template
+                      x-if="c.committerName && (c.committerName !== c.authorName || c.committerEmail !== c.authorEmail)"
+                    >
+                      <div class="text-xs text-gray-500">
+                        <span class="font-medium">Committer:</span>
+                        <span
+                          x-text="c.committerName + ' &lt;' + c.committerEmail + '&gt;'"
+                        ></span>
+                      </div>
+                    </template>
+                    <template x-if="c.signedOffBy && c.signedOffBy.length">
+                      <div class="text-xs text-gray-500">
+                        <span class="font-medium">Signed-off-by:</span>
+                        <template x-for="sob in c.signedOffBy" :key="sob">
+                          <span
+                            class="ml-1 bg-green-50 text-green-700 border border-green-200 rounded px-1"
+                            x-text="sob"
+                          ></span>
+                        </template>
+                      </div>
+                    </template>
+                  </div>
                 </template>
               </div>
             </div>
-            <div class="text-right text-sm text-gray-500 shrink-0">
-              <div x-text="push.author || push.user || '&#8212;'"></div>
-              <div class="text-xs text-gray-400" x-text="formatTime(push.timestamp)"></div>
+          </template>
+
+          <!-- Validation steps -->
+          <template x-if="validationSteps().length">
+            <div
+              class="bg-white rounded-lg shadow border border-gray-200 px-6 py-4"
+            >
+              <h2
+                class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3"
+              >
+                Validation steps
+              </h2>
+              <div class="space-y-1">
+                <template x-for="s in validationSteps()" :key="s.id">
+                  <div>
+                    <div
+                      class="flex gap-3 items-baseline text-sm cursor-pointer"
+                      @click="openSteps[s.id] = !openSteps[s.id]"
+                    >
+                      <span
+                        :class="s.status === 'PASS' ? 'text-green-500' : s.status === 'FAIL' ? 'text-red-500' : s.status === 'BLOCKED' ? 'text-red-500' : 'text-gray-400'"
+                        x-text="s.status === 'PASS' ? '&#10003;' : (s.status === 'FAIL' || s.status === 'BLOCKED') ? '&#10007;' : '&#8211;'"
+                      ></span>
+                      <span
+                        class="text-sm text-gray-700 w-56 shrink-0"
+                        x-text="stepDisplayName(s.stepName)"
+                      ></span>
+                      <span
+                        class="text-gray-500 text-xs truncate flex-1"
+                        x-text="s.errorMessage || s.blockedMessage || ''"
+                      ></span>
+                      <template
+                        x-if="(s.status === 'FAIL' || s.status === 'BLOCKED') && s.content"
+                      >
+                        <span
+                          class="text-xs text-gray-400 shrink-0"
+                          x-text="openSteps[s.id] ? '▲ hide' : '▼ details'"
+                        ></span>
+                      </template>
+                    </div>
+                    <template x-if="openSteps[s.id] && s.content">
+                      <pre
+                        class="mt-2 ml-6 text-xs bg-gray-50 border border-gray-200 rounded p-3 whitespace-pre-wrap font-mono text-gray-800 overflow-x-auto"
+                        x-text="stripAnsi(s.content)"
+                      ></pre>
+                    </template>
+                  </div>
+                </template>
+              </div>
             </div>
-            <svg class="w-4 h-4 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-            </svg>
+          </template>
+
+          <!-- Diff -->
+          <div
+            class="bg-white rounded-lg shadow border border-gray-200 px-6 py-4"
+          >
+            <h2
+              class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3"
+            >
+              Diff
+            </h2>
+            <div id="diff-container" class="text-sm overflow-x-auto">
+              <template x-if="!hasDiff()">
+                <div class="text-gray-400 text-sm">No diff available.</div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Approve / Reject (only when BLOCKED) -->
+          <template x-if="detail.status === 'BLOCKED'">
+            <div
+              class="bg-white rounded-lg shadow border border-gray-200 px-6 py-5"
+            >
+              <h2
+                class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3"
+              >
+                Review
+              </h2>
+              <div class="text-xs text-gray-400 mb-3">
+                Reviewing as <strong>admin@example.com</strong>
+              </div>
+              <textarea
+                x-model="reviewReason"
+                rows="3"
+                placeholder="Reason (required for both approve and reject)&#10;Describe the basis for your decision..."
+                class="w-full border border-gray-300 rounded px-3 py-2 text-sm mb-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"
+              ></textarea>
+              <template x-if="actionError">
+                <div
+                  class="text-red-600 text-sm mb-3"
+                  x-text="actionError"
+                ></div>
+              </template>
+              <div class="flex gap-3">
+                <button
+                  @click="approveDetail()"
+                  :disabled="saving || !reviewReason.trim()"
+                  class="px-4 py-2 text-sm font-medium rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                >
+                  &#10003; Approve
+                </button>
+                <button
+                  @click="rejectDetail()"
+                  :disabled="saving || !reviewReason.trim()"
+                  class="px-4 py-2 text-sm font-medium rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  &#10007; Reject
+                </button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+
+    <!-- PROVIDERS VIEW -->
+    <div
+      x-show="view === 'providers'"
+      class="max-w-5xl mx-auto px-4 py-6 space-y-4"
+    >
+      <h2 class="text-lg font-semibold text-gray-800">Active Providers</h2>
+      <template x-if="providersLoading">
+        <div class="text-center text-gray-400 py-16">Loading&#8230;</div>
+      </template>
+      <template x-if="!providersLoading && providers.length === 0">
+        <div class="text-center text-gray-400 py-16">
+          No providers configured.
+        </div>
+      </template>
+      <template x-for="p in providers" :key="p.name">
+        <div
+          class="bg-white rounded-lg shadow border border-gray-200 px-6 py-4"
+        >
+          <div class="flex items-center gap-3 mb-3">
+            <img
+              :src="'https://' + p.host + '/favicon.ico'"
+              class="w-5 h-5 rounded"
+              alt=""
+              @error="$el.style.display='none'"
+            />
+            <span class="font-semibold text-gray-900" x-text="p.name"></span>
+            <a
+              :href="p.uri"
+              target="_blank"
+              rel="noopener"
+              class="text-blue-600 hover:underline text-sm font-mono"
+              x-text="p.uri"
+            ></a>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-sm">
+            <div>
+              <span class="text-gray-500 text-xs uppercase tracking-wide"
+                >Store &amp; Forward (push)</span
+              >
+              <div
+                class="font-mono text-xs text-gray-700 mt-0.5"
+                x-text="p.pushPath + '/*'"
+              ></div>
+            </div>
+            <div>
+              <span class="text-gray-500 text-xs uppercase tracking-wide"
+                >Transparent Proxy</span
+              >
+              <div
+                class="font-mono text-xs text-gray-700 mt-0.5"
+                x-text="p.proxyPath + '/*'"
+              ></div>
+            </div>
           </div>
         </div>
       </template>
     </div>
-  </div>
 
-  <!-- PUSH DETAIL VIEW -->
-  <div x-show="view === 'detail'" class="max-w-5xl mx-auto px-4 py-6 space-y-6">
-
-    <template x-if="detailLoading">
-      <div class="text-center text-gray-400 py-16">Loading&#8230;</div>
-    </template>
-    <template x-if="detailError">
-      <div class="text-red-600 py-8 text-center" x-text="detailError"></div>
-    </template>
-
-    <template x-if="detail && !detailLoading">
-      <div class="space-y-6">
-
-        <!-- Header card -->
-        <div class="bg-white rounded-lg shadow border border-gray-200 px-6 py-4">
+    <!-- REPOSITORIES VIEW -->
+    <div
+      x-show="view === 'repos'"
+      class="max-w-5xl mx-auto px-4 py-6 space-y-4"
+    >
+      <div class="flex items-baseline gap-3">
+        <h2 class="text-lg font-semibold text-gray-800">Repositories</h2>
+        <span class="text-xs text-gray-400"
+          >Repos visible through this proxy</span
+        >
+      </div>
+      <template x-for="repo in REPOS" :key="repo.url">
+        <div
+          class="bg-white rounded-lg shadow border border-gray-200 px-6 py-4"
+        >
           <div class="flex items-start gap-4">
-            <span class="text-sm font-semibold px-2 py-0.5 rounded-full whitespace-nowrap shrink-0 mt-1"
-                  :class="statusClass(detail.status)" x-text="detail.status"></span>
             <div class="flex-1">
-              <div class="text-lg font-semibold text-gray-900"
-                   x-text="(detail.project || '') + '/' + (detail.repoName || detail.url || '')"></div>
-              <div class="text-sm text-gray-500 mt-0.5 font-mono" x-text="detail.branch"></div>
-              <template x-if="detail.message">
-                <div class="text-sm text-gray-700 italic mt-1" x-text="detail.message"></div>
-              </template>
+              <div class="flex items-center gap-2 mb-1">
+                <img
+                  :src="'https://' + repo.providerHost + '/favicon.ico'"
+                  class="w-4 h-4 rounded"
+                  alt=""
+                  @error="$el.style.display='none'"
+                />
+                <span
+                  class="text-xs font-medium text-gray-500"
+                  x-text="repo.providerName"
+                ></span>
+              </div>
+              <a
+                :href="repo.url"
+                target="_blank"
+                rel="noopener"
+                class="font-semibold text-blue-700 hover:underline text-base"
+                x-text="repo.url"
+              ></a>
+              <div
+                class="text-sm text-gray-500 mt-1"
+                x-text="repo.description"
+              ></div>
             </div>
-            <div class="text-right text-sm text-gray-500 shrink-0">
-              <div x-text="detail.author || detail.user || '&#8212;'"></div>
-              <template x-if="detail.committer && detail.committer !== detail.author">
-                <div class="text-xs text-gray-400">committer: <span x-text="detail.committer"></span></div>
-              </template>
-              <div class="text-xs font-mono text-gray-400 mt-0.5" x-text="detail.commitTo || ''"></div>
-              <div class="text-xs text-gray-400" x-text="formatTime(detail.timestamp)"></div>
-            </div>
-          </div>
-          <template x-if="detail.blockedMessage">
-            <div class="mt-3 flex gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-              <span>&#9888;&#65039;</span><span x-text="detail.blockedMessage"></span>
-            </div>
-          </template>
-          <template x-if="detail.attestation">
-            <div class="mt-3 text-sm text-gray-500 border-t border-gray-100 pt-2">
-              Reviewed by <strong x-text="detail.attestation.reviewerUsername"></strong>
-              (<span x-text="detail.attestation.reviewerEmail"></span>)
-              <span x-text="detail.attestation.reason ? ' &middot; &quot;' + detail.attestation.reason + '&quot;' : ''"></span>
-            </div>
-          </template>
-        </div>
-
-        <!-- Commits -->
-        <template x-if="detail.commits && detail.commits.length">
-          <div class="bg-white rounded-lg shadow border border-gray-200 px-6 py-4">
-            <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-              Commits (<span x-text="detail.commits.length"></span>)
-            </h2>
-            <div class="space-y-2">
-              <template x-for="c in detail.commits" :key="c.sha">
-                <div class="border border-gray-100 rounded p-3 space-y-1">
-                  <div class="font-mono text-xs text-gray-400" x-text="c.sha"></div>
-                  <div class="text-sm text-gray-800 whitespace-pre-wrap" x-text="commitSubject(c.message)"></div>
-                  <div class="text-xs text-gray-500">
-                    <span class="font-medium">Author:</span>
-                    <span x-text="c.authorName + ' &lt;' + c.authorEmail + '&gt;'"></span>
-                  </div>
-                  <template x-if="c.committerName && (c.committerName !== c.authorName || c.committerEmail !== c.authorEmail)">
-                    <div class="text-xs text-gray-500">
-                      <span class="font-medium">Committer:</span>
-                      <span x-text="c.committerName + ' &lt;' + c.committerEmail + '&gt;'"></span>
-                    </div>
-                  </template>
-                  <template x-if="c.signedOffBy && c.signedOffBy.length">
-                    <div class="text-xs text-gray-500">
-                      <span class="font-medium">Signed-off-by:</span>
-                      <template x-for="sob in c.signedOffBy" :key="sob">
-                        <span class="ml-1 bg-green-50 text-green-700 border border-green-200 rounded px-1" x-text="sob"></span>
-                      </template>
-                    </div>
-                  </template>
-                </div>
-              </template>
-            </div>
-          </div>
-        </template>
-
-        <!-- Validation steps -->
-        <template x-if="validationSteps().length">
-          <div class="bg-white rounded-lg shadow border border-gray-200 px-6 py-4">
-            <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Validation steps</h2>
-            <div class="space-y-1">
-              <template x-for="s in validationSteps()" :key="s.id">
-                <div class="flex gap-3 items-baseline text-sm">
-                  <span :class="s.status === 'PASS' ? 'text-green-500' : s.status === 'FAIL' ? 'text-red-500' : s.status === 'BLOCKED' ? 'text-red-500' : 'text-gray-400'"
-                        x-text="s.status === 'PASS' ? '&#10003;' : (s.status === 'FAIL' || s.status === 'BLOCKED') ? '&#10007;' : '&#8211;'"></span>
-                  <span class="text-sm text-gray-700 w-56 shrink-0" x-text="stepDisplayName(s.stepName)"></span>
-                  <span class="text-gray-500 text-xs truncate" x-text="s.errorMessage || s.blockedMessage || ''"></span>
-                </div>
-              </template>
-            </div>
-          </div>
-        </template>
-
-        <!-- Diff -->
-        <div class="bg-white rounded-lg shadow border border-gray-200 px-6 py-4">
-          <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Diff</h2>
-          <div id="diff-container" class="text-sm overflow-x-auto">
-            <template x-if="!hasDiff()">
-              <div class="text-gray-400 text-sm">No diff available.</div>
-            </template>
-          </div>
-        </div>
-
-        <!-- Approve / Reject (only when BLOCKED) -->
-        <template x-if="detail.status === 'BLOCKED'">
-          <div class="bg-white rounded-lg shadow border border-gray-200 px-6 py-5">
-            <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Review</h2>
-            <div class="text-xs text-gray-400 mb-3">Reviewing as <strong>admin@example.com</strong></div>
-            <textarea x-model="reviewReason" rows="3"
-                      placeholder="Reason (required for both approve and reject)&#10;Describe the basis for your decision..."
-                      class="w-full border border-gray-300 rounded px-3 py-2 text-sm mb-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"></textarea>
-            <template x-if="actionError">
-              <div class="text-red-600 text-sm mb-3" x-text="actionError"></div>
-            </template>
-            <div class="flex gap-3">
-              <button @click="approveDetail()"
-                      :disabled="saving || !reviewReason.trim()"
-                      class="px-4 py-2 text-sm font-medium rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50">
-                &#10003; Approve
-              </button>
-              <button @click="rejectDetail()"
-                      :disabled="saving || !reviewReason.trim()"
-                      class="px-4 py-2 text-sm font-medium rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50">
-                &#10007; Reject
-              </button>
-            </div>
-          </div>
-        </template>
-
-      </div>
-    </template>
-  </div>
-
-  <!-- PROVIDERS VIEW -->
-  <div x-show="view === 'providers'" class="max-w-5xl mx-auto px-4 py-6 space-y-4">
-    <h2 class="text-lg font-semibold text-gray-800">Active Providers</h2>
-    <template x-if="providersLoading">
-      <div class="text-center text-gray-400 py-16">Loading&#8230;</div>
-    </template>
-    <template x-if="!providersLoading && providers.length === 0">
-      <div class="text-center text-gray-400 py-16">No providers configured.</div>
-    </template>
-    <template x-for="p in providers" :key="p.name">
-      <div class="bg-white rounded-lg shadow border border-gray-200 px-6 py-4">
-        <div class="flex items-center gap-3 mb-3">
-          <img :src="'https://' + p.host + '/favicon.ico'" class="w-5 h-5 rounded" alt=""
-               @error="$el.style.display='none'" />
-          <span class="font-semibold text-gray-900" x-text="p.name"></span>
-          <a :href="p.uri" target="_blank" rel="noopener"
-             class="text-blue-600 hover:underline text-sm font-mono" x-text="p.uri"></a>
-        </div>
-        <div class="grid grid-cols-2 gap-2 text-sm">
-          <div>
-            <span class="text-gray-500 text-xs uppercase tracking-wide">Store &amp; Forward (push)</span>
-            <div class="font-mono text-xs text-gray-700 mt-0.5" x-text="p.pushPath + '/*'"></div>
-          </div>
-          <div>
-            <span class="text-gray-500 text-xs uppercase tracking-wide">Transparent Proxy</span>
-            <div class="font-mono text-xs text-gray-700 mt-0.5" x-text="p.proxyPath + '/*'"></div>
-          </div>
-        </div>
-      </div>
-    </template>
-  </div>
-
-  <!-- REPOSITORIES VIEW -->
-  <div x-show="view === 'repos'" class="max-w-5xl mx-auto px-4 py-6 space-y-4">
-    <div class="flex items-baseline gap-3">
-      <h2 class="text-lg font-semibold text-gray-800">Repositories</h2>
-      <span class="text-xs text-gray-400">Repos visible through this proxy</span>
-    </div>
-    <template x-for="repo in REPOS" :key="repo.url">
-      <div class="bg-white rounded-lg shadow border border-gray-200 px-6 py-4">
-        <div class="flex items-start gap-4">
-          <div class="flex-1">
-            <div class="flex items-center gap-2 mb-1">
-              <img :src="'https://' + repo.providerHost + '/favicon.ico'" class="w-4 h-4 rounded" alt=""
-                   @error="$el.style.display='none'" />
-              <span class="text-xs font-medium text-gray-500" x-text="repo.providerName"></span>
-            </div>
-            <a :href="repo.url" target="_blank" rel="noopener"
-               class="font-semibold text-blue-700 hover:underline text-base" x-text="repo.url"></a>
-            <div class="text-sm text-gray-500 mt-1" x-text="repo.description"></div>
-          </div>
-          <div class="text-right shrink-0">
-            <span class="text-xs px-2 py-0.5 rounded-full"
-                  :class="repo.approved
+            <div class="text-right shrink-0">
+              <span
+                class="text-xs px-2 py-0.5 rounded-full"
+                :class="repo.approved
                     ? 'bg-green-100 text-green-800 border border-green-300'
                     : 'bg-amber-100 text-amber-800 border border-amber-300'"
-                  x-text="repo.approved ? 'Approved' : 'Pending approval'"></span>
-            <div class="mt-2 text-xs text-gray-400">
-              Clone via proxy:
-              <div class="font-mono text-xs text-gray-600 mt-0.5"
-                   x-text="window.location.origin + '/push/' + repo.providerHost + '/' + repo.path + '.git'"></div>
+                x-text="repo.approved ? 'Approved' : 'Pending approval'"
+              ></span>
+              <div class="mt-2 text-xs text-gray-400">
+                Clone via proxy:
+                <div
+                  class="font-mono text-xs text-gray-600 mt-0.5"
+                  x-text="window.location.origin + '/push/' + repo.providerHost + '/' + repo.path + '.git'"
+                ></div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </template>
-  </div>
+      </template>
+    </div>
 
-<script>
-function app() {
-  return {
-    // --- Routing ---
-    view: 'dashboard',
-    currentId: null,
+    <script>
+      function app() {
+        return {
+          // --- Routing ---
+          view: "dashboard",
+          currentId: null,
 
-    init() {
-      this.handleHash();
-      window.addEventListener('hashchange', () => this.handleHash());
-      this.startAutoRefresh();
-    },
+          init() {
+            this.handleHash();
+            window.addEventListener("hashchange", () => this.handleHash());
+            this.startAutoRefresh();
+          },
 
-    handleHash() {
-      const hash = window.location.hash || '#';
-      if (hash.match(/^#\/push\/(.+)$/)) {
-        const m = hash.match(/^#\/push\/(.+)$/);
-        this.view = 'detail';
-        this.currentId = m[1];
-        this.loadDetail(m[1]);
-      } else if (hash === '#/providers') {
-        this.view = 'providers';
-        this.loadProviders();
-      } else if (hash === '#/repos') {
-        this.view = 'repos';
-      } else {
-        this.view = 'dashboard';
-        this.loadList();
+          handleHash() {
+            const hash = window.location.hash || "#";
+            if (hash.match(/^#\/push\/(.+)$/)) {
+              const m = hash.match(/^#\/push\/(.+)$/);
+              this.view = "detail";
+              this.currentId = m[1];
+              this.loadDetail(m[1]);
+            } else if (hash === "#/providers") {
+              this.view = "providers";
+              this.loadProviders();
+            } else if (hash === "#/repos") {
+              this.view = "repos";
+            } else {
+              this.view = "dashboard";
+              this.loadList();
+            }
+          },
+
+          navigate(view, id) {
+            if (view === "dashboard") {
+              window.location.hash = "#";
+            } else if (view === "detail") {
+              window.location.hash = "#/push/" + id;
+            } else if (view === "providers") {
+              window.location.hash = "#/providers";
+            } else if (view === "repos") {
+              window.location.hash = "#/repos";
+            }
+          },
+
+          // --- Dashboard ---
+          pushes: [],
+          filterStatus: "BLOCKED",
+          filterRepo: "",
+          lastRefresh: "",
+          refreshTimer: null,
+
+          startAutoRefresh() {
+            this.refreshTimer = setInterval(() => {
+              if (this.view === "dashboard") this.loadList();
+            }, 10000);
+          },
+
+          async loadList() {
+            const params = new URLSearchParams({ limit: 100 });
+            if (this.filterStatus) params.set("status", this.filterStatus);
+            if (this.filterRepo) params.set("search", this.filterRepo);
+            try {
+              const res = await fetch("/api/push?" + params);
+              this.pushes = await res.json();
+              this.lastRefresh = new Date().toLocaleTimeString();
+            } catch (e) {
+              console.error("Failed to load pushes", e);
+            }
+          },
+
+          // --- Providers ---
+          providers: [],
+          providersLoading: false,
+
+          async loadProviders() {
+            this.providersLoading = true;
+            try {
+              const res = await fetch("/api/providers");
+              this.providers = await res.json();
+            } catch (e) {
+              console.error("Failed to load providers", e);
+            } finally {
+              this.providersLoading = false;
+            }
+          },
+
+          // --- Repositories (stub) ---
+          REPOS: [
+            {
+              url: "https://github.com/coopernetes/test-repo",
+              path: "coopernetes/test-repo",
+              providerName: "GitHub",
+              providerHost: "github.com",
+              description:
+                "Test repository used for jgit-proxy integration and e2e testing.",
+              approved: true,
+            },
+            {
+              url: "https://github.com/finos/git-proxy",
+              path: "finos/git-proxy",
+              providerName: "GitHub",
+              providerHost: "github.com",
+              description:
+                "FINOS git-proxy — Node.js reference implementation this project is porting.",
+              approved: false,
+            },
+          ],
+
+          // --- Detail ---
+          detail: null,
+          detailLoading: false,
+          detailError: "",
+          reviewReason: "",
+          saving: false,
+          actionError: "",
+          openSteps: {}, // tracks expanded state for validation step details, keyed by step id
+
+          async loadDetail(id) {
+            this.detailLoading = true;
+            this.detailError = "";
+            this.detail = null;
+            this.reviewReason = "";
+            this.actionError = "";
+            try {
+              const url = id.includes("_")
+                ? `/api/push/by-ref/${id}`
+                : `/api/push/${id}`;
+              const res = await fetch(url);
+              if (!res.ok) {
+                this.detailError = "Push not found";
+                return;
+              }
+              this.detail = await res.json();
+              this.openSteps = {};
+              this.$nextTick(() => this.renderDiff());
+            } catch (e) {
+              this.detailError = String(e);
+            } finally {
+              this.detailLoading = false;
+            }
+          },
+
+          // Steps that are infrastructure/pre-processing, not validation checks
+          NON_VALIDATION_STEPS: new Set([
+            "inspection",
+            "diff",
+            "diff:default-branch",
+            "ForceGitClientFilter",
+            "ParseGitRequestFilter",
+            "EnrichPushCommitsFilter",
+            "AllowApprovedPushFilter",
+            "PushStoreAuditFilter",
+            "AuditLogFilter",
+            "ValidationSummaryFilter",
+          ]),
+
+          // Human-readable display names for internal step identifiers
+          STEP_DISPLAY_NAMES: {
+            checkAuthorEmails: "Author & committer email addresses",
+            AuthorEmail: "Author & committer email addresses",
+            CheckAuthorEmailsFilter: "Author & committer email addresses",
+            checkCommitMessages: "Commit message(s)",
+            CommitMessage: "Commit message(s)",
+            CheckCommitMessagesFilter: "Commit message(s)",
+            CheckEmptyBranchHook: "Check empty branch",
+            CheckEmptyBranchFilter: "Check empty branch",
+            CheckHiddenCommitsHook: "Check hidden commits",
+            CheckHiddenCommitsFilter: "Check hidden commits",
+            scanDiff: "Scan diff",
+            DiffContent: "Scan diff",
+            ScanDiffFilter: "Scan diff",
+            GpgSignatureFilter: "GPG signature",
+            GpgSignatureHook: "GPG signature",
+            scanSecrets: "Secret scanning",
+            SecretScanningFilter: "Secret scanning",
+            CheckUserPushPermissionFilter: "Push permissions",
+            CheckUserPushPermissionHook: "Push permissions",
+            WhitelistAggregateFilter: "Repository whitelist",
+            RepositoryWhitelistHook: "Repository whitelist",
+          },
+
+          validationSteps() {
+            return (this.detail?.steps || [])
+              .filter((s) => !this.NON_VALIDATION_STEPS.has(s.stepName))
+              .sort((a, b) => a.stepOrder - b.stepOrder);
+          },
+
+          stepDisplayName(name) {
+            if (this.STEP_DISPLAY_NAMES[name])
+              return this.STEP_DISPLAY_NAMES[name];
+            // Strip known suffixes and convert camelCase/PascalCase to words
+            return name
+              .replace(/Filter$|Hook$/, "")
+              .replace(/([A-Z])/g, " $1")
+              .trim();
+          },
+
+          commitSubject(message) {
+            return (message || "").split("\n")[0].trim();
+          },
+
+          hasDiff() {
+            return this.detail?.steps?.some(
+              (s) => s.stepName === "diff" && s.content,
+            );
+          },
+
+          renderDiff() {
+            const diffStep = this.detail?.steps?.find(
+              (s) => s.stepName === "diff" && s.content,
+            );
+            const el = document.getElementById("diff-container");
+            if (!diffStep || !el) return;
+            try {
+              const ui = new Diff2HtmlUI(el, diffStep.content, {
+                drawFileList: true,
+                matching: "lines",
+                outputFormat: "side-by-side",
+                highlight: true,
+              });
+              ui.draw();
+              ui.highlightCode();
+            } catch (e) {
+              el.innerHTML =
+                '<pre class="text-xs text-gray-700 whitespace-pre-wrap overflow-x-auto">' +
+                diffStep.content.replace(/</g, "&lt;") +
+                "</pre>";
+            }
+          },
+
+          async approveDetail() {
+            if (!this.reviewReason.trim()) {
+              this.actionError = "Reason required";
+              return;
+            }
+            this.saving = true;
+            this.actionError = "";
+            try {
+              const res = await fetch(`/api/push/${this.detail.id}/authorise`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  reviewerUsername: "admin",
+                  reviewerEmail: "admin@example.com",
+                  reason: this.reviewReason,
+                }),
+              });
+              if (!res.ok) {
+                const e = await res.json();
+                this.actionError = e.error || "Failed";
+                return;
+              }
+              await this.loadDetail(this.detail.id);
+            } finally {
+              this.saving = false;
+            }
+          },
+
+          async rejectDetail() {
+            if (!this.reviewReason.trim()) {
+              this.actionError = "Reason required";
+              return;
+            }
+            this.saving = true;
+            this.actionError = "";
+            try {
+              const res = await fetch(`/api/push/${this.detail.id}/reject`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  reviewerUsername: "admin",
+                  reviewerEmail: "admin@example.com",
+                  reason: this.reviewReason,
+                }),
+              });
+              if (!res.ok) {
+                const e = await res.json();
+                this.actionError = e.error || "Failed";
+                return;
+              }
+              await this.loadDetail(this.detail.id);
+            } finally {
+              this.saving = false;
+            }
+          },
+
+          // --- Shared helpers ---
+          stripAnsi(str) {
+            // Remove ANSI escape sequences (colors, resets, etc.)
+            return (str || "").replace(/\x1b\[[0-9;]*m/g, "");
+          },
+
+          statusClass(status) {
+            const m = {
+              BLOCKED: "bg-amber-100 text-amber-800 border border-amber-300",
+              APPROVED: "bg-green-100 text-green-800 border border-green-300",
+              FORWARDED: "bg-blue-100 text-blue-800 border border-blue-300",
+              REJECTED: "bg-red-100 text-red-800 border border-red-300",
+              CANCELED: "bg-gray-100 text-gray-600 border border-gray-300",
+              RECEIVED: "bg-slate-100 text-slate-600 border border-slate-300",
+              ERROR: "bg-red-200 text-red-900 border border-red-400",
+            };
+            return m[status] || "bg-gray-100 text-gray-600";
+          },
+
+          formatTime(ts) {
+            if (!ts) return "";
+            try {
+              return new Date(ts).toLocaleString();
+            } catch {
+              return ts;
+            }
+          },
+        };
       }
-    },
-
-    navigate(view, id) {
-      if (view === 'dashboard') {
-        window.location.hash = '#';
-      } else if (view === 'detail') {
-        window.location.hash = '#/push/' + id;
-      } else if (view === 'providers') {
-        window.location.hash = '#/providers';
-      } else if (view === 'repos') {
-        window.location.hash = '#/repos';
-      }
-    },
-
-    // --- Dashboard ---
-    pushes: [],
-    filterStatus: 'BLOCKED',
-    filterRepo: '',
-    lastRefresh: '',
-    refreshTimer: null,
-
-    startAutoRefresh() {
-      this.refreshTimer = setInterval(() => {
-        if (this.view === 'dashboard') this.loadList();
-      }, 10000);
-    },
-
-    async loadList() {
-      const params = new URLSearchParams({ limit: 100 });
-      if (this.filterStatus) params.set('status', this.filterStatus);
-      if (this.filterRepo) params.set('search', this.filterRepo);
-      try {
-        const res = await fetch('/api/push?' + params);
-        this.pushes = await res.json();
-        this.lastRefresh = new Date().toLocaleTimeString();
-      } catch(e) { console.error('Failed to load pushes', e); }
-    },
-
-    // --- Providers ---
-    providers: [],
-    providersLoading: false,
-
-    async loadProviders() {
-      this.providersLoading = true;
-      try {
-        const res = await fetch('/api/providers');
-        this.providers = await res.json();
-      } catch(e) { console.error('Failed to load providers', e); }
-      finally { this.providersLoading = false; }
-    },
-
-    // --- Repositories (stub) ---
-    REPOS: [
-      {
-        url: 'https://github.com/coopernetes/test-repo',
-        path: 'coopernetes/test-repo',
-        providerName: 'GitHub',
-        providerHost: 'github.com',
-        description: 'Test repository used for jgit-proxy integration and e2e testing.',
-        approved: true,
-      },
-      {
-        url: 'https://github.com/finos/git-proxy',
-        path: 'finos/git-proxy',
-        providerName: 'GitHub',
-        providerHost: 'github.com',
-        description: 'FINOS git-proxy — Node.js reference implementation this project is porting.',
-        approved: false,
-      },
-    ],
-
-    // --- Detail ---
-    detail: null,
-    detailLoading: false,
-    detailError: '',
-    reviewReason: '',
-    saving: false,
-    actionError: '',
-
-    async loadDetail(id) {
-      this.detailLoading = true;
-      this.detailError = '';
-      this.detail = null;
-      this.reviewReason = '';
-      this.actionError = '';
-      try {
-        const url = id.includes('_') ? `/api/push/by-ref/${id}` : `/api/push/${id}`;
-        const res = await fetch(url);
-        if (!res.ok) { this.detailError = 'Push not found'; return; }
-        this.detail = await res.json();
-        this.$nextTick(() => this.renderDiff());
-      } catch(e) {
-        this.detailError = String(e);
-      } finally {
-        this.detailLoading = false;
-      }
-    },
-
-    // Steps that are infrastructure/pre-processing, not validation checks
-    NON_VALIDATION_STEPS: new Set([
-      'inspection', 'diff', 'diff:default-branch',
-      'ForceGitClientFilter', 'ParseGitRequestFilter', 'EnrichPushCommitsFilter',
-      'AllowApprovedPushFilter', 'PushStoreAuditFilter', 'AuditLogFilter',
-    ]),
-
-    // Human-readable display names for internal step identifiers
-    STEP_DISPLAY_NAMES: {
-      'checkAuthorEmails':         'Author & committer email addresses',
-      'AuthorEmail':               'Author & committer email addresses',
-      'CheckAuthorEmailsFilter':   'Author & committer email addresses',
-      'checkCommitMessages':       'Commit message(s)',
-      'CommitMessage':             'Commit message(s)',
-      'CheckCommitMessagesFilter': 'Commit message(s)',
-      'GpgSignatureFilter':        'GPG signature',
-      'CheckUserPushPermissionFilter': 'Push permissions',
-      'WhitelistAggregateFilter':  'Repository whitelist',
-    },
-
-    validationSteps() {
-      return (this.detail?.steps || []).filter(s => !this.NON_VALIDATION_STEPS.has(s.stepName));
-    },
-
-    stepDisplayName(name) {
-      if (this.STEP_DISPLAY_NAMES[name]) return this.STEP_DISPLAY_NAMES[name];
-      // Strip known suffixes and convert camelCase/PascalCase to words
-      return name.replace(/Filter$|Hook$/, '').replace(/([A-Z])/g, ' $1').trim();
-    },
-
-    commitSubject(message) {
-      return (message || '').split('\n')[0].trim();
-    },
-
-    hasDiff() {
-      return this.detail?.steps?.some(s => s.stepName === 'diff' && s.content);
-    },
-
-    renderDiff() {
-      const diffStep = this.detail?.steps?.find(s => s.stepName === 'diff' && s.content);
-      const el = document.getElementById('diff-container');
-      if (!diffStep || !el) return;
-      try {
-        const ui = new Diff2HtmlUI(el, diffStep.content, {
-          drawFileList: true,
-          matching: 'lines',
-          outputFormat: 'side-by-side',
-          highlight: true,
-        });
-        ui.draw();
-        ui.highlightCode();
-      } catch(e) {
-        el.innerHTML = '<pre class="text-xs text-gray-700 whitespace-pre-wrap overflow-x-auto">' +
-          diffStep.content.replace(/</g,'&lt;') + '</pre>';
-      }
-    },
-
-    async approveDetail() {
-      if (!this.reviewReason.trim()) { this.actionError = 'Reason required'; return; }
-      this.saving = true; this.actionError = '';
-      try {
-        const res = await fetch(`/api/push/${this.detail.id}/authorise`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reviewerUsername: 'admin', reviewerEmail: 'admin@example.com', reason: this.reviewReason })
-        });
-        if (!res.ok) { const e = await res.json(); this.actionError = e.error || 'Failed'; return; }
-        await this.loadDetail(this.detail.id);
-      } finally { this.saving = false; }
-    },
-
-    async rejectDetail() {
-      if (!this.reviewReason.trim()) { this.actionError = 'Reason required'; return; }
-      this.saving = true; this.actionError = '';
-      try {
-        const res = await fetch(`/api/push/${this.detail.id}/reject`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reviewerUsername: 'admin', reviewerEmail: 'admin@example.com', reason: this.reviewReason })
-        });
-        if (!res.ok) { const e = await res.json(); this.actionError = e.error || 'Failed'; return; }
-        await this.loadDetail(this.detail.id);
-      } finally { this.saving = false; }
-    },
-
-    // --- Shared helpers ---
-    statusClass(status) {
-      const m = {
-        BLOCKED: 'bg-amber-100 text-amber-800 border border-amber-300',
-        APPROVED: 'bg-green-100 text-green-800 border border-green-300',
-        FORWARDED: 'bg-blue-100 text-blue-800 border border-blue-300',
-        REJECTED: 'bg-red-100 text-red-800 border border-red-300',
-        CANCELED: 'bg-gray-100 text-gray-600 border border-gray-300',
-        RECEIVED: 'bg-slate-100 text-slate-600 border border-slate-300',
-        ERROR: 'bg-red-200 text-red-900 border border-red-400',
-      };
-      return m[status] || 'bg-gray-100 text-gray-600';
-    },
-
-    formatTime(ts) {
-      if (!ts) return '';
-      try { return new Date(ts).toLocaleString(); } catch { return ts; }
-    }
-  };
-}
-</script>
-</body>
+    </script>
+  </body>
 </html>

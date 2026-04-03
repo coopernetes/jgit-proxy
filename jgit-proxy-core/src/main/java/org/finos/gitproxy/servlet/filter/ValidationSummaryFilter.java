@@ -67,7 +67,8 @@ public class ValidationSummaryFilter extends AbstractGitProxyFilter {
 
         setResult(request, GitRequestDetails.GitResult.REJECTED, count + " validation check(s) failed");
         String serviceUrl = (String) request.getAttribute(SERVICE_URL_ATTR);
-        String fullMessage = serviceUrl != null ? combined + "\n\nView rejected pushes at: " + serviceUrl : combined;
+        String link = serviceUrl != null ? serviceUrl + "/#/push/" + details.getId() : null;
+        String fullMessage = link != null ? combined + "\n\nView push record: " + link : combined;
         sendGitError(request, response, fullMessage);
     }
 }

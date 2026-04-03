@@ -245,8 +245,9 @@ public interface GitProxyFilter extends Filter {
         setResult(request, GitRequestDetails.GitResult.REJECTED, reason);
         recordStep(request, StepStatus.FAIL, reason, formattedMessage);
         String serviceUrl = (String) request.getAttribute(SERVICE_URL_ATTR);
-        String fullMessage =
-                serviceUrl != null ? formattedMessage + "\n\nView pending pushes at: " + serviceUrl : formattedMessage;
+        var details = (org.finos.gitproxy.git.GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
+        String link = serviceUrl != null && details != null ? serviceUrl + "/#/push/" + details.getId() : serviceUrl;
+        String fullMessage = link != null ? formattedMessage + "\n\nView push record: " + link : formattedMessage;
         sendGitError(request, response, fullMessage);
     }
 

@@ -29,6 +29,8 @@ import org.finos.gitproxy.db.model.StepStatus;
 @RequiredArgsConstructor
 public class DiffScanningHook implements PreReceiveHook {
 
+    private static final int STEP_ORDER = 2300;
+
     private final CommitConfig commitConfig;
     private final ValidationContext validationContext;
     private final PushContext pushContext;
@@ -90,6 +92,7 @@ public class DiffScanningHook implements PreReceiveHook {
         if (!anyFailed) {
             pushContext.addStep(PushStep.builder()
                     .stepName("scanDiff")
+                    .stepOrder(STEP_ORDER)
                     .status(StepStatus.PASS)
                     .logs(logs)
                     .build());

@@ -194,8 +194,8 @@ class CommitMessageValidationHookTest {
 
         assertFalse(ctx.getIssues().isEmpty());
         assertEquals(
-                "Message: WIP: blocked",
-                ctx.getIssues().get(0).detail(),
+                "contains blocked term: \"WIP\"",
+                ctx.getIssues().get(0).summary(),
                 "Invalid commit message must record FAIL step");
     }
 

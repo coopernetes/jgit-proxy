@@ -7,12 +7,15 @@ import static org.finos.gitproxy.git.GitClient.sym;
 
 import java.util.Collection;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.transport.PreReceiveHook;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
+import org.finos.gitproxy.db.model.PushStep;
+import org.finos.gitproxy.db.model.StepStatus;
 
 /**
  * Pre-receive hook that rejects pushes where no commits can be found in the pushed range. Two cases are distinguished:
@@ -27,9 +30,14 @@ import org.eclipse.jgit.transport.ReceivePack;
  * <p>This hook short-circuits the chain immediately on failure (direct rejection, not via {@link ValidationContext}).
  */
 @Slf4j
+@RequiredArgsConstructor
 public class CheckEmptyBranchHook implements PreReceiveHook {
 
-    @Override
+    private static final int STEP_ORDER = 2050;
+    private static final String STEP_NAME = "CheckEmptyBranchHook";
+
+    private final PushContext pushContext;
+
     public void onPreReceive(ReceivePack rp, Collection<ReceiveCommand> commands) {
         Repository repo = rp.getRepository();
 
@@ -56,6 +64,14 @@ public class CheckEmptyBranchHook implements PreReceiveHook {
             } catch (Exception e) {
                 log.error("Failed to check empty branch for {}", cmd.getRefName(), e);
             }
+        }
+
+        if (pushContext != null) {
+            pushContext.addStep(PushStep.builder()
+                    .stepName(STEP_NAME)
+                    .stepOrder(STEP_ORDER)
+                    .status(StepStatus.PASS)
+                    .build());
         }
     }
 

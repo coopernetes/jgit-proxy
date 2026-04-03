@@ -85,11 +85,13 @@ public class ScanDiffFilter extends AbstractProviderAwareGitProxyFilter {
             CommitConfig.BlockConfig block = commitConfig.getDiff().getBlock();
             if (block.getLiterals().isEmpty() && block.getPatterns().isEmpty()) {
                 log.debug("No diff block rules configured, skipping diff scan");
+                recordStep(request, StepStatus.PASS, null, null);
                 return;
             }
 
             if (diff.isEmpty()) {
                 log.debug("Empty diff, nothing to scan");
+                recordStep(request, StepStatus.PASS, null, null);
                 return;
             }
 
@@ -105,6 +107,7 @@ public class ScanDiffFilter extends AbstractProviderAwareGitProxyFilter {
                 recordIssue(request, "Diff contains blocked content", GitClient.format(title, message, RED, null));
             } else {
                 log.debug("Diff scan passed for {}..{}", fromCommit, toCommit);
+                recordStep(request, StepStatus.PASS, null, null);
             }
 
         } catch (Exception e) {

@@ -1,10 +1,7 @@
 package org.finos.gitproxy.git;
 
 import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.CROSS_MARK;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.HEAVY_CHECK_MARK;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.KEY;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.WARNING;
+import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
 import static org.finos.gitproxy.git.GitClient.color;
 import static org.finos.gitproxy.git.GitClient.sym;
 
@@ -18,31 +15,29 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.transport.PreReceiveHook;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
-import org.finos.gitproxy.config.CommitConfig;
+import org.finos.gitproxy.config.GpgConfig;
 import org.finos.gitproxy.db.model.PushStep;
 import org.finos.gitproxy.db.model.StepStatus;
-import org.finos.gitproxy.validation.CommitMessageCheck;
+import org.finos.gitproxy.validation.GpgSignatureCheck;
 import org.finos.gitproxy.validation.Violation;
 
 /**
- * S&F-mode adapter for {@link CommitMessageCheck}. Reads commits from the JGit repository, sends per-violation sideband
+ * S&F-mode adapter for {@link GpgSignatureCheck}. Reads commits from the JGit repository, sends per-violation sideband
  * feedback, and records results in the shared {@link ValidationContext} and {@link PushContext}.
  */
 @Slf4j
 @RequiredArgsConstructor
-public class CommitMessageValidationHook implements PreReceiveHook {
+public class GpgSignatureHook implements PreReceiveHook {
 
-    private static final int STEP_ORDER = 2200;
+    private static final int STEP_ORDER = 2400;
 
-    private final CommitConfig commitConfig;
+    private final GpgConfig config;
     private final ValidationContext validationContext;
     private final PushContext pushContext;
 
     @Override
     public void onPreReceive(ReceivePack rp, Collection<ReceiveCommand> commands) {
-        rp.sendMessage(color(CYAN, "[git-proxy] " + sym(KEY) + "  Checking commit messages..."));
-
-        var check = new CommitMessageCheck(commitConfig);
+        var check = new GpgSignatureCheck(config);
         Repository repo = rp.getRepository();
         List<Violation> allViolations = new ArrayList<>();
 
@@ -53,22 +48,20 @@ public class CommitMessageValidationHook implements PreReceiveHook {
                 for (Violation v : violations) {
                     rp.sendMessage(
                             color(RED, "[git-proxy]   " + sym(CROSS_MARK) + "  " + v.subject() + " — " + v.reason()));
-                    validationContext.addIssue("CommitMessage", v.reason(), v.formattedDetail());
+                    validationContext.addIssue("GpgSignatureHook", v.reason(), v.formattedDetail());
                     allViolations.add(v);
                 }
-                if (violations.isEmpty()) {
-                    rp.sendMessage(color(GREEN, "[git-proxy]   " + sym(HEAVY_CHECK_MARK) + "  messages OK"));
-                }
             } catch (Exception e) {
-                log.error("Failed to validate commit messages for {}", cmd.getRefName(), e);
+                log.error("Failed to check GPG signatures for {}", cmd.getRefName(), e);
                 rp.sendMessage(color(
-                        YELLOW, "[git-proxy]   " + sym(WARNING) + "  Could not validate messages: " + e.getMessage()));
+                        YELLOW,
+                        "[git-proxy]   " + sym(WARNING) + "  Could not check GPG signature: " + e.getMessage()));
             }
         }
 
         if (allViolations.isEmpty()) {
             pushContext.addStep(PushStep.builder()
-                    .stepName("checkCommitMessages")
+                    .stepName("GpgSignatureHook")
                     .stepOrder(STEP_ORDER)
                     .status(StepStatus.PASS)
                     .build());

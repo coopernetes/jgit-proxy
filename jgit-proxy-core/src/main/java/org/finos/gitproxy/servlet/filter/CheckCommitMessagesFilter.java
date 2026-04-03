@@ -1,7 +1,5 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
-import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
 import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -9,18 +7,16 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.config.CommitConfig;
-import org.finos.gitproxy.git.Commit;
-import org.finos.gitproxy.git.GitClient;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
+import org.finos.gitproxy.validation.CommitMessageCheck;
+import org.finos.gitproxy.validation.Violation;
 
 /**
- * Filter that validates commit messages against configured blocked patterns and literals. This filter ensures commit
- * messages don't contain sensitive information or blocked content.
+ * Proxy-mode adapter for {@link CommitMessageCheck}. Reads commits from {@link GitRequestDetails} and translates
+ * violations into filter-chain rejections.
  *
  * <p>This filter runs at order 2200, which is in the built-in content filters range (2000-4999).
  */
@@ -28,11 +24,11 @@ import org.finos.gitproxy.git.HttpOperation;
 public class CheckCommitMessagesFilter extends AbstractGitProxyFilter {
 
     private static final int ORDER = 2200;
-    private final CommitConfig commitConfig;
+    private final CommitMessageCheck check;
 
     public CheckCommitMessagesFilter(CommitConfig commitConfig) {
         super(ORDER, Set.of(HttpOperation.PUSH));
-        this.commitConfig = commitConfig != null ? commitConfig : CommitConfig.defaultConfig();
+        this.check = new CommitMessageCheck(commitConfig != null ? commitConfig : CommitConfig.defaultConfig());
     }
 
     @Override
@@ -43,79 +39,21 @@ public class CheckCommitMessagesFilter extends AbstractGitProxyFilter {
             return;
         }
 
-        List<Commit> commits = requestDetails.getPushedCommits();
+        var commits = requestDetails.getPushedCommits();
         if (commits == null || commits.isEmpty()) {
-            log.debug("No commits found in request details");
+            log.debug("No commits to validate");
             return;
         }
 
-        // Extract unique commit messages
-        Set<String> uniqueCommitMessages =
-                commits.stream().map(Commit::getMessage).collect(Collectors.toSet());
-
-        // Validate each message
-        List<String> illegalMessages = uniqueCommitMessages.stream()
-                .filter(message -> !isMessageAllowed(message))
-                .collect(Collectors.toList());
-
-        if (!illegalMessages.isEmpty()) {
-            log.warn("Illegal commit messages found: {}", illegalMessages);
-            String title = NO_ENTRY.emoji() + "  Push Blocked — Invalid Commit Message";
-            String messageList = illegalMessages.stream()
-                    .map(m -> CROSS_MARK.emoji() + "  " + m.lines().findFirst().orElse("(empty)"))
-                    .collect(Collectors.joining("\n"));
-            String message = "Commit message(s) contain blocked content:\n"
-                    + "\n"
-                    + messageList + "\n"
-                    + "\n"
-                    + WARNING.emoji() + "  Messages must not contain:\n"
-                    + "   - WIP, fixup!, squash!, DO NOT MERGE\n"
-                    + "   - Sensitive data (passwords, tokens, secrets)";
-            recordIssue(request, "Illegal commit messages", GitClient.format(title, message, RED, null));
+        List<Violation> violations = check.check(commits);
+        if (violations.isEmpty()) {
+            log.debug("All commit messages passed");
             return;
         }
 
-        log.debug("All commit messages are legal: {}", uniqueCommitMessages.size());
-    }
-
-    /**
-     * Check if a commit message is allowed based on configuration.
-     *
-     * @param commitMessage The commit message to check
-     * @return true if the message is allowed, false otherwise
-     */
-    private boolean isMessageAllowed(String commitMessage) {
-        // Empty messages are not allowed
-        if (commitMessage == null || commitMessage.isEmpty()) {
-            log.debug("Empty commit message detected");
-            return false;
+        log.warn("Commit message check failed: {} violation(s)", violations.size());
+        for (Violation v : violations) {
+            recordIssue(request, v.reason(), v.formattedDetail());
         }
-
-        // Must be a string (should always be true in Java)
-        if (!(commitMessage instanceof String)) {
-            log.debug("Non-string commit message detected");
-            return false;
-        }
-
-        List<String> blockedLiterals = commitConfig.getMessage().getBlock().getLiterals();
-        List<Pattern> blockedPatterns = commitConfig.getMessage().getBlock().getPatterns();
-
-        // Check blocked literals (case-insensitive)
-        for (String literal : blockedLiterals) {
-            if (commitMessage.toLowerCase().contains(literal.toLowerCase())) {
-                log.debug("Commit message contains blocked literal: {}", literal);
-                return false;
-            }
-        }
-
-        // Check blocked patterns
-        for (Pattern pattern : blockedPatterns) {
-            if (pattern.matcher(commitMessage).find()) {
-                log.debug("Commit message matches blocked pattern");
-                return false;
-            }
-        }
-
-        return true;
     }
 }

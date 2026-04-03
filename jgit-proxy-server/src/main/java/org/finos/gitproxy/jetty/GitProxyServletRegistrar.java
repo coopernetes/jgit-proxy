@@ -53,8 +53,14 @@ public final class GitProxyServletRegistrar {
 
         var gitServlet = new GitServlet();
         gitServlet.setRepositoryResolver(resolver);
-        gitServlet.setReceivePackFactory(
-                new StoreAndForwardReceivePackFactory(provider, commitConfig, pushStore, approvalGateway, serviceUrl));
+        gitServlet.setReceivePackFactory(new StoreAndForwardReceivePackFactory(
+                provider,
+                commitConfig,
+                GpgConfig.defaultConfig(),
+                new DummyUserAuthorizationService(),
+                pushStore,
+                approvalGateway,
+                serviceUrl));
         gitServlet.setUploadPackFactory(new StoreAndForwardUploadPackFactory());
 
         String pushPath = PUSH_PATH_PREFIX + provider.servletPath();

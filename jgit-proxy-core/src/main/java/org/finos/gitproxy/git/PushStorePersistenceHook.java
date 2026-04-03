@@ -1,8 +1,14 @@
 package org.finos.gitproxy.git;
 
+import static org.finos.gitproxy.git.GitClient.AnsiColor.*;
+import static org.finos.gitproxy.git.GitClient.SymbolCodes.*;
+import static org.finos.gitproxy.git.GitClient.color;
+import static org.finos.gitproxy.git.GitClient.sym;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
@@ -33,9 +39,20 @@ public class PushStorePersistenceHook {
     /** ReceivePack message key used to pass the push ID between pre/post hooks. */
     private static final String PUSH_ID_KEY = "gitproxy.pushId";
 
+    /**
+     * Maps S&F hook names to canonical step orders matching the equivalent proxy filter. Used so REJECTED push records
+     * sort validation steps in the same order as proxy mode.
+     */
+    private static final Map<String, Integer> HOOK_STEP_ORDER = Map.of(
+            "AuthorEmail", 2100,
+            "CommitMessage", 2200,
+            "DiffContent", 2300,
+            "scanSecrets", 2500);
+
     private final PushStore pushStore;
     private final GitProxyProvider provider;
     private PushContext pushContext;
+    private String serviceUrl;
 
     public PushStorePersistenceHook(PushStore pushStore, GitProxyProvider provider) {
         this.pushStore = pushStore;
@@ -45,6 +62,11 @@ public class PushStorePersistenceHook {
     /** Set the shared push context for accumulating steps from other hooks (e.g., diff generation). */
     public void setPushContext(PushContext pushContext) {
         this.pushContext = pushContext;
+    }
+
+    /** Set the dashboard service URL so the rejection message can include a direct link to the push record. */
+    public void setServiceUrl(String serviceUrl) {
+        this.serviceUrl = serviceUrl;
     }
 
     /** Returns a {@link PreReceiveHook} that creates the initial push record. Should be the first hook in the chain. */
@@ -86,16 +108,18 @@ public class PushStorePersistenceHook {
 
                     // Validation issues → reject outright (no human review queue)
                     if (validationContext.hasIssues()) {
-                        int order = 0;
+                        int fallbackOrder = 0;
                         for (var issue : validationContext.getIssues()) {
+                            int stepOrder = HOOK_STEP_ORDER.getOrDefault(issue.hookName(), fallbackOrder);
                             steps.add(PushStep.builder()
                                     .pushId(recordId)
                                     .stepName(issue.hookName())
-                                    .stepOrder(order++)
+                                    .stepOrder(stepOrder)
                                     .status(StepStatus.FAIL)
                                     .content(issue.detail())
                                     .errorMessage(issue.summary())
                                     .build());
+                            fallbackOrder++;
                         }
                         record.setStatus(PushStatus.REJECTED);
                         record.setAutoRejected(true);
@@ -116,6 +140,13 @@ public class PushStorePersistenceHook {
                         log.debug(
                                 "Saved validation result record: id={}, status=REJECTED (auto-rejected)",
                                 record.getId());
+
+                        if (serviceUrl != null) {
+                            rp.sendMessage(color(
+                                    CYAN,
+                                    "[git-proxy] " + sym(LINK) + "  View push record: " + serviceUrl + "/#/push/"
+                                            + record.getId()));
+                        }
 
                         // Reject all commands immediately — no approval wait
                         String rejectMsg = validationContext.getIssues().size() + " validation issue(s) — see above";

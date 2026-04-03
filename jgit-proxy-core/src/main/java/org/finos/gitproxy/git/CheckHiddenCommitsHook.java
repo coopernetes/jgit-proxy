@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
@@ -18,6 +19,8 @@ import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.transport.PreReceiveHook;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
+import org.finos.gitproxy.db.model.PushStep;
+import org.finos.gitproxy.db.model.StepStatus;
 
 /**
  * Pre-receive hook that detects "hidden" commits — objects received in the push pack that are not part of the
@@ -37,9 +40,14 @@ import org.eclipse.jgit.transport.ReceivePack;
  * <p>This hook short-circuits the chain immediately on failure (direct rejection, not via {@link ValidationContext}).
  */
 @Slf4j
+@RequiredArgsConstructor
 public class CheckHiddenCommitsHook implements PreReceiveHook {
 
-    @Override
+    private static final int STEP_ORDER = 2060;
+    private static final String STEP_NAME = "CheckHiddenCommitsHook";
+
+    private final PushContext pushContext;
+
     public void onPreReceive(ReceivePack rp, Collection<ReceiveCommand> commands) {
         Repository repo = rp.getRepository();
 
@@ -52,6 +60,13 @@ public class CheckHiddenCommitsHook implements PreReceiveHook {
 
             if (hidden.isEmpty()) {
                 log.debug("checkHiddenCommits: all {} new commit(s) are within the introduced range", allNew.size());
+                if (pushContext != null) {
+                    pushContext.addStep(PushStep.builder()
+                            .stepName(STEP_NAME)
+                            .stepOrder(STEP_ORDER)
+                            .status(StepStatus.PASS)
+                            .build());
+                }
                 return;
             }
 
