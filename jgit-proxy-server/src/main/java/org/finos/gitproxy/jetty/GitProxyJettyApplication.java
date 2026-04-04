@@ -3,7 +3,7 @@ package org.finos.gitproxy.jetty;
 import java.nio.file.Files;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.ee11.servlet.ServletContextHandler;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;

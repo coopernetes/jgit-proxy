@@ -27,7 +27,7 @@ repositories {
 ext {
     jgitVersion = '7.6.0.202603022253-r'
     apacheHttpVersion = '4.5.14'
-    jettyVersion = '12.0.33'
+    jettyVersion = '12.1.0'
     jakartaServletVersion = '6.1.0'
     slf4jVersion = '2.0.17'
     logbackVersion = '1.5.32'
@@ -74,8 +74,8 @@ dependencies {
     // Jetty for servlet container - exposed as API for standalone apps
     api platform("org.eclipse.jetty:jetty-bom:${jettyVersion}")
     api "org.eclipse.jetty:jetty-server:${jettyVersion}"
-    api "org.eclipse.jetty.ee10:jetty-ee10-servlet:${jettyVersion}"
-    api "org.eclipse.jetty.ee10:jetty-ee10-proxy:${jettyVersion}"
+    api "org.eclipse.jetty.ee11:jetty-ee11-servlet:${jettyVersion}"
+    api "org.eclipse.jetty.ee11:jetty-ee11-proxy:${jettyVersion}"
     
     // Database - connection pooling
     api "com.zaxxer:HikariCP:${hikariVersion}"
