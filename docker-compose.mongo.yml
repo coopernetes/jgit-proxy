@@ -1,0 +1,14 @@
+# Override file for testing with MongoDB.
+# Use with: docker compose --profile mongo -f docker-compose.yml -f docker-compose.mongo.yml up -d
+#
+# Swaps the config volume to git-proxy-mongo.yml and adds a health-checked
+# dependency on the mongo service.
+services:
+  jgit-proxy:
+    volumes:
+      - ./docker/git-proxy-mongo.yml:/app/conf/git-proxy-local.yml:ro
+    environment:
+      GITPROXY_API_KEY: test-api-key
+    depends_on:
+      mongo:
+        condition: service_healthy

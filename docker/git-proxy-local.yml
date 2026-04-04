@@ -2,6 +2,12 @@
 # This file is mounted into the container at /app/conf/git-proxy-local.yml
 # and overrides the defaults in git-proxy.yml.
 
+users:
+  - username: admin
+    password-hash: "{noop}admin"
+    emails:
+      - admin@example.com
+
 providers:
   # Disable the default cloud providers; we only need the local Gitea instance.
   github:
@@ -17,4 +23,3 @@ providers:
   gitea:
     enabled: true
     uri: http://gitea:3000
-    servlet-path: /gitea

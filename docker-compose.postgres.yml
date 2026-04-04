@@ -1,0 +1,14 @@
+# Override file for testing with PostgreSQL.
+# Use with: docker compose --profile postgres -f docker-compose.yml -f docker-compose.postgres.yml up -d
+#
+# Swaps the config volume to git-proxy-postgres.yml and adds a health-checked
+# dependency on the postgres service.
+services:
+  jgit-proxy:
+    volumes:
+      - ./docker/git-proxy-postgres.yml:/app/conf/git-proxy-local.yml:ro
+    environment:
+      GITPROXY_API_KEY: test-api-key
+    depends_on:
+      postgres:
+        condition: service_healthy

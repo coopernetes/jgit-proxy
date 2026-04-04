@@ -17,6 +17,7 @@ public class DatabaseMigrator {
         Flyway.configure()
                 .dataSource(dataSource)
                 .locations("classpath:db/migration")
+                .baselineOnMigrate(true)
                 .load()
                 .migrate();
         log.info("Flyway migrations complete");
