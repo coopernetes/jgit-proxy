@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'application'
+    id 'com.github.node-gradle.node'
 }
 
 group = 'org.finos.gitproxy'
@@ -18,6 +19,51 @@ java {
 application {
     mainClass = 'org.finos.gitproxy.dashboard.GitProxyWithDashboardApplication'
     applicationDefaultJvmArgs = ["-Djgitproxy.pidfile=${buildDir}/jgit-proxy.pid"]
+}
+
+// Build the React frontend and copy the output into resources/static so Spring serves it.
+// Runs automatically before processResources (and therefore before `run` and `build`).
+node {
+    // Pin Node version so Gradle uses the same version regardless of what is on PATH.
+    // The binary is cached in ~/.gradle/nodejs/ after the first download.
+    version = '24.11.1'
+    download = true
+    nodeProjectDir = file('frontend')
+}
+
+tasks.register('npmCi', NpmTask) {
+    group = 'build'
+    description = 'Installs frontend dependencies via npm ci'
+    args = ['ci', '--prefer-offline']
+    inputs.file('frontend/package.json')
+    inputs.file('frontend/package-lock.json')
+    outputs.dir('frontend/node_modules')
+}
+
+tasks.register('npmBuild', NpmTask) {
+    group = 'build'
+    description = 'Builds the React frontend with Vite'
+    dependsOn tasks.named('npmCi')
+    args = ['run', 'build']
+    inputs.dir('frontend/src')
+    inputs.file('frontend/package.json')
+    inputs.file('frontend/vite.config.ts')
+    inputs.file('frontend/tsconfig.json')
+    outputs.dir('frontend/dist')
+}
+
+tasks.register('copyFrontend', Copy) {
+    group = 'build'
+    description = 'Copies Vite dist/ output into src/main/resources/static/'
+    dependsOn tasks.named('npmBuild')
+    from('frontend/dist')
+    into('src/main/resources/static')
+    // Exclude the login page managed as a hand-crafted static asset
+    exclude('login.html')
+}
+
+tasks.named('processResources') {
+    dependsOn tasks.named('copyFrontend')
 }
 
 tasks.register('stop') {
@@ -101,4 +147,5 @@ tasks.named('check') {
 // explicitly so Gradle's task-ordering validation passes.
 tasks.named('testCodeCoverageReport') {
     dependsOn ':jgit-proxy-core:downloadGitleaks'
+    dependsOn tasks.named('copyFrontend')
 }

@@ -45,3 +45,10 @@ body-*.txt
 packetline-*.txt
 
 .data/
+
+### Frontend build output ###
+jgit-proxy-dashboard/frontend/node_modules/
+jgit-proxy-dashboard/frontend/dist/
+# Generated static assets copied from Vite dist (excluded except login.html)
+jgit-proxy-dashboard/src/main/resources/static/assets/
+jgit-proxy-dashboard/src/main/resources/static/index.html
