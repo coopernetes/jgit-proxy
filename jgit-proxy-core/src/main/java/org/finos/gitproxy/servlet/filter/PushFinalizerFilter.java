@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Set;
+import org.finos.gitproxy.approval.ApprovalGateway;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
 
@@ -38,10 +39,12 @@ public class PushFinalizerFilter extends AbstractGitProxyFilter {
     private static final int ORDER = 5000;
 
     private final String serviceUrl;
+    private final ApprovalGateway approvalGateway;
 
-    public PushFinalizerFilter(String serviceUrl) {
+    public PushFinalizerFilter(String serviceUrl, ApprovalGateway approvalGateway) {
         super(ORDER, Set.of(HttpOperation.PUSH));
         this.serviceUrl = serviceUrl;
+        this.approvalGateway = approvalGateway;
     }
 
     /**
@@ -91,7 +94,13 @@ public class PushFinalizerFilter extends AbstractGitProxyFilter {
             return;
         }
 
-        // First push that passed validation - block pending review
+        // If the gateway approves immediately (e.g. auto mode), forward the push without blocking
+        if (approvalGateway.approvesImmediately()) {
+            details.setResult(GitRequestDetails.GitResult.ALLOWED);
+            return;
+        }
+
+        // First push that passed validation - block pending review (dashboard/ServiceNow mode)
         details.setResult(GitRequestDetails.GitResult.BLOCKED);
         String pushId = details.getId().toString();
         String summary = buildValidationSummary(details.getSteps());

@@ -39,6 +39,11 @@ public class JettyConfigurationLoader {
         this.config = load();
     }
 
+    /** Package-private constructor for tests that need to inject a specific config map directly. */
+    JettyConfigurationLoader(Map<String, Object> config) {
+        this.config = config;
+    }
+
     /** Loads configuration from YAML files and environment variables. */
     @SuppressWarnings("unchecked")
     private Map<String, Object> load() {
@@ -144,6 +149,17 @@ public class JettyConfigurationLoader {
                 target.put(key, sourceValue);
             }
         }
+    }
+
+    /** Returns the approval mode ({@code auto}, {@code ui}, {@code servicenow}). Defaults to {@code auto}. */
+    @SuppressWarnings("unchecked")
+    public String getApprovalMode() {
+        Map<String, Object> serverMap = (Map<String, Object>) config.get("server");
+        if (serverMap != null && serverMap.containsKey("approval-mode")) {
+            Object val = serverMap.get("approval-mode");
+            if (val instanceof String) return (String) val;
+        }
+        return "auto";
     }
 
     /** Returns the server port configuration. */

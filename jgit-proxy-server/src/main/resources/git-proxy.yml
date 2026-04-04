@@ -1,5 +1,11 @@
 server:
   port: 8080
+  # Approval mode for store-and-forward pushes. Options:
+  #   auto        — immediately approves every clean push; no dashboard required (default)
+  #   ui          — polls the push store waiting for a human reviewer via the REST API
+  #   servicenow  — delegates to a ServiceNow approval workflow
+  # Note: when running GitProxyWithDashboardApplication, 'ui' mode is always used regardless of this setting.
+  approval-mode: auto
 
 # Database configuration for push audit storage.
 # Supported types: memory, h2-mem, h2-file, sqlite, postgres, mongo

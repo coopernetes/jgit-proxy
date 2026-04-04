@@ -8,7 +8,8 @@ import org.eclipse.jetty.ee11.servlet.FilterHolder;
 import org.eclipse.jetty.ee11.servlet.ServletContextHandler;
 import org.eclipse.jetty.ee11.servlet.ServletHolder;
 import org.eclipse.jgit.http.server.GitServlet;
-import org.finos.gitproxy.approval.UiApprovalGateway;
+import org.finos.gitproxy.approval.ApprovalGateway;
+import org.finos.gitproxy.approval.AutoApprovalGateway;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.config.GpgConfig;
 import org.finos.gitproxy.db.PushStore;
@@ -38,7 +39,7 @@ public final class GitProxyServletRegistrar {
             LocalRepositoryCache cache,
             CommitConfig commitConfig,
             PushStore pushStore) {
-        registerGitServlet(context, provider, cache, commitConfig, pushStore, null);
+        registerGitServlet(context, provider, cache, commitConfig, pushStore, null, new AutoApprovalGateway(pushStore));
     }
 
     public static void registerGitServlet(
@@ -47,9 +48,9 @@ public final class GitProxyServletRegistrar {
             LocalRepositoryCache cache,
             CommitConfig commitConfig,
             PushStore pushStore,
-            String serviceUrl) {
+            String serviceUrl,
+            ApprovalGateway approvalGateway) {
         var resolver = new StoreAndForwardRepositoryResolver(cache, provider);
-        var approvalGateway = new UiApprovalGateway(pushStore);
 
         var gitServlet = new GitServlet();
         gitServlet.setRepositoryResolver(resolver);
@@ -102,7 +103,15 @@ public final class GitProxyServletRegistrar {
             JettyConfigurationBuilder configBuilder,
             CommitConfig commitConfig,
             PushStore pushStore) {
-        registerFilters(context, provider, repositoryCache, configBuilder, commitConfig, pushStore, null);
+        registerCoreFilters(
+                context,
+                provider,
+                repositoryCache,
+                configBuilder,
+                commitConfig,
+                pushStore,
+                null,
+                new AutoApprovalGateway(pushStore));
     }
 
     public static void registerFilters(
@@ -113,6 +122,51 @@ public final class GitProxyServletRegistrar {
             CommitConfig commitConfig,
             PushStore pushStore,
             String serviceUrl) {
+        registerCoreFilters(
+                context,
+                provider,
+                repositoryCache,
+                configBuilder,
+                commitConfig,
+                pushStore,
+                serviceUrl,
+                new AutoApprovalGateway(pushStore));
+    }
+
+    public static void registerFilters(
+            ServletContextHandler context,
+            GitProxyProvider provider,
+            LocalRepositoryCache repositoryCache,
+            JettyConfigurationBuilder configBuilder,
+            CommitConfig commitConfig,
+            PushStore pushStore,
+            String serviceUrl,
+            ApprovalGateway approvalGateway) {
+        registerCoreFilters(
+                context,
+                provider,
+                repositoryCache,
+                configBuilder,
+                commitConfig,
+                pushStore,
+                serviceUrl,
+                approvalGateway);
+    }
+
+    /**
+     * Registers the core proxy filter chain for the given provider. Covers all content validation but does not include
+     * the dashboard-specific {@link AllowApprovedPushFilter}. Call {@link #registerApprovalFilters} additionally when
+     * running with the dashboard.
+     */
+    public static void registerCoreFilters(
+            ServletContextHandler context,
+            GitProxyProvider provider,
+            LocalRepositoryCache repositoryCache,
+            JettyConfigurationBuilder configBuilder,
+            CommitConfig commitConfig,
+            PushStore pushStore,
+            String serviceUrl,
+            ApprovalGateway approvalGateway) {
         String urlPattern = PROXY_PATH_PREFIX + provider.servletPath() + "/*";
 
         var pushStoreAuditFilterHolder = new FilterHolder(new PushStoreAuditFilter(pushStore));
@@ -135,6 +189,8 @@ public final class GitProxyServletRegistrar {
         // Pre-approval check: must be AFTER EnrichPushCommitsFilter (which populates commitTo/branch)
         // but BEFORE content validation filters. If an approved record exists for this commitTo+branch+repo,
         // sets preApproved=true which short-circuits all content filters.
+        // In standalone mode (no dashboard) this filter is harmless — no records are ever set to APPROVED
+        // via the transparent-proxy re-push flow, so it is always a no-op.
         var preApprovalHolder = new FilterHolder(new AllowApprovedPushFilter(pushStore, serviceUrl));
         preApprovalHolder.setAsyncSupported(true);
         context.addFilter(preApprovalHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
@@ -192,12 +248,25 @@ public final class GitProxyServletRegistrar {
         fetchFinalizerHolder.setAsyncSupported(true);
         context.addFilter(fetchFinalizerHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
 
-        var pushFinalizerHolder = new FilterHolder(new PushFinalizerFilter(serviceUrl));
+        var pushFinalizerHolder = new FilterHolder(new PushFinalizerFilter(serviceUrl, approvalGateway));
         pushFinalizerHolder.setAsyncSupported(true);
         context.addFilter(pushFinalizerHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
 
         var auditFilterHolder = new FilterHolder(new AuditLogFilter());
         auditFilterHolder.setAsyncSupported(true);
         context.addFilter(auditFilterHolder, urlPattern, EnumSet.of(DispatcherType.REQUEST));
+    }
+
+    /**
+     * No-op hook for dashboard deployments to register any additional proxy filters that are only relevant when a
+     * dashboard is present. Currently unused — {@link AllowApprovedPushFilter} is registered inside
+     * {@link #registerCoreFilters} at the correct chain position (filter ordering prevents post-hoc insertion). It is
+     * harmless in standalone mode because no push records are ever set to {@code APPROVED} via the transparent-proxy
+     * re-push flow when running without a dashboard. This method exists as an extension point for future dashboard-only
+     * filters.
+     */
+    public static void registerApprovalFilters(
+            ServletContextHandler context, GitProxyProvider provider, PushStore pushStore, String serviceUrl) {
+        // Extension point — see Javadoc above.
     }
 }

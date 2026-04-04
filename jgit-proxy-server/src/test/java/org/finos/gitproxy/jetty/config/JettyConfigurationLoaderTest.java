@@ -88,6 +88,14 @@ class JettyConfigurationLoaderTest {
         assertNotNull(loader.getWhitelistFilters());
     }
 
+    // ---- approval mode ----
+
+    @Test
+    void defaultApprovalMode_isAuto() {
+        JettyConfigurationLoader loader = new JettyConfigurationLoader();
+        assertEquals("auto", loader.getApprovalMode());
+    }
+
     // ---- service URL default ----
 
     @Test

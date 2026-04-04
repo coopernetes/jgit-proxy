@@ -16,6 +16,9 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.finos.gitproxy.approval.ApprovalGateway;
+import org.finos.gitproxy.approval.AutoApprovalGateway;
+import org.finos.gitproxy.db.PushStoreFactory;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
 import org.junit.jupiter.api.Test;
@@ -101,7 +104,7 @@ class PushFinalizerFilterTest {
     @Test
     void pendingPush_isBlockedPendingReview() throws Exception {
         GitRequestDetails details = pendingPushDetails();
-        PushFinalizerFilter filter = new PushFinalizerFilter("http://localhost:8080");
+        PushFinalizerFilter filter = new PushFinalizerFilter("http://localhost:8080", mock(ApprovalGateway.class));
         FakeResponse fakeResponse = new FakeResponse();
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
@@ -114,7 +117,7 @@ class PushFinalizerFilterTest {
     void rejectedPush_isLeftAlone() throws Exception {
         GitRequestDetails details = pendingPushDetails();
         details.setResult(GitRequestDetails.GitResult.REJECTED);
-        PushFinalizerFilter filter = new PushFinalizerFilter("http://localhost:8080");
+        PushFinalizerFilter filter = new PushFinalizerFilter("http://localhost:8080", mock(ApprovalGateway.class));
         FakeResponse fakeResponse = new FakeResponse();
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
@@ -127,7 +130,7 @@ class PushFinalizerFilterTest {
     void errorPush_isLeftAlone() throws Exception {
         GitRequestDetails details = pendingPushDetails();
         details.setResult(GitRequestDetails.GitResult.ERROR);
-        PushFinalizerFilter filter = new PushFinalizerFilter("http://localhost:8080");
+        PushFinalizerFilter filter = new PushFinalizerFilter("http://localhost:8080", mock(ApprovalGateway.class));
         FakeResponse fakeResponse = new FakeResponse();
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
@@ -141,7 +144,7 @@ class PushFinalizerFilterTest {
         GitRequestDetails details = pendingPushDetails();
         HttpServletRequest req = mockPushRequest(details);
         when(req.getAttribute(PRE_APPROVED_ATTR)).thenReturn(Boolean.TRUE);
-        PushFinalizerFilter filter = new PushFinalizerFilter("http://localhost:8080");
+        PushFinalizerFilter filter = new PushFinalizerFilter("http://localhost:8080", mock(ApprovalGateway.class));
         FakeResponse fakeResponse = new FakeResponse();
 
         filter.doHttpFilter(req, fakeResponse.mock);
@@ -154,7 +157,7 @@ class PushFinalizerFilterTest {
     void refDeletion_isAllowed() throws Exception {
         GitRequestDetails details = pendingPushDetails();
         details.setCommitTo(ZERO_OID);
-        PushFinalizerFilter filter = new PushFinalizerFilter("http://localhost:8080");
+        PushFinalizerFilter filter = new PushFinalizerFilter("http://localhost:8080", mock(ApprovalGateway.class));
         FakeResponse fakeResponse = new FakeResponse();
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
@@ -167,9 +170,22 @@ class PushFinalizerFilterTest {
     void nullDetails_doesNotThrow() throws Exception {
         HttpServletRequest req = mock(HttpServletRequest.class);
         when(req.getAttribute(GIT_REQUEST_ATTR)).thenReturn(null);
-        PushFinalizerFilter filter = new PushFinalizerFilter("http://localhost:8080");
+        PushFinalizerFilter filter = new PushFinalizerFilter("http://localhost:8080", mock(ApprovalGateway.class));
         FakeResponse fakeResponse = new FakeResponse();
 
         assertDoesNotThrow(() -> filter.doHttpFilter(req, fakeResponse.mock));
+    }
+
+    @Test
+    void autoApprovalGateway_allowsPushWithoutBlocking() throws Exception {
+        GitRequestDetails details = pendingPushDetails();
+        var gateway = new AutoApprovalGateway(PushStoreFactory.inMemory());
+        PushFinalizerFilter filter = new PushFinalizerFilter("http://localhost:8080", gateway);
+        FakeResponse fakeResponse = new FakeResponse();
+
+        filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
+
+        assertEquals(GitRequestDetails.GitResult.ALLOWED, details.getResult());
+        assertFalse(fakeResponse.committed.get(), "Auto-approval must not send a git error to the client");
     }
 }

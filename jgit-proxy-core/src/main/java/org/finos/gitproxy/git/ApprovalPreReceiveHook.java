@@ -81,6 +81,12 @@ public class ApprovalPreReceiveHook implements PreReceiveHook {
 
         // All clean pushes are BLOCKED pending human review
         if (record.getStatus() == PushStatus.BLOCKED) {
+            if (approvalGateway.approvesImmediately()) {
+                // Auto-approval: approve silently, no waiting messages or dashboard links
+                approvalGateway.waitForApproval(validationRecordId, msg -> {}, timeout);
+                return;
+            }
+
             sendAndFlush(
                     rp, msgOut, color(YELLOW, "" + sym(WARNING) + "  Push requires review. Waiting for approval..."));
             sendAndFlush(rp, msgOut, color(CYAN, "" + sym(KEY) + "  Push ID: " + validationRecordId));

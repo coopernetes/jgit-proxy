@@ -8,6 +8,7 @@ import org.eclipse.jetty.ee11.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
+import org.finos.gitproxy.approval.UiApprovalGateway;
 import org.finos.gitproxy.config.InMemoryProviderConfigurationSource;
 import org.finos.gitproxy.config.ProviderConfigurationSource;
 import org.finos.gitproxy.db.PushStore;
@@ -51,6 +52,11 @@ public class GitProxyWithDashboardApplication {
         PushStore pushStore = configBuilder.buildPushStore();
         log.info("Push store initialized: {}", pushStore.getClass().getSimpleName());
 
+        // Always use UiApprovalGateway when running with the dashboard — the REST API is what drives approval.
+        // This is intentionally not derived from approval-mode config: the dashboard deployment always needs
+        // UI-based review regardless of what is set in the config file.
+        var approvalGateway = new UiApprovalGateway(pushStore);
+
         var storeForwardCache = new LocalRepositoryCache(Files.createTempDirectory("jgit-proxy-sf-"), 0, true);
         var proxyCache = new LocalRepositoryCache();
 
@@ -65,10 +71,10 @@ public class GitProxyWithDashboardApplication {
         for (GitProxyProvider provider : providerConfig.getProviders()) {
             log.info("Registering provider: {}", provider.getName());
             GitProxyServletRegistrar.registerGitServlet(
-                    context, provider, storeForwardCache, commitConfig, pushStore, serviceUrl);
+                    context, provider, storeForwardCache, commitConfig, pushStore, serviceUrl, approvalGateway);
             GitProxyServletRegistrar.registerProxyServlet(context, provider);
             GitProxyServletRegistrar.registerFilters(
-                    context, provider, proxyCache, configBuilder, commitConfig, pushStore, serviceUrl);
+                    context, provider, proxyCache, configBuilder, commitConfig, pushStore, serviceUrl, approvalGateway);
         }
 
         // Spring MVC DispatcherServlet at /* - git-specific paths take precedence per servlet spec

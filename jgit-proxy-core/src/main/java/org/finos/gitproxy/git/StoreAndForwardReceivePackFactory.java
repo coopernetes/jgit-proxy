@@ -101,6 +101,7 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
         if (persistenceHook != null) {
             persistenceHook.setPushContext(pushContext);
             persistenceHook.setServiceUrl(serviceUrl);
+            persistenceHook.setAutoApproval(approvalGateway != null && approvalGateway.approvesImmediately());
         }
 
         // Hook chain - order matters:

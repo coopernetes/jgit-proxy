@@ -12,6 +12,7 @@ import org.eclipse.jetty.ee11.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jgit.http.server.GitServlet;
+import org.finos.gitproxy.approval.AutoApprovalGateway;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.config.GpgConfig;
 import org.finos.gitproxy.db.PushStore;
@@ -103,7 +104,7 @@ class JettyProxyFixture implements AutoCloseable {
         addFilter(context, proxyMapping, new GpgSignatureFilter(GpgConfig.defaultConfig()));
         addFilter(context, proxyMapping, new ValidationSummaryFilter());
         addFilter(context, proxyMapping, new FetchFinalizerFilter());
-        addFilter(context, proxyMapping, new PushFinalizerFilter(serviceUrl));
+        addFilter(context, proxyMapping, new PushFinalizerFilter(serviceUrl, new AutoApprovalGateway(pushStore)));
         addFilter(context, proxyMapping, new AuditLogFilter());
 
         server.setHandler(context);

@@ -7,6 +7,7 @@ import org.eclipse.jetty.ee11.servlet.ServletContextHandler;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
+import org.finos.gitproxy.approval.ApprovalGateway;
 import org.finos.gitproxy.config.InMemoryProviderConfigurationSource;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.git.LocalRepositoryCache;
@@ -50,6 +51,8 @@ public class GitProxyJettyApplication {
         PushStore pushStore = configBuilder.buildPushStore();
         log.info("Push store initialized: {}", pushStore.getClass().getSimpleName());
 
+        ApprovalGateway approvalGateway = configBuilder.buildApprovalGateway(pushStore);
+
         var storeForwardCache = new LocalRepositoryCache(Files.createTempDirectory("jgit-proxy-sf-"), 0, true);
         log.info("Initialized store-and-forward LocalRepositoryCache (full clone)");
 
@@ -66,10 +69,10 @@ public class GitProxyJettyApplication {
         for (GitProxyProvider provider : providerConfig.getProviders()) {
             log.info("Registering provider: {}", provider.getName());
             GitProxyServletRegistrar.registerGitServlet(
-                    context, provider, storeForwardCache, commitConfig, pushStore, serviceUrl);
+                    context, provider, storeForwardCache, commitConfig, pushStore, serviceUrl, approvalGateway);
             GitProxyServletRegistrar.registerProxyServlet(context, provider);
             GitProxyServletRegistrar.registerFilters(
-                    context, provider, proxyCache, configBuilder, commitConfig, pushStore, serviceUrl);
+                    context, provider, proxyCache, configBuilder, commitConfig, pushStore, serviceUrl, approvalGateway);
         }
 
         server.setHandler(context);

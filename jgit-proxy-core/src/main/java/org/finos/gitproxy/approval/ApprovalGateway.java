@@ -12,4 +12,14 @@ public interface ApprovalGateway {
      * heartbeat progress messages to keep the git client alive.
      */
     ApprovalResult waitForApproval(String pushId, ProgressSender progress, Duration timeout);
+
+    /**
+     * Returns {@code true} if this gateway approves pushes immediately without requiring human review.
+     *
+     * <p>Used by the transparent-proxy finalizer to decide whether to forward the push on the first attempt or block it
+     * pending a re-push after dashboard approval.
+     */
+    default boolean approvesImmediately() {
+        return false;
+    }
 }

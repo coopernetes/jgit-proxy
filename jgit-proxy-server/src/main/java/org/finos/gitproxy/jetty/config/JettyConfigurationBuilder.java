@@ -5,6 +5,10 @@ import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.finos.gitproxy.approval.ApprovalGateway;
+import org.finos.gitproxy.approval.AutoApprovalGateway;
+import org.finos.gitproxy.approval.ServiceNowApprovalGateway;
+import org.finos.gitproxy.approval.UiApprovalGateway;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.db.PushStoreFactory;
@@ -194,6 +198,42 @@ public class JettyConfigurationBuilder {
                 secretScanningConfig.isEnabled());
 
         return config;
+    }
+
+    /**
+     * Creates the {@link ApprovalGateway} based on the {@code server.approval-mode} config key.
+     *
+     * <ul>
+     *   <li>{@code auto} (default) — immediately approves every clean push; no dashboard required
+     *   <li>{@code ui} — polls the push store waiting for a human reviewer via the REST API
+     *   <li>{@code servicenow} — delegates to a ServiceNow approval workflow
+     * </ul>
+     */
+    public ApprovalGateway buildApprovalGateway(PushStore pushStore) {
+        String mode = configLoader.getApprovalMode();
+        return switch (mode) {
+            case "ui" -> {
+                log.info("Approval mode: ui (push store polling)");
+                yield new UiApprovalGateway(pushStore);
+            }
+            case "servicenow" -> {
+                log.info("Approval mode: servicenow");
+                // ServiceNow credentials are expected via GITPROXY_SERVICENOW_URL / GITPROXY_SERVICENOW_CREDENTIALS
+                // env vars or a future config section. Use empty strings as placeholder — the gateway will log a
+                // warning if they are unset.
+                String snUrl = System.getenv().getOrDefault("GITPROXY_SERVICENOW_URL", "");
+                String snCreds = System.getenv().getOrDefault("GITPROXY_SERVICENOW_CREDENTIALS", "");
+                yield new ServiceNowApprovalGateway(snUrl, snCreds);
+            }
+            default -> {
+                if (!"auto".equals(mode)) {
+                    log.warn("Unknown approval-mode '{}', defaulting to 'auto'", mode);
+                } else {
+                    log.info("Approval mode: auto (no human review required)");
+                }
+                yield new AutoApprovalGateway(pushStore);
+            }
+        };
     }
 
     /** Creates a {@link PushStore} based on the database configuration. */

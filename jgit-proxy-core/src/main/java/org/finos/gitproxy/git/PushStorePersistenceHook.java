@@ -54,6 +54,7 @@ public class PushStorePersistenceHook {
     private final GitProxyProvider provider;
     private PushContext pushContext;
     private String serviceUrl;
+    private boolean autoApproval;
 
     public PushStorePersistenceHook(PushStore pushStore, GitProxyProvider provider) {
         this.pushStore = pushStore;
@@ -68,6 +69,11 @@ public class PushStorePersistenceHook {
     /** Set the dashboard service URL so the rejection message can include a direct link to the push record. */
     public void setServiceUrl(String serviceUrl) {
         this.serviceUrl = serviceUrl;
+    }
+
+    /** When {@code true}, suppresses dashboard links in user-facing output (auto-approval mode). */
+    public void setAutoApproval(boolean autoApproval) {
+        this.autoApproval = autoApproval;
     }
 
     /** Returns a {@link PreReceiveHook} that creates the initial push record. Should be the first hook in the chain. */
@@ -161,7 +167,7 @@ public class PushStorePersistenceHook {
                         }
                         rp.sendMessage("────────────────────────────────────────");
 
-                        if (serviceUrl != null) {
+                        if (serviceUrl != null && !autoApproval) {
                             rp.sendMessage(color(
                                     CYAN,
                                     "" + sym(LINK) + "  View push record: " + serviceUrl + "/#/push/"
@@ -197,7 +203,7 @@ public class PushStorePersistenceHook {
                         rp.sendMessage(summary);
                     }
                     rp.sendMessage("────────────────────────────────────────");
-                    if (serviceUrl != null) {
+                    if (serviceUrl != null && !autoApproval) {
                         rp.sendMessage(color(
                                 CYAN,
                                 "" + sym(LINK) + "  View push record: " + serviceUrl + "/#/push/" + record.getId()));
