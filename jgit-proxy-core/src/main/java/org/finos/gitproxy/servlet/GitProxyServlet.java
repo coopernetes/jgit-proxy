@@ -7,7 +7,7 @@ import java.io.IOException;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.client.BytesRequestContent;
 import org.eclipse.jetty.client.Request;
-import org.eclipse.jetty.ee10.proxy.AsyncProxyServlet;
+import org.eclipse.jetty.ee11.proxy.AsyncProxyServlet;
 import org.finos.gitproxy.git.GitRequestDetails;
 
 @Slf4j
