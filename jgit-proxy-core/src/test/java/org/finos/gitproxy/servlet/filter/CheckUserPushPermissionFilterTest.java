@@ -193,6 +193,27 @@ class CheckUserPushPermissionFilterTest {
     }
 
     @Test
+    void tagPush_skipsEmailCheck() throws Exception {
+        // Tag pushes have no commit object in the pack — commit is null.
+        // The filter must not reject on missing email; HTTP basic auth covers identity.
+        GitRequestDetails details = new GitRequestDetails();
+        details.setOperation(HttpOperation.PUSH);
+        details.setBranch("refs/tags/v1.0");
+        details.setCommitFrom("0000000000000000000000000000000000000000");
+        details.setCommitTo("abc123def456abc123def456abc123def456abc12");
+        details.setRepoRef(
+                GitRequestDetails.RepoRef.builder().slug("owner/repo").build());
+        // no commit set — simulates an annotated or lightweight tag push
+        FakeResponse resp = new FakeResponse();
+
+        new CheckUserPushPermissionFilter(new DummyUserAuthorizationService())
+                .doHttpFilter(mockPushRequest(details), resp.mock);
+
+        assertFalse(resp.committed.get(), "Tag push must not be blocked by missing commit author");
+        assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
+    }
+
+    @Test
     void authorizedUser_withProvider_usesProviderName() throws Exception {
         GitRequestDetails details = makeDetailsWithEmail("user@example.com");
         details.setProvider(new GitHubProvider("/proxy"));

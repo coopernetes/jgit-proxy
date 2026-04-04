@@ -43,6 +43,8 @@ public class CheckEmptyBranchHook implements GitProxyHook {
         for (ReceiveCommand cmd : commands) {
             if (cmd.getResult() != ReceiveCommand.Result.NOT_ATTEMPTED) continue;
             if (cmd.getType() == ReceiveCommand.Type.DELETE) continue;
+            // Tags legitimately point to existing commits — skip the "empty branch" check
+            if (cmd.getRefName().startsWith("refs/tags/")) continue;
 
             try {
                 List<Commit> commits = getCommits(repo, cmd);

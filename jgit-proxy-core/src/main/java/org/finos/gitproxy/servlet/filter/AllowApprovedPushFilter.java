@@ -53,7 +53,7 @@ public class AllowApprovedPushFilter extends AbstractGitProxyFilter {
         }
 
         var details = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
-        if (details == null || details.getCommit() == null) {
+        if (details == null) {
             return;
         }
 

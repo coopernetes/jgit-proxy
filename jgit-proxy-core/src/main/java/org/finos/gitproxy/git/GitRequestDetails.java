@@ -40,6 +40,11 @@ public class GitRequestDetails {
         return commitTo != null && commitTo.matches("^0+$");
     }
 
+    /** Returns true when this push targets a tag ref ({@code refs/tags/} prefix). */
+    public boolean isTagPush() {
+        return branch != null && branch.startsWith("refs/tags/");
+    }
+
     @Builder
     @Getter
     public static class RepoRef {

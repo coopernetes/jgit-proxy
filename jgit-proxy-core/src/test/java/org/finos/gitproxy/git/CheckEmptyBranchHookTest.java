@@ -143,6 +143,48 @@ class CheckEmptyBranchHookTest {
     }
 
     @Test
+    void lightweightTag_skipped() throws Exception {
+        // Lightweight tags point directly to a commit — the empty-branch check must not fire
+        ObjectId c1 = createCommit("Tagged commit");
+        ReceivePack rp = new ReceivePack(repo);
+        ReceiveCommand cmd = new ReceiveCommand(ObjectId.zeroId(), c1, "refs/tags/v1.0");
+
+        CheckEmptyBranchHook hook = new CheckEmptyBranchHook(new PushContext());
+        hook.onPreReceive(rp, List.of(cmd));
+
+        assertEquals(
+                ReceiveCommand.Result.NOT_ATTEMPTED,
+                cmd.getResult(),
+                "Lightweight tag push must not be rejected by CheckEmptyBranchHook");
+    }
+
+    @Test
+    void annotatedTag_skipped() throws Exception {
+        // Annotated tags point to a tag object, not a commit directly
+        ObjectId c1 = createCommit("Tagged commit");
+        // Create an annotated tag via JGit
+        org.eclipse.jgit.lib.ObjectInserter inserter = repo.newObjectInserter();
+        org.eclipse.jgit.lib.TagBuilder tb = new org.eclipse.jgit.lib.TagBuilder();
+        tb.setTag("v2.0");
+        tb.setObjectId(repo.parseCommit(c1));
+        tb.setTagger(new PersonIdent("Dev", "dev@example.com"));
+        tb.setMessage("Release 2.0");
+        ObjectId tagId = inserter.insert(tb);
+        inserter.flush();
+
+        ReceivePack rp = new ReceivePack(repo);
+        ReceiveCommand cmd = new ReceiveCommand(ObjectId.zeroId(), tagId, "refs/tags/v2.0");
+
+        CheckEmptyBranchHook hook = new CheckEmptyBranchHook(new PushContext());
+        hook.onPreReceive(rp, List.of(cmd));
+
+        assertEquals(
+                ReceiveCommand.Result.NOT_ATTEMPTED,
+                cmd.getResult(),
+                "Annotated tag push must not be rejected by CheckEmptyBranchHook");
+    }
+
+    @Test
     void step_recordedOnPass() throws Exception {
         ObjectId c1 = createCommit("First");
         ObjectId c2 = createCommit("Second");
