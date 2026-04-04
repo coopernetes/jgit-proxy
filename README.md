@@ -211,14 +211,12 @@ This is a multi-module Gradle project:
 
 ## Roadmap
 
-The following gists track the project's direction and open design questions:
+The backlog is tracked in [GitHub Issues](https://github.com/coopernetes/jgit-proxy/issues). The following gists cover design rationale and reference material:
 
 | Document | Description |
 |----------|-------------|
 | [Project vision & design](https://gist.github.com/coopernetes/d02d48efa759282ff8187da0d5dcae64) | High-level goals and priority tracks: sideband streaming UX, checkpoint-based resumption, lifecycle hooks, DAG pipeline execution, SCM OAuth integration, SSH support |
-| [Implementation progress](https://gist.github.com/coopernetes/3a6c83690164a8a60a10524ef24e35eb) | Feature-by-feature comparison against finos/git-proxy with current status (implemented / in-progress / gap) |
 | [Framework rationale](https://gist.github.com/coopernetes/626541b83a148f4ae21ae2c62c57edea) | Why Java/Jetty + JGit over Node.js/Express: native git protocol handling, in-process pack inspection, sideband streaming |
-| [JGit server-side abstractions](https://gist.github.com/coopernetes/96ce03ca5795ca9dc78367f064c20596) | Reference guide for `RepositoryResolver`, `ReceivePackFactory`, and pre/post-receive hooks — the building blocks of the store-and-forward pipeline |
 
 ## Development
 
