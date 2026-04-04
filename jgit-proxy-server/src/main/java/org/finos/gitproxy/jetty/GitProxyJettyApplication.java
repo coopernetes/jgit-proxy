@@ -69,7 +69,14 @@ public class GitProxyJettyApplication {
         for (GitProxyProvider provider : providerConfig.getProviders()) {
             log.info("Registering provider: {}", provider.getName());
             GitProxyServletRegistrar.registerGitServlet(
-                    context, provider, storeForwardCache, commitConfig, pushStore, serviceUrl, approvalGateway);
+                    context,
+                    provider,
+                    storeForwardCache,
+                    commitConfig,
+                    pushStore,
+                    serviceUrl,
+                    approvalGateway,
+                    configBuilder.getHeartbeatIntervalSeconds());
             GitProxyServletRegistrar.registerProxyServlet(context, provider);
             GitProxyServletRegistrar.registerFilters(
                     context, provider, proxyCache, configBuilder, commitConfig, pushStore, serviceUrl, approvalGateway);

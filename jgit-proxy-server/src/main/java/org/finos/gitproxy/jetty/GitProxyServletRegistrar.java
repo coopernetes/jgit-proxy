@@ -1,6 +1,7 @@
 package org.finos.gitproxy.jetty;
 
 import jakarta.servlet.DispatcherType;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -41,7 +42,8 @@ public final class GitProxyServletRegistrar {
             LocalRepositoryCache cache,
             CommitConfig commitConfig,
             PushStore pushStore) {
-        registerGitServlet(context, provider, cache, commitConfig, pushStore, null, new AutoApprovalGateway(pushStore));
+        registerGitServlet(
+                context, provider, cache, commitConfig, pushStore, null, new AutoApprovalGateway(pushStore), 10);
     }
 
     public static void registerGitServlet(
@@ -52,6 +54,18 @@ public final class GitProxyServletRegistrar {
             PushStore pushStore,
             String serviceUrl,
             ApprovalGateway approvalGateway) {
+        registerGitServlet(context, provider, cache, commitConfig, pushStore, serviceUrl, approvalGateway, 10);
+    }
+
+    public static void registerGitServlet(
+            ServletContextHandler context,
+            GitProxyProvider provider,
+            LocalRepositoryCache cache,
+            CommitConfig commitConfig,
+            PushStore pushStore,
+            String serviceUrl,
+            ApprovalGateway approvalGateway,
+            int heartbeatIntervalSeconds) {
         var resolver = new StoreAndForwardRepositoryResolver(cache, provider);
 
         var gitServlet = new GitServlet();
@@ -63,7 +77,8 @@ public final class GitProxyServletRegistrar {
                 new DummyUserAuthorizationService(),
                 pushStore,
                 approvalGateway,
-                serviceUrl));
+                serviceUrl,
+                Duration.ofSeconds(heartbeatIntervalSeconds)));
         gitServlet.setUploadPackFactory(new StoreAndForwardUploadPackFactory());
 
         String pushPath = PUSH_PATH_PREFIX + provider.servletPath();

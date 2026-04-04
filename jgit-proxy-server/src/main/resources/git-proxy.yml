@@ -6,6 +6,10 @@ server:
   #   servicenow  — delegates to a ServiceNow approval workflow
   # Note: when running GitProxyWithDashboardApplication, 'ui' mode is always used regardless of this setting.
   approval-mode: auto
+  # Heartbeat interval in seconds for store-and-forward sideband keepalives.
+  # Sends a "." progress packet periodically to prevent idle-timeout disconnects during long validation steps
+  # (e.g. secret scanning, approval polling). Set to 0 to disable.
+  heartbeat-interval-seconds: 10
 
 # Database configuration for push audit storage.
 # Supported types: memory, h2-mem, h2-file, sqlite, postgres, mongo

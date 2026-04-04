@@ -28,6 +28,10 @@ Configuration values can be overridden using environment variables with the `GIT
 ```yaml
 server:
   port: 8080
+  # Approval mode: auto (default) | ui | servicenow
+  approval-mode: auto
+  # Heartbeat interval for store-and-forward sideband keepalives (seconds). 0 = disabled.
+  heartbeat-interval-seconds: 10
 ```
 
 ## Provider Configuration

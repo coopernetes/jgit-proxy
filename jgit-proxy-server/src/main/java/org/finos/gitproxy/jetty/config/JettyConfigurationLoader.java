@@ -151,6 +151,20 @@ public class JettyConfigurationLoader {
         }
     }
 
+    /**
+     * Returns the heartbeat interval in seconds for store-and-forward sideband keepalives. Defaults to 10. Set to 0 to
+     * disable.
+     */
+    @SuppressWarnings("unchecked")
+    public int getHeartbeatIntervalSeconds() {
+        Map<String, Object> serverMap = (Map<String, Object>) config.get("server");
+        if (serverMap != null && serverMap.containsKey("heartbeat-interval-seconds")) {
+            Object val = serverMap.get("heartbeat-interval-seconds");
+            if (val instanceof Number) return ((Number) val).intValue();
+        }
+        return 10;
+    }
+
     /** Returns the approval mode ({@code auto}, {@code ui}, {@code servicenow}). Defaults to {@code auto}. */
     @SuppressWarnings("unchecked")
     public String getApprovalMode() {

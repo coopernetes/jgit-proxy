@@ -2,6 +2,7 @@ package org.finos.gitproxy.git;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
@@ -29,6 +30,8 @@ import org.finos.gitproxy.service.UserAuthorizationService;
 @Slf4j
 public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<HttpServletRequest> {
 
+    private static final Duration DEFAULT_HEARTBEAT_INTERVAL = Duration.ofSeconds(10);
+
     private final GitProxyProvider provider;
     private final CommitConfig commitConfig;
     private final GpgConfig gpgConfig;
@@ -36,13 +39,22 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
     private final PushStore pushStore;
     private final ApprovalGateway approvalGateway;
     private final String serviceUrl;
+    private final Duration heartbeatInterval;
 
     public StoreAndForwardReceivePackFactory(
             GitProxyProvider provider,
             CommitConfig commitConfig,
             PushStore pushStore,
             ApprovalGateway approvalGateway) {
-        this(provider, commitConfig, GpgConfig.defaultConfig(), null, pushStore, approvalGateway, null);
+        this(
+                provider,
+                commitConfig,
+                GpgConfig.defaultConfig(),
+                null,
+                pushStore,
+                approvalGateway,
+                null,
+                DEFAULT_HEARTBEAT_INTERVAL);
     }
 
     public StoreAndForwardReceivePackFactory(
@@ -51,7 +63,15 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
             PushStore pushStore,
             ApprovalGateway approvalGateway,
             String serviceUrl) {
-        this(provider, commitConfig, GpgConfig.defaultConfig(), null, pushStore, approvalGateway, serviceUrl);
+        this(
+                provider,
+                commitConfig,
+                GpgConfig.defaultConfig(),
+                null,
+                pushStore,
+                approvalGateway,
+                serviceUrl,
+                DEFAULT_HEARTBEAT_INTERVAL);
     }
 
     public StoreAndForwardReceivePackFactory(
@@ -62,6 +82,26 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
             PushStore pushStore,
             ApprovalGateway approvalGateway,
             String serviceUrl) {
+        this(
+                provider,
+                commitConfig,
+                gpgConfig,
+                userAuthorizationService,
+                pushStore,
+                approvalGateway,
+                serviceUrl,
+                DEFAULT_HEARTBEAT_INTERVAL);
+    }
+
+    public StoreAndForwardReceivePackFactory(
+            GitProxyProvider provider,
+            CommitConfig commitConfig,
+            GpgConfig gpgConfig,
+            UserAuthorizationService userAuthorizationService,
+            PushStore pushStore,
+            ApprovalGateway approvalGateway,
+            String serviceUrl,
+            Duration heartbeatInterval) {
         this.provider = provider;
         this.commitConfig = commitConfig;
         this.gpgConfig = gpgConfig != null ? gpgConfig : GpgConfig.defaultConfig();
@@ -69,6 +109,7 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
         this.pushStore = pushStore;
         this.approvalGateway = approvalGateway;
         this.serviceUrl = serviceUrl;
+        this.heartbeatInterval = heartbeatInterval != null ? heartbeatInterval : DEFAULT_HEARTBEAT_INTERVAL;
     }
 
     @Override
@@ -167,7 +208,7 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
             preHooks = validationHooks.toArray(PreReceiveHook[]::new);
         }
 
-        rp.setPreReceiveHook(chainPreReceiveHooks(preHooks));
+        rp.setPreReceiveHook(chainPreReceiveHooks(heartbeatInterval, preHooks));
 
         // Post-receive: forward to upstream, then record final status
         var forwardingHook = new ForwardingPostReceiveHook(provider, creds, pushContext);
@@ -182,20 +223,23 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
         return rp;
     }
 
-    private static PreReceiveHook chainPreReceiveHooks(PreReceiveHook... hooks) {
+    private static PreReceiveHook chainPreReceiveHooks(Duration heartbeatInterval, PreReceiveHook... hooks) {
         return (ReceivePack rp, Collection<ReceiveCommand> commands) -> {
-            for (PreReceiveHook hook : hooks) {
-                hook.onPreReceive(rp, commands);
-                // Flush sideband after each hook so messages stream to the client in real time
-                // (JGit's sendMessage() doesn't flush - without this, all output batches up)
-                try {
-                    rp.getMessageOutputStream().flush();
-                } catch (IOException e) {
-                    log.warn("Failed to flush sideband stream", e);
-                }
-                // Stop chain if any command was rejected
-                if (commands.stream().anyMatch(cmd -> cmd.getResult() != ReceiveCommand.Result.NOT_ATTEMPTED)) {
-                    return;
+            try (HeartbeatSender heartbeat = new HeartbeatSender(rp, heartbeatInterval)) {
+                heartbeat.start();
+                for (PreReceiveHook hook : hooks) {
+                    hook.onPreReceive(rp, commands);
+                    // Flush sideband after each hook so messages stream to the client in real time
+                    // (JGit's sendMessage() doesn't flush - without this, all output batches up)
+                    try {
+                        rp.getMessageOutputStream().flush();
+                    } catch (IOException e) {
+                        log.warn("Failed to flush sideband stream", e);
+                    }
+                    // Stop chain if any command was rejected
+                    if (commands.stream().anyMatch(cmd -> cmd.getResult() != ReceiveCommand.Result.NOT_ATTEMPTED)) {
+                        return;
+                    }
                 }
             }
         };

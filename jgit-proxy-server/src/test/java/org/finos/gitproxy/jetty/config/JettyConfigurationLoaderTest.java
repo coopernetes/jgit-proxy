@@ -96,6 +96,21 @@ class JettyConfigurationLoaderTest {
         assertEquals("auto", loader.getApprovalMode());
     }
 
+    // ---- heartbeat ----
+
+    @Test
+    void defaultHeartbeatInterval_is10() {
+        JettyConfigurationLoader loader = new JettyConfigurationLoader();
+        assertEquals(10, loader.getHeartbeatIntervalSeconds());
+    }
+
+    @Test
+    void heartbeatInterval_overrideViaMap() {
+        JettyConfigurationLoader loader =
+                new JettyConfigurationLoader(Map.of("server", Map.of("heartbeat-interval-seconds", 0)));
+        assertEquals(0, loader.getHeartbeatIntervalSeconds());
+    }
+
     // ---- service URL default ----
 
     @Test

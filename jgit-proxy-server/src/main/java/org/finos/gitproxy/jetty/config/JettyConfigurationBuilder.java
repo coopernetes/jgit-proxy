@@ -120,6 +120,11 @@ public class JettyConfigurationBuilder {
         return configLoader.getServiceUrl();
     }
 
+    /** Returns the heartbeat interval in seconds (0 = disabled). */
+    public int getHeartbeatIntervalSeconds() {
+        return configLoader.getHeartbeatIntervalSeconds();
+    }
+
     /**
      * Builds a {@link CommitConfig} from the {@code git-proxy.commit} YAML section.
      *
