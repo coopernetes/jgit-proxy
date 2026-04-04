@@ -6,6 +6,12 @@ database:
   url: mongodb://gitproxy:gitproxy@mongo:27017
   name: gitproxy
 
+users:
+  - username: admin
+    password-hash: "{noop}admin"
+    emails:
+      - admin@example.com
+
 providers:
   github:
     enabled: false
@@ -16,4 +22,3 @@ providers:
   gitea:
     enabled: true
     uri: http://gitea:3000
-    servlet-path: /gitea

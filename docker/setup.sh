@@ -22,7 +22,7 @@ done
 echo "    Gitea is up."
 
 echo "==> Creating admin user '${ADMIN_USER}'..."
-$COMPOSE exec -T gitea /sbin/su-exec git gitea admin user create \
+$COMPOSE exec gitea /sbin/su-exec git gitea admin user create \
     --admin \
     --username "${ADMIN_USER}" \
     --password "${ADMIN_PASSWORD}" \
