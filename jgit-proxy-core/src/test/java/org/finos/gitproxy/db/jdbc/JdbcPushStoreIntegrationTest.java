@@ -287,6 +287,68 @@ class JdbcPushStoreIntegrationTest {
         assertEquals(20, all.size());
     }
 
+    // ---- commits persistence ----
+
+    @Test
+    void save_withCommits_commitsRoundTripCorrectly() {
+        PushRecord r = record("abc", "refs/heads/main", "repo");
+        org.finos.gitproxy.db.model.PushCommit commit = org.finos.gitproxy.db.model.PushCommit.builder()
+                .pushId(r.getId())
+                .sha("deadbeef")
+                .parentSha("cafebabe")
+                .authorName("Alice")
+                .authorEmail("alice@example.com")
+                .committerName("Alice")
+                .committerEmail("alice@example.com")
+                .message("feat: add thing")
+                .signedOffBy(List.of("Alice <alice@example.com>", "Bob <bob@example.com>"))
+                .build();
+        r.setCommits(List.of(commit));
+        store.save(r);
+
+        PushRecord loaded = store.findById(r.getId()).orElseThrow();
+
+        assertEquals(1, loaded.getCommits().size());
+        org.finos.gitproxy.db.model.PushCommit loadedCommit =
+                loaded.getCommits().get(0);
+        assertEquals("deadbeef", loadedCommit.getSha());
+        assertEquals("cafebabe", loadedCommit.getParentSha());
+        assertEquals("Alice", loadedCommit.getAuthorName());
+        assertEquals("alice@example.com", loadedCommit.getAuthorEmail());
+        assertEquals("feat: add thing", loadedCommit.getMessage());
+        assertEquals(List.of("Alice <alice@example.com>", "Bob <bob@example.com>"), loadedCommit.getSignedOffBy());
+    }
+
+    // ---- find with search ----
+
+    @Test
+    void find_bySearch_matchesProjectAndRepoName() {
+        PushRecord r1 = PushRecord.builder()
+                .project("finos")
+                .repoName("git-proxy")
+                .commitTo("a")
+                .branch("refs/heads/main")
+                .build();
+        PushRecord r2 = PushRecord.builder()
+                .project("acme")
+                .repoName("widget-service")
+                .commitTo("b")
+                .branch("refs/heads/main")
+                .build();
+        store.save(r1);
+        store.save(r2);
+
+        List<PushRecord> results =
+                store.find(PushQuery.builder().search("finos").build());
+        assertEquals(1, results.size());
+        assertEquals("finos", results.get(0).getProject());
+
+        List<PushRecord> byRepo =
+                store.find(PushQuery.builder().search("widget").build());
+        assertEquals(1, byRepo.size());
+        assertEquals("widget-service", byRepo.get(0).getRepoName());
+    }
+
     // ---- initialize idempotency ----
 
     @Test
