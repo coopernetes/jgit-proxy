@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import javax.sql.DataSource;
 import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.approval.ApprovalGateway;
 import org.finos.gitproxy.approval.AutoApprovalGateway;
@@ -13,9 +14,20 @@ import org.finos.gitproxy.approval.UiApprovalGateway;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.db.PushStoreFactory;
+import org.finos.gitproxy.db.jdbc.DataSourceFactory;
 import org.finos.gitproxy.provider.*;
+import org.finos.gitproxy.service.ConfigPushIdentityResolver;
+import org.finos.gitproxy.service.DummyUserAuthorizationService;
+import org.finos.gitproxy.service.LinkedIdentityAuthorizationService;
+import org.finos.gitproxy.service.PushIdentityResolver;
+import org.finos.gitproxy.service.UserAuthorizationService;
 import org.finos.gitproxy.servlet.filter.RepositoryUrlFilter;
 import org.finos.gitproxy.servlet.filter.WhitelistByUrlFilter;
+import org.finos.gitproxy.user.JdbcUserStore;
+import org.finos.gitproxy.user.ScmIdentity;
+import org.finos.gitproxy.user.StaticUserStore;
+import org.finos.gitproxy.user.UserEntry;
+import org.finos.gitproxy.user.UserStore;
 
 /**
  * Constructs runtime objects ({@link GitProxyProvider}, {@link CommitConfig}, {@link PushStore}, etc.) from the parsed
@@ -26,6 +38,7 @@ import org.finos.gitproxy.servlet.filter.WhitelistByUrlFilter;
 public class JettyConfigurationBuilder {
 
     private final GitProxyConfig config;
+    private DataSource cachedDataSource;
 
     public JettyConfigurationBuilder(GitProxyConfig config) {
         this.config = config;
@@ -210,18 +223,80 @@ public class JettyConfigurationBuilder {
 
         return switch (db.getType()) {
             case "memory" -> PushStoreFactory.inMemory();
-            case "h2-mem" -> PushStoreFactory.h2InMemory(db.getName());
-            case "h2-file" ->
-                PushStoreFactory.h2File(db.getPath().isBlank() ? "./.data/" + db.getName() : db.getPath());
-            case "sqlite" ->
-                PushStoreFactory.sqlite(db.getPath().isBlank() ? "./.data/" + db.getName() + ".db" : db.getPath());
-            case "postgres" ->
-                PushStoreFactory.postgres(db.getHost(), db.getPort(), db.getName(), db.getUsername(), db.getPassword());
+            case "h2-mem", "h2-file", "sqlite", "postgres" -> PushStoreFactory.fromDataSource(requireJdbcDataSource());
             case "mongo" -> PushStoreFactory.mongo(db.getUrl(), db.getName());
             default ->
                 throw new IllegalArgumentException("Unknown database type: " + db.getType()
                         + ". Supported: memory, h2-mem, h2-file, sqlite, postgres, mongo");
         };
+    }
+
+    /** Builds a {@link UserStore} from config. JDBC backends share the same {@link DataSource} as the push store. */
+    public UserStore buildUserStore() {
+        List<UserEntry> staticUsers = config.getUsers().stream()
+                .map(uc -> UserEntry.builder()
+                        .username(uc.getUsername())
+                        .passwordHash(uc.getPasswordHash())
+                        .emails(uc.getEmails())
+                        .pushUsernames(uc.getPushUsernames())
+                        .scmIdentities(uc.getScmIdentities().stream()
+                                .map(s -> ScmIdentity.builder()
+                                        .provider(s.getProvider())
+                                        .username(s.getUsername())
+                                        .build())
+                                .toList())
+                        .build())
+                .toList();
+
+        String type = config.getDatabase().getType();
+        if ("memory".equals(type) || "mongo".equals(type)) {
+            log.info("Using in-memory user store ({} users)", staticUsers.size());
+            return new StaticUserStore(staticUsers);
+        }
+        JdbcUserStore store = new JdbcUserStore(requireJdbcDataSource());
+        store.upsertAll(staticUsers);
+        log.info("Using JDBC user store ({} users seeded)", staticUsers.size());
+        return store;
+    }
+
+    /**
+     * Builds the {@link PushIdentityResolver}. Uses {@link ConfigPushIdentityResolver} when users are configured,
+     * otherwise returns null (no identity checks).
+     */
+    public PushIdentityResolver buildPushIdentityResolver(UserStore userStore) {
+        if (config.getUsers().isEmpty()) return null;
+        return new ConfigPushIdentityResolver(userStore);
+    }
+
+    /**
+     * Builds the {@link UserAuthorizationService}. Uses {@link LinkedIdentityAuthorizationService} when users are
+     * configured, otherwise falls back to {@link DummyUserAuthorizationService} (open/permissive mode).
+     */
+    public UserAuthorizationService buildUserAuthService(UserStore userStore) {
+        if (config.getUsers().isEmpty()) {
+            log.info("No users configured — open authorization mode (all pushes permitted)");
+            return new DummyUserAuthorizationService();
+        }
+        log.info("User authorization enabled ({} users)", config.getUsers().size());
+        return new LinkedIdentityAuthorizationService(userStore);
+    }
+
+    private DataSource requireJdbcDataSource() {
+        if (cachedDataSource == null) {
+            DatabaseConfig db = config.getDatabase();
+            cachedDataSource = switch (db.getType()) {
+                case "h2-mem" -> DataSourceFactory.h2InMemory(db.getName());
+                case "h2-file" ->
+                    DataSourceFactory.h2File(db.getPath().isBlank() ? "./.data/" + db.getName() : db.getPath());
+                case "sqlite" ->
+                    DataSourceFactory.sqlite(db.getPath().isBlank() ? "./.data/" + db.getName() + ".db" : db.getPath());
+                case "postgres" ->
+                    DataSourceFactory.postgres(
+                            db.getHost(), db.getPort(), db.getName(), db.getUsername(), db.getPassword());
+                default -> throw new IllegalStateException("No JDBC DataSource for db type: " + db.getType());
+            };
+        }
+        return cachedDataSource;
     }
 
     private GitProxyProvider createProvider(String name, ProviderConfig providerConfig) {

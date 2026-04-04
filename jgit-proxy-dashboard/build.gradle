@@ -51,6 +51,10 @@ dependencies {
     // Spring MVC for the REST API and dashboard
     implementation "org.springframework:spring-webmvc:${springVersion}"
 
+    // Spring Security
+    implementation "org.springframework.security:spring-security-web:${springSecurityVersion}"
+    implementation "org.springframework.security:spring-security-config:${springSecurityVersion}"
+
     // Jackson JSON processing
     implementation "tools.jackson.core:jackson-databind"
 
@@ -90,4 +94,11 @@ tasks.named('test') {
 
 tasks.named('check') {
     dependsOn tasks.named('testCodeCoverageReport', JacocoReport)
+}
+
+// testCodeCoverageReport aggregates jgit-proxy-core's source sets, which include the
+// generated-resources directory produced by downloadGitleaks. Declare the dependency
+// explicitly so Gradle's task-ordering validation passes.
+tasks.named('testCodeCoverageReport') {
+    dependsOn ':jgit-proxy-core:downloadGitleaks'
 }

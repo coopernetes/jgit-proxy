@@ -14,6 +14,9 @@ import org.finos.gitproxy.git.LocalRepositoryCache;
 import org.finos.gitproxy.jetty.config.GitProxyConfigLoader;
 import org.finos.gitproxy.jetty.config.JettyConfigurationBuilder;
 import org.finos.gitproxy.provider.GitProxyProvider;
+import org.finos.gitproxy.service.PushIdentityResolver;
+import org.finos.gitproxy.service.UserAuthorizationService;
+import org.finos.gitproxy.user.UserStore;
 
 /**
  * Standalone Jetty server application for the JGit proxy. Registers two servlets per provider:
@@ -50,6 +53,10 @@ public class GitProxyJettyApplication {
         PushStore pushStore = configBuilder.buildPushStore();
         log.info("Push store initialized: {}", pushStore.getClass().getSimpleName());
 
+        UserStore userStore = configBuilder.buildUserStore();
+        PushIdentityResolver pushIdentityResolver = configBuilder.buildPushIdentityResolver(userStore);
+        UserAuthorizationService userAuthService = configBuilder.buildUserAuthService(userStore);
+
         ApprovalGateway approvalGateway = configBuilder.buildApprovalGateway(pushStore);
 
         var storeForwardCache = new LocalRepositoryCache(Files.createTempDirectory("jgit-proxy-sf-"), 0, true);
@@ -75,10 +82,21 @@ public class GitProxyJettyApplication {
                     pushStore,
                     serviceUrl,
                     approvalGateway,
+                    pushIdentityResolver,
+                    userAuthService,
                     configBuilder.getHeartbeatIntervalSeconds());
             GitProxyServletRegistrar.registerProxyServlet(context, provider);
             GitProxyServletRegistrar.registerFilters(
-                    context, provider, proxyCache, configBuilder, commitConfig, pushStore, serviceUrl, approvalGateway);
+                    context,
+                    provider,
+                    proxyCache,
+                    configBuilder,
+                    commitConfig,
+                    pushStore,
+                    serviceUrl,
+                    approvalGateway,
+                    pushIdentityResolver,
+                    userAuthService);
         }
 
         server.setHandler(context);

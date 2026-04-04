@@ -6,13 +6,15 @@ import static org.finos.gitproxy.git.GitClientUtils.color;
 import static org.finos.gitproxy.git.GitClientUtils.sym;
 
 import java.util.Collection;
-import lombok.RequiredArgsConstructor;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
 import org.finos.gitproxy.db.model.PushStep;
 import org.finos.gitproxy.db.model.StepStatus;
+import org.finos.gitproxy.service.PushIdentityResolver;
 import org.finos.gitproxy.service.UserAuthorizationService;
+import org.finos.gitproxy.user.UserEntry;
 
 /**
  * Pre-receive hook that validates the pushing user has permission to push to this repository. Mirrors the behavior of
@@ -22,18 +24,42 @@ import org.finos.gitproxy.service.UserAuthorizationService;
  * {@code gitproxy.pushUser} by {@link StoreAndForwardReceivePackFactory}.
  */
 @Slf4j
-@RequiredArgsConstructor
 public class CheckUserPushPermissionHook implements GitProxyHook {
 
     private static final int ORDER = 150;
 
+    private final PushIdentityResolver identityResolver;
     private final UserAuthorizationService userAuthorizationService;
     private final ValidationContext validationContext;
     private final PushContext pushContext;
+    private final String providerName;
+
+    public CheckUserPushPermissionHook(
+            PushIdentityResolver identityResolver,
+            UserAuthorizationService userAuthorizationService,
+            ValidationContext validationContext,
+            PushContext pushContext) {
+        this(identityResolver, userAuthorizationService, validationContext, pushContext, "");
+    }
+
+    public CheckUserPushPermissionHook(
+            PushIdentityResolver identityResolver,
+            UserAuthorizationService userAuthorizationService,
+            ValidationContext validationContext,
+            PushContext pushContext,
+            String providerName) {
+        this.identityResolver = identityResolver;
+        this.userAuthorizationService = userAuthorizationService;
+        this.validationContext = validationContext;
+        this.pushContext = pushContext;
+        this.providerName = providerName != null ? providerName : "";
+    }
 
     @Override
     public void onPreReceive(ReceivePack rp, Collection<ReceiveCommand> commands) {
-        String pushUser = rp.getRepository().getConfig().getString("gitproxy", null, "pushUser");
+        var config = rp.getRepository().getConfig();
+        String pushUser = config.getString("gitproxy", null, "pushUser");
+        String pushToken = config.getString("gitproxy", null, "pushToken");
 
         if (pushUser == null || pushUser.isEmpty()) {
             log.debug("No push user found in repo config, skipping permission check");
@@ -45,8 +71,13 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
             return;
         }
 
-        if (!userAuthorizationService.userExists(pushUser)) {
-            log.warn("Push user {} does not exist", pushUser);
+        // Resolve identity: who is the person behind these credentials?
+        Optional<UserEntry> resolved = identityResolver != null
+                ? identityResolver.resolve(providerName, pushUser, pushToken)
+                : Optional.empty();
+
+        if (resolved.isEmpty()) {
+            log.warn("Push user '{}' could not be resolved to a registered proxy user", pushUser);
             String detail = GitClientUtils.format(
                     sym(NO_ENTRY) + "  Push Blocked - User Not Registered",
                     sym(CROSS_MARK) + "  " + pushUser + " is not registered.\n\nContact an administrator for support.",
@@ -57,19 +88,21 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
             return;
         }
 
-        if (!userAuthorizationService.isUserAuthorizedToPush(pushUser, null)) {
-            log.warn("Push user {} is not authorized", pushUser);
+        UserEntry user = resolved.get();
+        if (!userAuthorizationService.isUserAuthorizedToPush(user.getUsername(), null)) {
+            log.warn("Push user '{}' (resolved as '{}') is not authorized", pushUser, user.getUsername());
             String detail = GitClientUtils.format(
                     sym(NO_ENTRY) + "  Push Blocked - Unauthorized",
-                    sym(CROSS_MARK) + "  " + pushUser + " is not authorized to push to this repository.",
+                    sym(CROSS_MARK) + "  " + user.getUsername() + " is not authorized to push to this repository.",
                     RED,
                     null);
-            validationContext.addIssue("CheckUserPushPermissionHook", "User not authorized: " + pushUser, detail);
-            rp.sendMessage(color(RED, "  " + sym(CROSS_MARK) + "  " + pushUser + " - not authorized"));
+            validationContext.addIssue(
+                    "CheckUserPushPermissionHook", "User not authorized: " + user.getUsername(), detail);
+            rp.sendMessage(color(RED, "  " + sym(CROSS_MARK) + "  " + user.getUsername() + " - not authorized"));
             return;
         }
 
-        log.debug("Push user {} is authorized", pushUser);
+        log.debug("Push user '{}' resolved as '{}' and authorized", pushUser, user.getUsername());
         pushContext.addStep(PushStep.builder()
                 .stepName("checkUserPermission")
                 .stepOrder(ORDER)

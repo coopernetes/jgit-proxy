@@ -1,8 +1,18 @@
 logging:
   level:
     org.finos.gitproxy: DEBUG
-database:
-  type: h2-file
+
+# Dev user for local testing. Use {noop} prefix for plaintext passwords (dev only).
+# For production, use {bcrypt} prefix: htpasswd -bnBC 12 "" yourpassword | tr -d ':\n'
+# then set password-hash: "{bcrypt}$2a$12$..."
+users:
+  - username: admin
+    password-hash: "{noop}admin"
+    emails:
+      - developer@example.com
+    push-usernames:
+      - me
+      - admin
 commit:
   author:
     email:

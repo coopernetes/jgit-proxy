@@ -8,12 +8,16 @@ import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Base64;
+import java.util.Optional;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.git.GitClientUtils;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
+import org.finos.gitproxy.service.PushIdentityResolver;
 import org.finos.gitproxy.service.UserAuthorizationService;
+import org.finos.gitproxy.user.UserEntry;
 
 /**
  * Filter that validates a user has permission to push to a repository. This filter checks with the
@@ -25,10 +29,13 @@ import org.finos.gitproxy.service.UserAuthorizationService;
 public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
 
     private static final int ORDER = 150;
+    private final PushIdentityResolver identityResolver;
     private final UserAuthorizationService userAuthorizationService;
 
-    public CheckUserPushPermissionFilter(UserAuthorizationService userAuthorizationService) {
+    public CheckUserPushPermissionFilter(
+            PushIdentityResolver identityResolver, UserAuthorizationService userAuthorizationService) {
         super(ORDER, Set.of(HttpOperation.PUSH));
+        this.identityResolver = identityResolver;
         this.userAuthorizationService = userAuthorizationService;
     }
 
@@ -50,37 +57,28 @@ public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
             return;
         }
 
-        // Branch deletions and tag pushes carry no commit author to identify the user;
-        // identity is already verified by HTTP basic auth at the transport layer.
-        String commitTo = requestDetails.getCommitTo();
-        if (commitTo != null && commitTo.matches("^0+$")) {
-            log.debug("Branch deletion detected (commitTo={}), skipping user permission check", commitTo);
-            return;
-        }
-        if (requestDetails.isTagPush()) {
-            log.debug("Tag push detected (ref={}), skipping user email check", requestDetails.getBranch());
+        // No resolver means open mode — no user store configured, skip the check.
+        if (identityResolver == null) {
+            log.debug("No PushIdentityResolver configured — skipping push permission check (open mode)");
             return;
         }
 
-        // Extract user email from commit author
-        String userEmail = null;
-        if (requestDetails.getCommit() != null && requestDetails.getCommit().getAuthor() != null) {
-            userEmail = requestDetails.getCommit().getAuthor().getEmail();
-        }
+        // Resolve identity from HTTP Basic-auth credentials (provider + username + token).
+        // We do NOT use commit author email — it's unverifiable and not provided by the proxy user.
+        String[] userPass = extractBasicAuth(request);
+        String pushUsername = userPass != null ? userPass[0] : null;
+        String pushToken = userPass != null ? userPass[1] : null;
+        String provider = requestDetails.getProvider() != null
+                ? requestDetails.getProvider().getName()
+                : "";
 
-        if (userEmail == null || userEmail.isEmpty()) {
-            log.warn("User email not found in commit author");
-            String title = sym(NO_ENTRY) + "  Push Blocked - Unknown User";
-            String message = "Could not identify the pushing user.\n" + "\n" + "Contact an administrator for support.";
-            rejectAndSendError(request, response, "User not found", GitClientUtils.format(title, message, RED, null));
-            return;
-        }
+        Optional<UserEntry> resolved = identityResolver.resolve(provider, pushUsername, pushToken);
 
-        // Check if user exists
-        if (!userAuthorizationService.userExists(userEmail)) {
-            log.warn("User {} does not exist in the system", userEmail);
+        if (resolved.isEmpty()) {
+            String identity = pushUsername != null ? pushUsername : "(unknown)";
+            log.warn("Push user '{}' could not be resolved to a registered proxy user", identity);
             String title = sym(NO_ENTRY) + "  Push Blocked - User Not Registered";
-            String message = sym(CROSS_MARK) + "  " + userEmail + " is not registered.\n"
+            String message = sym(CROSS_MARK) + "  " + identity + " is not registered.\n"
                     + "\n"
                     + "Contact an administrator for support.";
             rejectAndSendError(
@@ -88,23 +86,28 @@ public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
             return;
         }
 
-        // Get repository URL
+        UserEntry user = resolved.get();
         String repositoryUrl = getRepositoryUrl(requestDetails);
 
-        // Check if user is authorized to push
-        boolean isAuthorized = userAuthorizationService.isUserAuthorizedToPush(userEmail, repositoryUrl);
-
-        if (!isAuthorized) {
-            log.warn("User {} is not authorized to push to repository {}", userEmail, repositoryUrl);
+        if (!userAuthorizationService.isUserAuthorizedToPush(user.getUsername(), repositoryUrl)) {
+            log.warn(
+                    "Push user '{}' (resolved as '{}') is not authorized to push to {}",
+                    pushUsername,
+                    user.getUsername(),
+                    repositoryUrl);
             String title = sym(NO_ENTRY) + "  Push Blocked - Unauthorized";
-            String message = sym(CROSS_MARK) + "  " + userEmail + " is not allowed to push to:\n" + "   " + sym(LINK)
-                    + "  " + repositoryUrl;
+            String message = sym(CROSS_MARK) + "  " + user.getUsername() + " is not allowed to push to:\n" + "   "
+                    + sym(LINK) + "  " + repositoryUrl;
             rejectAndSendError(
                     request, response, "User not authorized", GitClientUtils.format(title, message, RED, null));
             return;
         }
 
-        log.debug("User {} is authorized to push to repository {}", userEmail, repositoryUrl);
+        log.debug(
+                "Push user '{}' resolved as '{}' and authorized for {}",
+                pushUsername,
+                user.getUsername(),
+                repositoryUrl);
     }
 
     /**
@@ -120,5 +123,19 @@ public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
             return String.format("https://%s/%s", providerName, slug);
         }
         return requestDetails.getRepoRef().getSlug();
+    }
+
+    private static String[] extractBasicAuth(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Basic ")) return null;
+        try {
+            String decoded = new String(Base64.getDecoder()
+                    .decode(authHeader.substring("Basic ".length()).trim()));
+            int colon = decoded.indexOf(':');
+            if (colon < 0) return null;
+            return new String[] {decoded.substring(0, colon), decoded.substring(colon + 1)};
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 }

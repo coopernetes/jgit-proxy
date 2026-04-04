@@ -5,6 +5,7 @@ set -euo pipefail
 
 GIT_USERNAME=${GIT_USERNAME:-"me"}
 GIT_REPO=${GIT_REPO:-"github.com/coopernetes/test-repo.git"}
+GITPROXY_API_KEY=${GITPROXY_API_KEY:-""}
 PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${GIT_REPO}"
 LIGHTWEIGHT_TAG="test/proxy-lw-tag-$(date +%s)"
 ANNOTATED_TAG="test/proxy-ann-tag-$(date +%s)"
@@ -45,6 +46,7 @@ echo "==> Push ID: ${PUSH_ID}"
 APPROVE_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
     -X POST "http://localhost:8080/api/push/${PUSH_ID}/authorise" \
     -H "Content-Type: application/json" \
+    -H "X-Api-Key: ${GITPROXY_API_KEY}" \
     -d '{"user":"test-script","comment":"auto-approved by proxy-pass.sh"}')
 if [ "${APPROVE_RESPONSE}" != "200" ]; then
     echo "ERROR: Approval API returned HTTP ${APPROVE_RESPONSE}"
@@ -70,6 +72,7 @@ echo "==> Push ID: ${PUSH_ID}"
 APPROVE_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
     -X POST "http://localhost:8080/api/push/${PUSH_ID}/authorise" \
     -H "Content-Type: application/json" \
+    -H "X-Api-Key: ${GITPROXY_API_KEY}" \
     -d '{"user":"test-script","comment":"auto-approved by proxy-pass.sh"}')
 if [ "${APPROVE_RESPONSE}" != "200" ]; then
     echo "ERROR: Approval API returned HTTP ${APPROVE_RESPONSE}"

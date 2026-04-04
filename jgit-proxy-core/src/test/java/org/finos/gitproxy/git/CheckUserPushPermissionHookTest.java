@@ -7,6 +7,7 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.PersonIdent;
@@ -15,7 +16,9 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
 import org.finos.gitproxy.db.model.StepStatus;
+import org.finos.gitproxy.service.PushIdentityResolver;
 import org.finos.gitproxy.service.UserAuthorizationService;
+import org.finos.gitproxy.user.UserEntry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -27,6 +30,7 @@ class CheckUserPushPermissionHookTest {
 
     Git git;
     Repository repo;
+    PushIdentityResolver resolver;
     UserAuthorizationService authService;
 
     @BeforeEach
@@ -35,6 +39,7 @@ class CheckUserPushPermissionHookTest {
         repo = git.getRepository();
         repo.getConfig().setBoolean("commit", null, "gpgsign", false);
         repo.getConfig().save();
+        resolver = mock(PushIdentityResolver.class);
         authService = mock(UserAuthorizationService.class);
     }
 
@@ -49,6 +54,12 @@ class CheckUserPushPermissionHookTest {
                 .call();
     }
 
+    private CheckUserPushPermissionHook hook(ValidationContext vc, PushContext pc) {
+        return new CheckUserPushPermissionHook(resolver, authService, vc, pc);
+    }
+
+    // ---- no pushUser in repo config → skip ----
+
     @Test
     void noPushUser_skipsCheck_recordsPass() throws Exception {
         RevCommit c1 = createCommit("init");
@@ -58,20 +69,55 @@ class CheckUserPushPermissionHookTest {
         PushContext pushContext = new PushContext();
         ValidationContext validationContext = new ValidationContext();
 
-        new CheckUserPushPermissionHook(authService, validationContext, pushContext).onPreReceive(rp, List.of(cmd));
+        hook(validationContext, pushContext).onPreReceive(rp, List.of(cmd));
 
         assertFalse(pushContext.getSteps().isEmpty());
         assertEquals(StepStatus.PASS, pushContext.getSteps().get(0).getStatus());
         assertFalse(validationContext.hasIssues());
+        verifyNoInteractions(resolver, authService);
+    }
+
+    // ---- resolver returns empty → "not registered" ----
+
+    @Test
+    void resolverReturnsEmpty_addsNotRegisteredIssue() throws Exception {
+        repo.getConfig().setString("gitproxy", null, "pushUser", "unknown-user");
+        repo.getConfig().save();
+        when(resolver.resolve(anyString(), eq("unknown-user"), any())).thenReturn(Optional.empty());
+
+        RevCommit c1 = createCommit("init");
+        RevCommit c2 = createCommit("second");
+        ReceivePack rp = new ReceivePack(repo);
+        ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
+        PushContext pushContext = new PushContext();
+        ValidationContext validationContext = new ValidationContext();
+
+        hook(validationContext, pushContext).onPreReceive(rp, List.of(cmd));
+
+        assertTrue(validationContext.hasIssues());
+        assertEquals(
+                "CheckUserPushPermissionHook",
+                validationContext.getIssues().get(0).hookName());
+        assertTrue(
+                validationContext.getIssues().get(0).summary().contains("does not exist"),
+                "Issue message should mention 'does not exist'");
         verifyNoInteractions(authService);
     }
 
+    // ---- resolver resolves user but not authorized ----
+
     @Test
-    void userExistsAndAuthorized_recordsPass() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "pushUser", "alice@example.com");
+    void userNotAuthorized_addsUnauthorizedIssue() throws Exception {
+        repo.getConfig().setString("gitproxy", null, "pushUser", "corp-user");
         repo.getConfig().save();
-        when(authService.userExists("alice@example.com")).thenReturn(true);
-        when(authService.isUserAuthorizedToPush("alice@example.com", null)).thenReturn(true);
+        UserEntry user = UserEntry.builder()
+                .username("alice")
+                .emails(List.of())
+                .pushUsernames(List.of("corp-user"))
+                .scmIdentities(List.of())
+                .build();
+        when(resolver.resolve(anyString(), eq("corp-user"), any())).thenReturn(Optional.of(user));
+        when(authService.isUserAuthorizedToPush("alice", null)).thenReturn(false);
 
         RevCommit c1 = createCommit("init");
         RevCommit c2 = createCommit("second");
@@ -80,53 +126,94 @@ class CheckUserPushPermissionHookTest {
         PushContext pushContext = new PushContext();
         ValidationContext validationContext = new ValidationContext();
 
-        new CheckUserPushPermissionHook(authService, validationContext, pushContext).onPreReceive(rp, List.of(cmd));
+        hook(validationContext, pushContext).onPreReceive(rp, List.of(cmd));
 
+        assertTrue(validationContext.hasIssues());
+        assertEquals(
+                "CheckUserPushPermissionHook",
+                validationContext.getIssues().get(0).hookName());
+        assertTrue(
+                validationContext.getIssues().get(0).summary().contains("not authorized"),
+                "Issue message should mention 'not authorized'");
+    }
+
+    // ---- resolver resolves and authorized → PASS ----
+
+    @Test
+    void resolvedAndAuthorized_recordsPass() throws Exception {
+        repo.getConfig().setString("gitproxy", null, "pushUser", "corp-user");
+        repo.getConfig().setString("gitproxy", null, "pushToken", "ghp_secret");
+        repo.getConfig().save();
+        UserEntry user = UserEntry.builder()
+                .username("alice")
+                .emails(List.of())
+                .pushUsernames(List.of("corp-user"))
+                .scmIdentities(List.of())
+                .build();
+        when(resolver.resolve(anyString(), eq("corp-user"), eq("ghp_secret"))).thenReturn(Optional.of(user));
+        when(authService.isUserAuthorizedToPush("alice", null)).thenReturn(true);
+
+        RevCommit c1 = createCommit("init");
+        RevCommit c2 = createCommit("second");
+        ReceivePack rp = new ReceivePack(repo);
+        ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
+        PushContext pushContext = new PushContext();
+        ValidationContext validationContext = new ValidationContext();
+
+        hook(validationContext, pushContext).onPreReceive(rp, List.of(cmd));
+
+        assertFalse(validationContext.hasIssues());
         assertFalse(pushContext.getSteps().isEmpty());
         assertEquals(StepStatus.PASS, pushContext.getSteps().get(0).getStatus());
+    }
+
+    // ---- null resolver (open mode) → treated same as resolver returning empty ----
+
+    @Test
+    void nullResolver_withPushUser_addsNotRegisteredIssue() throws Exception {
+        repo.getConfig().setString("gitproxy", null, "pushUser", "anyone");
+        repo.getConfig().save();
+
+        RevCommit c1 = createCommit("init");
+        RevCommit c2 = createCommit("second");
+        ReceivePack rp = new ReceivePack(repo);
+        ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
+        PushContext pushContext = new PushContext();
+        ValidationContext validationContext = new ValidationContext();
+
+        // Explicit null resolver
+        new CheckUserPushPermissionHook(null, authService, validationContext, pushContext)
+                .onPreReceive(rp, List.of(cmd));
+
+        assertTrue(validationContext.hasIssues(), "Null resolver should still block — no way to verify identity");
+    }
+
+    // ---- providerName is passed through to resolver ----
+
+    @Test
+    void providerName_isPassedToResolver() throws Exception {
+        repo.getConfig().setString("gitproxy", null, "pushUser", "my-user");
+        repo.getConfig().save();
+        UserEntry user = UserEntry.builder()
+                .username("my-user")
+                .emails(List.of())
+                .pushUsernames(List.of())
+                .scmIdentities(List.of())
+                .build();
+        when(resolver.resolve(eq("github.com"), eq("my-user"), any())).thenReturn(Optional.of(user));
+        when(authService.isUserAuthorizedToPush("my-user", null)).thenReturn(true);
+
+        RevCommit c1 = createCommit("init");
+        RevCommit c2 = createCommit("second");
+        ReceivePack rp = new ReceivePack(repo);
+        ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
+        PushContext pushContext = new PushContext();
+        ValidationContext validationContext = new ValidationContext();
+
+        new CheckUserPushPermissionHook(resolver, authService, validationContext, pushContext, "github.com")
+                .onPreReceive(rp, List.of(cmd));
+
+        verify(resolver).resolve(eq("github.com"), eq("my-user"), any());
         assertFalse(validationContext.hasIssues());
-    }
-
-    @Test
-    void userDoesNotExist_addsValidationIssue() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "pushUser", "ghost@example.com");
-        repo.getConfig().save();
-        when(authService.userExists("ghost@example.com")).thenReturn(false);
-
-        RevCommit c1 = createCommit("init");
-        RevCommit c2 = createCommit("second");
-        ReceivePack rp = new ReceivePack(repo);
-        ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
-        PushContext pushContext = new PushContext();
-        ValidationContext validationContext = new ValidationContext();
-
-        new CheckUserPushPermissionHook(authService, validationContext, pushContext).onPreReceive(rp, List.of(cmd));
-
-        assertTrue(validationContext.hasIssues());
-        assertEquals(
-                "CheckUserPushPermissionHook",
-                validationContext.getIssues().get(0).hookName());
-    }
-
-    @Test
-    void userNotAuthorized_addsValidationIssue() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "pushUser", "blocked@example.com");
-        repo.getConfig().save();
-        when(authService.userExists("blocked@example.com")).thenReturn(true);
-        when(authService.isUserAuthorizedToPush("blocked@example.com", null)).thenReturn(false);
-
-        RevCommit c1 = createCommit("init");
-        RevCommit c2 = createCommit("second");
-        ReceivePack rp = new ReceivePack(repo);
-        ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
-        PushContext pushContext = new PushContext();
-        ValidationContext validationContext = new ValidationContext();
-
-        new CheckUserPushPermissionHook(authService, validationContext, pushContext).onPreReceive(rp, List.of(cmd));
-
-        assertTrue(validationContext.hasIssues());
-        assertEquals(
-                "CheckUserPushPermissionHook",
-                validationContext.getIssues().get(0).hookName());
     }
 }

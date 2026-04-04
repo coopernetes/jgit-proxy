@@ -113,3 +113,10 @@ tasks.register('e2eTest', Test) {
 tasks.named('check') {
     dependsOn tasks.named('testCodeCoverageReport', JacocoReport)
 }
+
+// testCodeCoverageReport aggregates jgit-proxy-core's source sets, which include the
+// generated-resources directory produced by downloadGitleaks. Declare the dependency
+// explicitly so Gradle's task-ordering validation passes.
+tasks.named('testCodeCoverageReport') {
+    dependsOn ':jgit-proxy-core:downloadGitleaks'
+}

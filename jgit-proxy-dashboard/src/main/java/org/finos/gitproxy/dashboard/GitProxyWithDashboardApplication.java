@@ -1,8 +1,13 @@
 package org.finos.gitproxy.dashboard;
 
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.ServletContextEvent;
+import jakarta.servlet.ServletContextListener;
 import java.nio.file.Files;
+import java.util.EnumSet;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jetty.ee11.servlet.FilterHolder;
 import org.eclipse.jetty.ee11.servlet.ServletContextHandler;
 import org.eclipse.jetty.ee11.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
@@ -17,7 +22,12 @@ import org.finos.gitproxy.jetty.GitProxyServletRegistrar;
 import org.finos.gitproxy.jetty.config.GitProxyConfigLoader;
 import org.finos.gitproxy.jetty.config.JettyConfigurationBuilder;
 import org.finos.gitproxy.provider.GitProxyProvider;
+import org.finos.gitproxy.service.PushIdentityResolver;
+import org.finos.gitproxy.service.UserAuthorizationService;
+import org.finos.gitproxy.user.UserStore;
+import org.springframework.security.web.context.AbstractSecurityWebApplicationInitializer;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
+import org.springframework.web.filter.DelegatingFilterProxy;
 import org.springframework.web.servlet.DispatcherServlet;
 
 /**
@@ -51,6 +61,10 @@ public class GitProxyWithDashboardApplication {
         PushStore pushStore = configBuilder.buildPushStore();
         log.info("Push store initialized: {}", pushStore.getClass().getSimpleName());
 
+        UserStore userStore = configBuilder.buildUserStore();
+        PushIdentityResolver pushIdentityResolver = configBuilder.buildPushIdentityResolver(userStore);
+        UserAuthorizationService userAuthService = configBuilder.buildUserAuthService(userStore);
+
         // Always use UiApprovalGateway when running with the dashboard — the REST API is what drives approval.
         // This is intentionally not derived from approval-mode config: the dashboard deployment always needs
         // UI-based review regardless of what is set in the config file.
@@ -62,7 +76,7 @@ public class GitProxyWithDashboardApplication {
         List<GitProxyProvider> providers = configBuilder.buildProviders();
         var providerConfig = new InMemoryProviderConfigurationSource(providers);
 
-        var context = new ServletContextHandler("/", false, false);
+        var context = new ServletContextHandler("/", true, false);
         var commitConfig = configBuilder.buildCommitConfig();
 
         // Register git proxy servlets (store-and-forward + transparent proxy) for each provider
@@ -77,14 +91,25 @@ public class GitProxyWithDashboardApplication {
                     pushStore,
                     serviceUrl,
                     approvalGateway,
+                    pushIdentityResolver,
+                    userAuthService,
                     configBuilder.getHeartbeatIntervalSeconds());
             GitProxyServletRegistrar.registerProxyServlet(context, provider);
             GitProxyServletRegistrar.registerFilters(
-                    context, provider, proxyCache, configBuilder, commitConfig, pushStore, serviceUrl, approvalGateway);
+                    context,
+                    provider,
+                    proxyCache,
+                    configBuilder,
+                    commitConfig,
+                    pushStore,
+                    serviceUrl,
+                    approvalGateway,
+                    pushIdentityResolver,
+                    userAuthService);
         }
 
         // Spring MVC DispatcherServlet at /* - git-specific paths take precedence per servlet spec
-        registerSpringServlet(context, pushStore, providerConfig);
+        registerSpringServlet(context, pushStore, providerConfig, userStore);
 
         server.setHandler(context);
         server.start();
@@ -98,19 +123,51 @@ public class GitProxyWithDashboardApplication {
     }
 
     private static void registerSpringServlet(
-            ServletContextHandler context, PushStore pushStore, ProviderConfigurationSource providers) {
+            ServletContextHandler context,
+            PushStore pushStore,
+            ProviderConfigurationSource providers,
+            UserStore userStore) {
         var appContext = new AnnotationConfigWebApplicationContext();
-        appContext.register(SpringWebConfig.class);
+        appContext.register(SpringWebConfig.class, SecurityConfig.class);
         appContext.addBeanFactoryPostProcessor(bf -> {
             bf.registerSingleton("pushStore", pushStore);
             bf.registerSingleton("providers", providers);
+            bf.registerSingleton("userStore", userStore);
+        });
+
+        // Refresh the Spring context inside a ServletContextListener so the ServletContext is set
+        // before any beans that require it (e.g. resource handlers) are instantiated.
+        // Servlet spec guarantees: listeners fire → filters init → servlets init.
+        // This ensures DelegatingFilterProxy finds an already-active context and skips re-refresh.
+        context.addEventListener(new ServletContextListener() {
+            @Override
+            public void contextInitialized(ServletContextEvent sce) {
+                appContext.setServletContext(sce.getServletContext());
+                appContext.refresh();
+            }
+
+            @Override
+            public void contextDestroyed(ServletContextEvent sce) {
+                appContext.close();
+            }
         });
 
         var dispatcher = new DispatcherServlet(appContext);
         var holder = new ServletHolder("spring-dispatcher", dispatcher);
         holder.setInitOrder(1);
         context.addServlet(holder, "/*");
-        log.info("Registered Spring MVC DispatcherServlet at /*");
+
+        // Wire Spring Security filter chain into Jetty. Register only on the paths Spring Security
+        // actually protects — never on /push/* or /proxy/* to avoid interfering with async git streaming.
+        var securityFilter = new FilterHolder(
+                new DelegatingFilterProxy(AbstractSecurityWebApplicationInitializer.DEFAULT_FILTER_NAME, appContext));
+        securityFilter.setName(AbstractSecurityWebApplicationInitializer.DEFAULT_FILTER_NAME);
+        securityFilter.setAsyncSupported(true);
+        for (String path : new String[] {"/api/*", "/login", "/logout", "/"}) {
+            context.addFilter(securityFilter, path, EnumSet.of(DispatcherType.REQUEST, DispatcherType.ERROR));
+        }
+
+        log.info("Registered Spring MVC DispatcherServlet and Spring Security filter chain");
     }
 
     private static void writePidFile() {

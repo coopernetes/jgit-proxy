@@ -13,17 +13,31 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Base64;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.finos.gitproxy.git.Commit;
-import org.finos.gitproxy.git.Contributor;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
 import org.finos.gitproxy.provider.GitHubProvider;
-import org.finos.gitproxy.service.DummyUserAuthorizationService;
+import org.finos.gitproxy.service.PushIdentityResolver;
 import org.finos.gitproxy.service.UserAuthorizationService;
+import org.finos.gitproxy.user.UserEntry;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class CheckUserPushPermissionFilterTest {
+
+    PushIdentityResolver resolver;
+    UserAuthorizationService authService;
+
+    @BeforeEach
+    void setUp() {
+        resolver = mock(PushIdentityResolver.class);
+        authService = mock(UserAuthorizationService.class);
+    }
+
+    // ---- test infrastructure ----
 
     private static class FakeResponse {
         final ByteArrayOutputStream body = new ByteArrayOutputStream();
@@ -57,11 +71,11 @@ class CheckUserPushPermissionFilterTest {
         }
     }
 
-    private static ServletInputStream emptyServletInputStream() {
+    private static ServletInputStream emptyStream() {
         ByteArrayInputStream bais = new ByteArrayInputStream(new byte[0]);
         return new ServletInputStream() {
             @Override
-            public int read() throws IOException {
+            public int read() {
                 return bais.read();
             }
 
@@ -80,17 +94,22 @@ class CheckUserPushPermissionFilterTest {
         };
     }
 
-    private HttpServletRequest mockPushRequest(GitRequestDetails details) throws IOException {
+    private static String basicAuth(String user, String token) {
+        return "Basic " + Base64.getEncoder().encodeToString((user + ":" + token).getBytes());
+    }
+
+    private HttpServletRequest mockRequest(GitRequestDetails details, String authHeader) throws IOException {
         HttpServletRequest req = mock(HttpServletRequest.class);
         when(req.getMethod()).thenReturn("POST");
         when(req.getContentType()).thenReturn("application/x-git-receive-pack-request");
         when(req.getRequestURI()).thenReturn("/proxy/github.com/owner/repo.git/git-receive-pack");
         when(req.getAttribute(GIT_REQUEST_ATTR)).thenReturn(details);
-        when(req.getInputStream()).thenReturn(emptyServletInputStream());
+        when(req.getInputStream()).thenReturn(emptyStream());
+        when(req.getHeader("Authorization")).thenReturn(authHeader);
         return req;
     }
 
-    private GitRequestDetails makeDetailsWithEmail(String email) {
+    private GitRequestDetails pushDetails() {
         GitRequestDetails details = new GitRequestDetails();
         details.setOperation(HttpOperation.PUSH);
         details.setRepoRef(GitRequestDetails.RepoRef.builder()
@@ -98,130 +117,147 @@ class CheckUserPushPermissionFilterTest {
                 .name("repo")
                 .slug("owner/repo")
                 .build());
-        if (email != null) {
-            details.setCommit(Commit.builder()
-                    .sha("abc123")
-                    .author(Contributor.builder().name("Test").email(email).build())
-                    .committer(Contributor.builder().name("Test").email(email).build())
-                    .message("msg")
-                    .build());
-        }
         return details;
     }
 
+    private UserEntry userEntry(String username) {
+        return UserEntry.builder()
+                .username(username)
+                .emails(List.of())
+                .pushUsernames(List.of())
+                .scmIdentities(List.of())
+                .build();
+    }
+
+    // ---- null requestDetails → no-op ----
+
     @Test
-    void nullRequestDetails_returnsWithoutError() throws Exception {
+    void nullRequestDetails_returnsWithoutBlocking() throws Exception {
         HttpServletRequest req = mock(HttpServletRequest.class);
         when(req.getMethod()).thenReturn("POST");
         when(req.getContentType()).thenReturn("application/x-git-receive-pack-request");
         when(req.getRequestURI()).thenReturn("/proxy/github.com/owner/repo.git/git-receive-pack");
         when(req.getAttribute(GIT_REQUEST_ATTR)).thenReturn(null);
-        when(req.getInputStream()).thenReturn(emptyServletInputStream());
+        when(req.getInputStream()).thenReturn(emptyStream());
         FakeResponse resp = new FakeResponse();
 
-        new CheckUserPushPermissionFilter(new DummyUserAuthorizationService()).doHttpFilter(req, resp.mock);
+        new CheckUserPushPermissionFilter(resolver, authService).doHttpFilter(req, resp.mock);
 
         assertFalse(resp.committed.get());
+        verifyNoInteractions(resolver, authService);
     }
 
+    // ---- null resolver (open mode) → skip check ----
+
     @Test
-    void nullCommit_blocks() throws Exception {
-        GitRequestDetails details = new GitRequestDetails();
-        details.setOperation(HttpOperation.PUSH);
-        details.setRepoRef(
-                GitRequestDetails.RepoRef.builder().slug("owner/repo").build());
-        // no commit set
+    void nullResolver_skipsCheck_doesNotBlock() throws Exception {
+        GitRequestDetails details = pushDetails();
         FakeResponse resp = new FakeResponse();
 
-        new CheckUserPushPermissionFilter(new DummyUserAuthorizationService())
-                .doHttpFilter(mockPushRequest(details), resp.mock);
+        new CheckUserPushPermissionFilter(null, authService)
+                .doHttpFilter(mockRequest(details, basicAuth("anyone", "token")), resp.mock);
 
-        assertTrue(resp.committed.get(), "Should block when commit/author is null");
+        assertFalse(resp.committed.get(), "Open mode (null resolver) must not block");
+        assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
+        verifyNoInteractions(authService);
+    }
+
+    // ---- resolver returns empty → reject ----
+
+    @Test
+    void resolverReturnsEmpty_blocks() throws Exception {
+        GitRequestDetails details = pushDetails();
+        when(resolver.resolve(anyString(), eq("ghost"), eq("tok"))).thenReturn(Optional.empty());
+        FakeResponse resp = new FakeResponse();
+
+        new CheckUserPushPermissionFilter(resolver, authService)
+                .doHttpFilter(mockRequest(details, basicAuth("ghost", "tok")), resp.mock);
+
+        assertTrue(resp.committed.get(), "Should block unresolved user");
         assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
+        verifyNoInteractions(authService);
     }
 
-    @Test
-    void emptyEmail_blocks() throws Exception {
-        GitRequestDetails details = makeDetailsWithEmail("");
-        FakeResponse resp = new FakeResponse();
-
-        new CheckUserPushPermissionFilter(new DummyUserAuthorizationService())
-                .doHttpFilter(mockPushRequest(details), resp.mock);
-
-        assertTrue(resp.committed.get(), "Should block when email is empty");
-        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
-    }
+    // ---- resolver resolves but authorization denies → reject ----
 
     @Test
-    void userDoesNotExist_blocks() throws Exception {
-        GitRequestDetails details = makeDetailsWithEmail("ghost@example.com");
-        UserAuthorizationService authSvc = mock(UserAuthorizationService.class);
-        when(authSvc.userExists("ghost@example.com")).thenReturn(false);
+    void resolvedButNotAuthorized_blocks() throws Exception {
+        GitRequestDetails details = pushDetails();
+        details.setProvider(new GitHubProvider("/proxy"));
+        when(resolver.resolve(anyString(), eq("corp"), eq("tok"))).thenReturn(Optional.of(userEntry("alice")));
+        when(authService.isUserAuthorizedToPush(eq("alice"), anyString())).thenReturn(false);
         FakeResponse resp = new FakeResponse();
 
-        new CheckUserPushPermissionFilter(authSvc).doHttpFilter(mockPushRequest(details), resp.mock);
-
-        assertTrue(resp.committed.get(), "Should block unknown user");
-        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
-    }
-
-    @Test
-    void userNotAuthorized_blocks() throws Exception {
-        GitRequestDetails details = makeDetailsWithEmail("user@example.com");
-        UserAuthorizationService authSvc = mock(UserAuthorizationService.class);
-        when(authSvc.userExists("user@example.com")).thenReturn(true);
-        when(authSvc.isUserAuthorizedToPush(eq("user@example.com"), anyString()))
-                .thenReturn(false);
-        FakeResponse resp = new FakeResponse();
-
-        new CheckUserPushPermissionFilter(authSvc).doHttpFilter(mockPushRequest(details), resp.mock);
+        new CheckUserPushPermissionFilter(resolver, authService)
+                .doHttpFilter(mockRequest(details, basicAuth("corp", "tok")), resp.mock);
 
         assertTrue(resp.committed.get(), "Should block unauthorized user");
         assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
     }
 
+    // ---- authorized user passes ----
+
     @Test
-    void authorizedUser_passes() throws Exception {
-        GitRequestDetails details = makeDetailsWithEmail("user@example.com");
+    void resolvedAndAuthorized_passes() throws Exception {
+        GitRequestDetails details = pushDetails();
+        when(resolver.resolve(anyString(), eq("corp"), eq("tok"))).thenReturn(Optional.of(userEntry("alice")));
+        when(authService.isUserAuthorizedToPush(eq("alice"), anyString())).thenReturn(true);
         FakeResponse resp = new FakeResponse();
 
-        new CheckUserPushPermissionFilter(new DummyUserAuthorizationService())
-                .doHttpFilter(mockPushRequest(details), resp.mock);
+        new CheckUserPushPermissionFilter(resolver, authService)
+                .doHttpFilter(mockRequest(details, basicAuth("corp", "tok")), resp.mock);
 
-        assertFalse(resp.committed.get(), "Authorized user should not be blocked");
+        assertFalse(resp.committed.get(), "Authorized user must not be blocked");
         assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
     }
 
+    // ---- no Authorization header → resolver called with null username ----
+
     @Test
-    void tagPush_skipsEmailCheck() throws Exception {
-        // Tag pushes have no commit object in the pack — commit is null.
-        // The filter must not reject on missing email; HTTP basic auth covers identity.
-        GitRequestDetails details = new GitRequestDetails();
-        details.setOperation(HttpOperation.PUSH);
-        details.setBranch("refs/tags/v1.0");
-        details.setCommitFrom("0000000000000000000000000000000000000000");
-        details.setCommitTo("abc123def456abc123def456abc123def456abc12");
-        details.setRepoRef(
-                GitRequestDetails.RepoRef.builder().slug("owner/repo").build());
-        // no commit set — simulates an annotated or lightweight tag push
+    void noAuthHeader_resolverCalledWithNullUsername() throws Exception {
+        GitRequestDetails details = pushDetails();
+        when(resolver.resolve(anyString(), isNull(), isNull())).thenReturn(Optional.empty());
         FakeResponse resp = new FakeResponse();
 
-        new CheckUserPushPermissionFilter(new DummyUserAuthorizationService())
-                .doHttpFilter(mockPushRequest(details), resp.mock);
+        new CheckUserPushPermissionFilter(resolver, authService).doHttpFilter(mockRequest(details, null), resp.mock);
 
-        assertFalse(resp.committed.get(), "Tag push must not be blocked by missing commit author");
-        assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
+        verify(resolver).resolve(anyString(), isNull(), isNull());
+        assertTrue(resp.committed.get());
     }
 
+    // ---- provider name is passed to resolver ----
+
     @Test
-    void authorizedUser_withProvider_usesProviderName() throws Exception {
-        GitRequestDetails details = makeDetailsWithEmail("user@example.com");
+    void providerName_isExtractedFromRequestDetails() throws Exception {
+        GitRequestDetails details = pushDetails();
         details.setProvider(new GitHubProvider("/proxy"));
+        // GitHubProvider.getName() returns "github", not "github.com"
+        when(resolver.resolve(eq("github"), eq("corp"), eq("tok"))).thenReturn(Optional.of(userEntry("alice")));
+        when(authService.isUserAuthorizedToPush(eq("alice"), anyString())).thenReturn(true);
         FakeResponse resp = new FakeResponse();
 
-        new CheckUserPushPermissionFilter(new DummyUserAuthorizationService())
-                .doHttpFilter(mockPushRequest(details), resp.mock);
+        new CheckUserPushPermissionFilter(resolver, authService)
+                .doHttpFilter(mockRequest(details, basicAuth("corp", "tok")), resp.mock);
 
+        verify(resolver).resolve(eq("github"), eq("corp"), eq("tok"));
+        assertFalse(resp.committed.get());
+    }
+
+    // ---- token with colon in password is handled correctly ----
+
+    @Test
+    void tokenWithColon_extractedCorrectly() throws Exception {
+        // GitHub PATs can contain colons; only the first colon is the user:pass separator
+        String tokenWithColon = "ghp_abc:xyz";
+        GitRequestDetails details = pushDetails();
+        when(resolver.resolve(anyString(), eq("user"), eq(tokenWithColon))).thenReturn(Optional.of(userEntry("user")));
+        when(authService.isUserAuthorizedToPush(anyString(), anyString())).thenReturn(true);
+        FakeResponse resp = new FakeResponse();
+
+        new CheckUserPushPermissionFilter(resolver, authService)
+                .doHttpFilter(mockRequest(details, basicAuth("user", tokenWithColon)), resp.mock);
+
+        verify(resolver).resolve(anyString(), eq("user"), eq(tokenWithColon));
         assertFalse(resp.committed.get());
     }
 }

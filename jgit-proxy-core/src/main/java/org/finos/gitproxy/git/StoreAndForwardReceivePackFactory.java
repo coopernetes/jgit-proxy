@@ -19,6 +19,7 @@ import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.config.GpgConfig;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.provider.GitProxyProvider;
+import org.finos.gitproxy.service.PushIdentityResolver;
 import org.finos.gitproxy.service.UserAuthorizationService;
 
 /**
@@ -36,6 +37,7 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
     private final CommitConfig commitConfig;
     private final GpgConfig gpgConfig;
     private final UserAuthorizationService userAuthorizationService;
+    private final PushIdentityResolver pushIdentityResolver;
     private final PushStore pushStore;
     private final ApprovalGateway approvalGateway;
     private final String serviceUrl;
@@ -51,6 +53,7 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
                 commitConfig,
                 GpgConfig.defaultConfig(),
                 null,
+                null,
                 pushStore,
                 approvalGateway,
                 null,
@@ -68,6 +71,7 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
                 commitConfig,
                 GpgConfig.defaultConfig(),
                 null,
+                null,
                 pushStore,
                 approvalGateway,
                 serviceUrl,
@@ -79,6 +83,7 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
             CommitConfig commitConfig,
             GpgConfig gpgConfig,
             UserAuthorizationService userAuthorizationService,
+            PushIdentityResolver pushIdentityResolver,
             PushStore pushStore,
             ApprovalGateway approvalGateway,
             String serviceUrl) {
@@ -87,6 +92,7 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
                 commitConfig,
                 gpgConfig,
                 userAuthorizationService,
+                pushIdentityResolver,
                 pushStore,
                 approvalGateway,
                 serviceUrl,
@@ -98,6 +104,7 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
             CommitConfig commitConfig,
             GpgConfig gpgConfig,
             UserAuthorizationService userAuthorizationService,
+            PushIdentityResolver pushIdentityResolver,
             PushStore pushStore,
             ApprovalGateway approvalGateway,
             String serviceUrl,
@@ -106,6 +113,7 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
         this.commitConfig = commitConfig;
         this.gpgConfig = gpgConfig != null ? gpgConfig : GpgConfig.defaultConfig();
         this.userAuthorizationService = userAuthorizationService;
+        this.pushIdentityResolver = pushIdentityResolver;
         this.pushStore = pushStore;
         this.approvalGateway = approvalGateway;
         this.serviceUrl = serviceUrl;
@@ -127,13 +135,22 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
             creds = extractBasicAuth(req);
         }
 
-        // Store the push user in repo config so PushStorePersistenceHook can read it
+        // Store push credentials in repo config so hooks can read them for identity resolution.
+        // pushToken is the PAT/password — stored only in-process repo config, never persisted to disk.
         String pushUser = (String) req.getAttribute("org.finos.gitproxy.pushUser");
+        String pushToken = null;
         if (pushUser == null) {
-            pushUser = extractUsername(req);
+            String[] userPass = extractUserPass(req);
+            if (userPass != null) {
+                pushUser = userPass[0];
+                pushToken = userPass[1];
+            }
         }
         if (pushUser != null) {
             db.getConfig().setString("gitproxy", null, "pushUser", pushUser);
+        }
+        if (pushToken != null) {
+            db.getConfig().setString("gitproxy", null, "pushToken", pushToken);
         }
 
         // Per-request shared contexts
@@ -175,11 +192,13 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
         //   PushStorePersistenceHook.postReceive - save FORWARDED/ERROR
 
         var permissionHook = new CheckUserPushPermissionHook(
+                pushIdentityResolver,
                 userAuthorizationService != null
                         ? userAuthorizationService
                         : new org.finos.gitproxy.service.DummyUserAuthorizationService(),
                 validationContext,
-                pushContext);
+                pushContext,
+                provider.getName());
 
         // Build and sort the orderable validation hook list
         List<GitProxyHook> validationHooks = new ArrayList<>(List.of(
@@ -257,11 +276,6 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
         String[] userPass = extractUserPass(req);
         if (userPass == null) return null;
         return new UsernamePasswordCredentialsProvider(userPass[0], userPass[1]);
-    }
-
-    private String extractUsername(HttpServletRequest req) {
-        String[] userPass = extractUserPass(req);
-        return userPass != null ? userPass[0] : null;
     }
 
     private String[] extractUserPass(HttpServletRequest req) {

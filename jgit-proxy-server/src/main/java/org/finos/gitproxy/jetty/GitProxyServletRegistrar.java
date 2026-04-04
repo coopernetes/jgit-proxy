@@ -20,6 +20,8 @@ import org.finos.gitproxy.git.*;
 import org.finos.gitproxy.jetty.config.JettyConfigurationBuilder;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.service.DummyUserAuthorizationService;
+import org.finos.gitproxy.service.PushIdentityResolver;
+import org.finos.gitproxy.service.UserAuthorizationService;
 import org.finos.gitproxy.servlet.GitProxyServlet;
 import org.finos.gitproxy.servlet.filter.*;
 
@@ -43,18 +45,16 @@ public final class GitProxyServletRegistrar {
             CommitConfig commitConfig,
             PushStore pushStore) {
         registerGitServlet(
-                context, provider, cache, commitConfig, pushStore, null, new AutoApprovalGateway(pushStore), 10);
-    }
-
-    public static void registerGitServlet(
-            ServletContextHandler context,
-            GitProxyProvider provider,
-            LocalRepositoryCache cache,
-            CommitConfig commitConfig,
-            PushStore pushStore,
-            String serviceUrl,
-            ApprovalGateway approvalGateway) {
-        registerGitServlet(context, provider, cache, commitConfig, pushStore, serviceUrl, approvalGateway, 10);
+                context,
+                provider,
+                cache,
+                commitConfig,
+                pushStore,
+                null,
+                new AutoApprovalGateway(pushStore),
+                null,
+                new DummyUserAuthorizationService(),
+                10);
     }
 
     public static void registerGitServlet(
@@ -65,6 +65,31 @@ public final class GitProxyServletRegistrar {
             PushStore pushStore,
             String serviceUrl,
             ApprovalGateway approvalGateway,
+            PushIdentityResolver pushIdentityResolver,
+            UserAuthorizationService userAuthorizationService) {
+        registerGitServlet(
+                context,
+                provider,
+                cache,
+                commitConfig,
+                pushStore,
+                serviceUrl,
+                approvalGateway,
+                pushIdentityResolver,
+                userAuthorizationService,
+                10);
+    }
+
+    public static void registerGitServlet(
+            ServletContextHandler context,
+            GitProxyProvider provider,
+            LocalRepositoryCache cache,
+            CommitConfig commitConfig,
+            PushStore pushStore,
+            String serviceUrl,
+            ApprovalGateway approvalGateway,
+            PushIdentityResolver pushIdentityResolver,
+            UserAuthorizationService userAuthorizationService,
             int heartbeatIntervalSeconds) {
         var resolver = new StoreAndForwardRepositoryResolver(cache, provider);
 
@@ -74,7 +99,8 @@ public final class GitProxyServletRegistrar {
                 provider,
                 commitConfig,
                 GpgConfig.defaultConfig(),
-                new DummyUserAuthorizationService(),
+                userAuthorizationService,
+                pushIdentityResolver,
                 pushStore,
                 approvalGateway,
                 serviceUrl,
@@ -128,26 +154,9 @@ public final class GitProxyServletRegistrar {
                 commitConfig,
                 pushStore,
                 null,
-                new AutoApprovalGateway(pushStore));
-    }
-
-    public static void registerFilters(
-            ServletContextHandler context,
-            GitProxyProvider provider,
-            LocalRepositoryCache repositoryCache,
-            JettyConfigurationBuilder configBuilder,
-            CommitConfig commitConfig,
-            PushStore pushStore,
-            String serviceUrl) {
-        registerCoreFilters(
-                context,
-                provider,
-                repositoryCache,
-                configBuilder,
-                commitConfig,
-                pushStore,
-                serviceUrl,
-                new AutoApprovalGateway(pushStore));
+                new AutoApprovalGateway(pushStore),
+                null,
+                new DummyUserAuthorizationService());
     }
 
     public static void registerFilters(
@@ -158,7 +167,9 @@ public final class GitProxyServletRegistrar {
             CommitConfig commitConfig,
             PushStore pushStore,
             String serviceUrl,
-            ApprovalGateway approvalGateway) {
+            ApprovalGateway approvalGateway,
+            PushIdentityResolver pushIdentityResolver,
+            UserAuthorizationService userAuthorizationService) {
         registerCoreFilters(
                 context,
                 provider,
@@ -167,7 +178,9 @@ public final class GitProxyServletRegistrar {
                 commitConfig,
                 pushStore,
                 serviceUrl,
-                approvalGateway);
+                approvalGateway,
+                pushIdentityResolver,
+                userAuthorizationService);
     }
 
     /**
@@ -183,7 +196,9 @@ public final class GitProxyServletRegistrar {
             CommitConfig commitConfig,
             PushStore pushStore,
             String serviceUrl,
-            ApprovalGateway approvalGateway) {
+            ApprovalGateway approvalGateway,
+            PushIdentityResolver pushIdentityResolver,
+            UserAuthorizationService userAuthorizationService) {
         String urlPattern = PROXY_PATH_PREFIX + provider.servletPath() + "/*";
 
         // PushStoreAuditFilter wraps the entire chain via try-finally; must be registered first.
@@ -205,7 +220,7 @@ public final class GitProxyServletRegistrar {
             log.info("Registered {} whitelist filter(s) for provider {}", whitelistFilters.size(), provider.getName());
         }
 
-        filters.add(new CheckUserPushPermissionFilter(new DummyUserAuthorizationService()));
+        filters.add(new CheckUserPushPermissionFilter(pushIdentityResolver, userAuthorizationService));
         filters.add(new CheckEmptyBranchFilter());
         filters.add(new CheckHiddenCommitsFilter(provider));
         filters.add(new CheckAuthorEmailsFilter(commitConfig));

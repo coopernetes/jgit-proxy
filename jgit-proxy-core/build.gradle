@@ -201,4 +201,5 @@ tasks.register('downloadGitleaks') {
 //   - commit.secretScanning.scanner-path is set (explicit override), or
 //   - commit.secretScanning.version is set to a different version and auto-install is true
 //     (downloads and caches the requested version on first use).
+// The download is a no-op when the binary is already present, so it only costs time once.
 processResources.dependsOn('downloadGitleaks')

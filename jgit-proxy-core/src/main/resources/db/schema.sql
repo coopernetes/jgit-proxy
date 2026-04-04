@@ -65,6 +65,38 @@ CREATE TABLE IF NOT EXISTS push_attestations (
     PRIMARY KEY (push_id, type, timestamp)
 );
 
+-- ---------------------------------------------------------------------------
+-- User accounts
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS proxy_users (
+    username      VARCHAR(255) PRIMARY KEY,
+    password_hash VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS user_emails (
+    username VARCHAR(255) NOT NULL REFERENCES proxy_users(username) ON DELETE CASCADE,
+    email    VARCHAR(255) NOT NULL,
+    PRIMARY KEY (username, email)
+);
+
+CREATE TABLE IF NOT EXISTS user_scm_identities (
+    username         VARCHAR(255) NOT NULL REFERENCES proxy_users(username) ON DELETE CASCADE,
+    provider         VARCHAR(100) NOT NULL,
+    scm_username     VARCHAR(255) NOT NULL,
+    PRIMARY KEY (username, provider, scm_username)
+);
+
+CREATE TABLE IF NOT EXISTS user_push_usernames (
+    username      VARCHAR(255) NOT NULL REFERENCES proxy_users(username) ON DELETE CASCADE,
+    push_username VARCHAR(255) NOT NULL,
+    PRIMARY KEY (username, push_username)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_emails_email ON user_emails(email);
+CREATE INDEX IF NOT EXISTS idx_user_push_usernames ON user_push_usernames(push_username);
+
+-- ---------------------------------------------------------------------------
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_push_records_status ON push_records(status);
 CREATE INDEX IF NOT EXISTS idx_push_records_project ON push_records(project);

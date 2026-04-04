@@ -11,6 +11,8 @@ import org.finos.gitproxy.db.model.PushStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -20,6 +22,15 @@ public class PushController {
 
     @Autowired
     private PushStore pushStore;
+
+    /** Returns the authenticated username, falling back to {@code body.reviewerUsername}, then {@code "system"}. */
+    private static String resolveReviewer(Map<String, String> body) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+            return auth.getName();
+        }
+        return body != null ? body.getOrDefault("reviewerUsername", "system") : "system";
+    }
 
     /**
      * List push records. Optional query params: status, project, repo, user, search (matches project OR repo name),
@@ -108,7 +119,7 @@ public class PushController {
                     var attestation = Attestation.builder()
                             .pushId(id)
                             .type(Attestation.Type.APPROVAL)
-                            .reviewerUsername(body.getOrDefault("reviewerUsername", "system"))
+                            .reviewerUsername(resolveReviewer(body))
                             .reviewerEmail(body.get("reviewerEmail"))
                             .reason(body.get("reason"))
                             .build();
@@ -135,7 +146,7 @@ public class PushController {
                     var attestation = Attestation.builder()
                             .pushId(id)
                             .type(Attestation.Type.REJECTION)
-                            .reviewerUsername(body.getOrDefault("reviewerUsername", "system"))
+                            .reviewerUsername(resolveReviewer(body))
                             .reviewerEmail(body.get("reviewerEmail"))
                             .reason(reason)
                             .build();
@@ -158,7 +169,7 @@ public class PushController {
                     var attestation = Attestation.builder()
                             .pushId(id)
                             .type(Attestation.Type.CANCELLATION)
-                            .reviewerUsername(body != null ? body.getOrDefault("reviewerUsername", "system") : "system")
+                            .reviewerUsername(resolveReviewer(body))
                             .build();
                     var updated = pushStore.cancel(id, attestation);
                     return ResponseEntity.ok(updated);

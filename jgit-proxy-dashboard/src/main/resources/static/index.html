@@ -516,6 +516,17 @@
     </div>
 
     <script>
+      // Central fetch wrapper — redirects to /login on 401 (unauthenticated).
+      // Returns the Response on success/non-401, so callers can still check res.ok for other errors.
+      async function apiFetch(url, options) {
+        const res = await fetch(url, options);
+        if (res.status === 401) {
+          window.location.href = "/login";
+          return new Promise(() => {}); // suspend; page is navigating away
+        }
+        return res;
+      }
+
       function app() {
         return {
           // --- Routing ---
@@ -576,7 +587,7 @@
             if (this.filterStatus) params.set("status", this.filterStatus);
             if (this.filterRepo) params.set("search", this.filterRepo);
             try {
-              const res = await fetch("/api/push?" + params);
+              const res = await apiFetch("/api/push?" + params);
               this.pushes = await res.json();
               this.lastRefresh = new Date().toLocaleTimeString();
             } catch (e) {
@@ -591,7 +602,7 @@
           async loadProviders() {
             this.providersLoading = true;
             try {
-              const res = await fetch("/api/providers");
+              const res = await apiFetch("/api/providers");
               this.providers = await res.json();
             } catch (e) {
               console.error("Failed to load providers", e);
@@ -641,7 +652,7 @@
               const url = id.includes("_")
                 ? `/api/push/by-ref/${id}`
                 : `/api/push/${id}`;
-              const res = await fetch(url);
+              const res = await apiFetch(url);
               if (!res.ok) {
                 this.detailError = "Push not found";
                 return;
@@ -752,7 +763,7 @@
             this.saving = true;
             this.actionError = "";
             try {
-              const res = await fetch(`/api/push/${this.detail.id}/authorise`, {
+              const res = await apiFetch(`/api/push/${this.detail.id}/authorise`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -780,7 +791,7 @@
             this.saving = true;
             this.actionError = "";
             try {
-              const res = await fetch(`/api/push/${this.detail.id}/reject`, {
+              const res = await apiFetch(`/api/push/${this.detail.id}/reject`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

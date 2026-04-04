@@ -1,6 +1,7 @@
 package org.finos.gitproxy.db;
 
 import com.mongodb.client.MongoClients;
+import javax.sql.DataSource;
 import org.finos.gitproxy.db.jdbc.DataSourceFactory;
 import org.finos.gitproxy.db.jdbc.JdbcPushStore;
 import org.finos.gitproxy.db.memory.InMemoryPushStore;
@@ -64,6 +65,13 @@ public final class PushStoreFactory {
     /** Create a store from a JDBC URL (auto-detects H2, SQLite, or Postgres). */
     public static PushStore fromJdbcUrl(String jdbcUrl, String username, String password) {
         JdbcPushStore store = new JdbcPushStore(DataSourceFactory.fromUrl(jdbcUrl, username, password));
+        store.initialize();
+        return store;
+    }
+
+    /** Create a store from an already-configured {@link DataSource} (shared pool use case). */
+    public static PushStore fromDataSource(DataSource dataSource) {
+        JdbcPushStore store = new JdbcPushStore(dataSource);
         store.initialize();
         return store;
     }
