@@ -43,8 +43,11 @@ public class SecurityConfig {
 
         http.securityMatcher("/api/**", "/login", "/logout")
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
-                .formLogin(form -> form.defaultSuccessUrl("/", true).permitAll())
-                .logout(logout -> logout.logoutSuccessUrl("/login?logout").permitAll())
+                .formLogin(form -> form.loginPage("/login.html")
+                        .loginProcessingUrl("/login")
+                        .defaultSuccessUrl("/", true)
+                        .permitAll())
+                .logout(logout -> logout.logoutSuccessUrl("/login.html?logout").permitAll())
                 .csrf(csrf -> csrf.disable())
                 // API calls from the SPA must get 401, not a redirect to /login.
                 // Redirects cause fetch() to follow to the HTML login page and then

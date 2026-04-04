@@ -48,9 +48,22 @@
           Repositories
         </button>
       </nav>
-      <div class="ml-auto text-sm text-slate-400" x-show="view === 'dashboard'">
-        <span x-text="pushes.length"></span> records &nbsp;
-        <span x-text="lastRefresh ? 'refreshed ' + lastRefresh : ''"></span>
+      <div class="ml-auto flex items-center gap-4">
+        <div class="text-sm text-slate-400" x-show="view === 'dashboard'">
+          <span x-text="pushes.length"></span> records &nbsp;
+          <span x-text="lastRefresh ? 'refreshed ' + lastRefresh : ''"></span>
+        </div>
+        <template x-if="currentUser">
+          <div class="flex items-center gap-3 text-sm text-slate-300">
+            <span x-text="currentUser.username"></span>
+            <form method="post" action="/logout" class="m-0">
+              <button
+                type="submit"
+                class="px-2 py-1 rounded text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
+              >Sign out</button>
+            </form>
+          </div>
+        </template>
       </div>
     </header>
 
@@ -359,7 +372,8 @@
                 Review
               </h2>
               <div class="text-xs text-gray-400 mb-3">
-                Reviewing as <strong>admin@example.com</strong>
+                Reviewing as
+                <strong x-text="currentUser ? currentUser.username + (currentUser.email ? ' (' + currentUser.email + ')' : '') : '…'"></strong>
               </div>
               <textarea
                 x-model="reviewReason"
@@ -521,7 +535,7 @@
       async function apiFetch(url, options) {
         const res = await fetch(url, options);
         if (res.status === 401) {
-          window.location.href = "/login";
+          window.location.href = "/login.html";
           return new Promise(() => {}); // suspend; page is navigating away
         }
         return res;
@@ -533,7 +547,16 @@
           view: "dashboard",
           currentId: null,
 
-          init() {
+          // --- Current user ---
+          currentUser: null,
+
+          async init() {
+            try {
+              const res = await apiFetch("/api/me");
+              this.currentUser = await res.json();
+            } catch (e) {
+              console.error("Failed to load current user", e);
+            }
             this.handleHash();
             window.addEventListener("hashchange", () => this.handleHash());
             this.startAutoRefresh();
@@ -767,8 +790,8 @@
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  reviewerUsername: "admin",
-                  reviewerEmail: "admin@example.com",
+                  reviewerUsername: this.currentUser?.username,
+                  reviewerEmail: this.currentUser?.email,
                   reason: this.reviewReason,
                 }),
               });
@@ -795,8 +818,8 @@
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  reviewerUsername: "admin",
-                  reviewerEmail: "admin@example.com",
+                  reviewerUsername: this.currentUser?.username,
+                  reviewerEmail: this.currentUser?.email,
                   reason: this.reviewReason,
                 }),
               });
