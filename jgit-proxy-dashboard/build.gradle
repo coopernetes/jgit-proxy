@@ -49,31 +49,31 @@ dependencies {
     implementation project(':jgit-proxy-server')
 
     // Spring MVC for the REST API and dashboard
-    implementation 'org.springframework:spring-webmvc:7.0.6'
+    implementation "org.springframework:spring-webmvc:${springVersion}"
 
     // Jackson JSON processing
     implementation "tools.jackson.core:jackson-databind"
 
     // Database drivers at runtime (whichever store is configured)
-    runtimeOnly 'com.h2database:h2:2.4.240'
-    runtimeOnly 'org.xerial:sqlite-jdbc:3.51.3.0'
-    runtimeOnly 'org.postgresql:postgresql:42.7.10'
-    runtimeOnly 'org.mongodb:mongodb-driver-sync:5.6.4'
+    runtimeOnly "com.h2database:h2:${h2Version}"
+    runtimeOnly "org.xerial:sqlite-jdbc:${sqliteVersion}"
+    runtimeOnly "org.postgresql:postgresql:${postgresVersion}"
+    runtimeOnly "org.mongodb:mongodb-driver-sync:${mongoVersion}"
 
     // YAML config
-    implementation 'org.yaml:snakeyaml:2.2'
+    implementation "org.yaml:snakeyaml:${snakeyamlVersion}"
 
     // Lombok
-    compileOnly 'org.projectlombok:lombok:1.18.44'
-    annotationProcessor 'org.projectlombok:lombok:1.18.44'
+    compileOnly "org.projectlombok:lombok:${lombokVersion}"
+    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
 
     // Testing
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.14.3'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.14.3'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.14.3'
-    testCompileOnly 'org.projectlombok:lombok:1.18.44'
-    testAnnotationProcessor 'org.projectlombok:lombok:1.18.44'
-    testRuntimeOnly 'com.h2database:h2:2.4.240'
+    testImplementation "org.junit.jupiter:junit-jupiter-api:${junitVersion}"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${junitVersion}"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher:${junitPlatformVersion}"
+    testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
+    testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
+    testRuntimeOnly "com.h2database:h2:${h2Version}"
 
     // Include core + server coverage in the aggregated JaCoCo report
     jacocoAggregation project(':jgit-proxy-core')
