@@ -43,8 +43,8 @@ public class GitProxyServlet extends AsyncProxyServlet.Transparent {
     // TODO: Allow X-Forwarded-* headers to be sent if configured (enabled via opt-in)
     // TODO: Allow X-Forwarded-* headers to be customized
     @Override
-    protected void addXForwardedHeaders(HttpServletRequest clientRequest, Request proxyRequest) {
-        // no-op - don't send "X-Forwarded-*" headers to upstream
+    protected void addProxyHeaders(HttpServletRequest clientRequest, Request proxyRequest) {
+        // no-op - don't send proxy headers (X-Forwarded-*, Forwarded) to upstream
     }
 
     @Override

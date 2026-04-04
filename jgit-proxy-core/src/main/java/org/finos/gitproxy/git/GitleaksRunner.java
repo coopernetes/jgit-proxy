@@ -4,8 +4,6 @@ import static org.finos.gitproxy.git.GitClientUtils.ZERO_OID;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -24,6 +22,8 @@ import java.util.concurrent.TimeUnit;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.config.CommitConfig;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Runs the gitleaks secret scanner against a unified diff and returns structured findings.
@@ -476,7 +476,7 @@ public class GitleaksRunner {
             if (json.isBlank() || json.trim().equals("null")) {
                 return Collections.emptyList();
             }
-            return OBJECT_MAPPER.readValue(json, new TypeReference<List<Finding>>() {});
+            return OBJECT_MAPPER.readValue(json, new TypeReference<>() {});
         } catch (Exception e) {
             log.warn("Failed to parse gitleaks JSON report: {}", e.getMessage());
             return Collections.emptyList();
