@@ -167,10 +167,10 @@ class CheckUserPushPermissionHookTest {
         assertEquals(StepStatus.PASS, pushContext.getSteps().get(0).getStatus());
     }
 
-    // ---- null resolver (open mode) → treated same as resolver returning empty ----
+    // ---- null resolver (open mode) → always passes, credentials are ignored ----
 
     @Test
-    void nullResolver_withPushUser_addsNotRegisteredIssue() throws Exception {
+    void nullResolver_withPushUser_passesInOpenMode() throws Exception {
         repo.getConfig().setString("gitproxy", null, "pushUser", "anyone");
         repo.getConfig().save();
 
@@ -181,11 +181,14 @@ class CheckUserPushPermissionHookTest {
         PushContext pushContext = new PushContext();
         ValidationContext validationContext = new ValidationContext();
 
-        // Explicit null resolver
+        // Null resolver = open mode: any push passes regardless of credentials
         new CheckUserPushPermissionHook(null, authService, validationContext, pushContext)
                 .onPreReceive(rp, List.of(cmd));
 
-        assertTrue(validationContext.hasIssues(), "Null resolver should still block — no way to verify identity");
+        assertFalse(
+                validationContext.hasIssues(), "Null resolver (open mode) should pass — no identity check configured");
+        assertFalse(pushContext.getSteps().isEmpty());
+        assertEquals(StepStatus.PASS, pushContext.getSteps().get(0).getStatus());
     }
 
     // ---- providerName is passed through to resolver ----

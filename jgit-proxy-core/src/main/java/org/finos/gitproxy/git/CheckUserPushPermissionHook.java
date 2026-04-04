@@ -61,6 +61,16 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
         String pushUser = config.getString("gitproxy", null, "pushUser");
         String pushToken = config.getString("gitproxy", null, "pushToken");
 
+        if (identityResolver == null) {
+            log.debug("No identity resolver configured (open mode), skipping permission check");
+            pushContext.addStep(PushStep.builder()
+                    .stepName("checkUserPermission")
+                    .stepOrder(ORDER)
+                    .status(StepStatus.PASS)
+                    .build());
+            return;
+        }
+
         if (pushUser == null || pushUser.isEmpty()) {
             log.debug("No push user found in repo config, skipping permission check");
             pushContext.addStep(PushStep.builder()
