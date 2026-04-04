@@ -43,6 +43,10 @@ server:
   # Sends periodic progress packets to prevent idle-timeout disconnects during
   # long steps (secret scanning, approval polling). Set to 0 to disable.
   heartbeat-interval-seconds: 10
+
+  # Base URL used in dashboard links sent to clients via sideband messages.
+  # Defaults to http://localhost:<port> if not set.
+  # service-url: https://gitproxy.internal.example.com
 ```
 
 ## Database

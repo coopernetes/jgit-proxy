@@ -66,7 +66,7 @@ Config override file mounted at `/app/conf/git-proxy-local.yml` inside the conta
 
 ## Configuration
 
-Refer to [jgit-proxy-server/CONFIGURATION.md](jgit-proxy-server/CONFIGURATION.md) for detailed docs on YAML config structure, environment variable overrides, and provider-specific settings.
+Refer to [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for detailed docs on YAML config structure, environment variable overrides, and provider-specific settings.
 
 ## Roadmap & architecture
 

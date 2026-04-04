@@ -132,13 +132,17 @@ Both proxy modes enforce the same set of configurable validation rules:
 | Approval gate with full lifecycle (RECEIVED → APPROVED → FORWARDED) | Implemented |
 | Real-time sideband progress with ANSI color | Implemented |
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Configuration Reference](docs/CONFIGURATION.md) | YAML config structure, environment variable overrides, provider settings, validation rules |
+| [JGit Infrastructure](docs/JGIT_INFRASTRUCTURE.md) | Store-and-forward architecture: ReceivePackFactory, hook chain, forwarding, credential flow |
+| [Git Internals](docs/GIT_INTERNALS.md) | Wire-protocol edge cases: tags, new branches, force pushes, pack parsing |
+
 ## Configuration
 
-This is currently a work in progress. Similar to git-proxy, it's intended that jgit-proxy's validation & filtering functionality is fully configurable to match each organization's requirements. While certain functions are not configurable (such as parsing git payloads, enforcing git clients & setting request attributes), all the "security business logic" is intended to be fully customizable. 
-
-It is part of the roadmap that these features can be externalized in multiple ways such as integrating with external APIs for approval flows, configurable and pluggable sources for permitted users/repositories/providers and other core features.
-
-You can find the [current documentation here](jgit-proxy-server/CONFIGURATION.md) but just know it is still under active development.
+All validation and filtering is configurable via YAML. See the [Configuration Reference](docs/CONFIGURATION.md) for full details. The configuration system is still under active development.
 
 ## Push Audit Database
 
