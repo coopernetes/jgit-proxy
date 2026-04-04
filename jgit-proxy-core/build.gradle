@@ -13,8 +13,6 @@ plugins {
 group = 'org.finos.gitproxy'
 version = '0.0.1-SNAPSHOT'
 
-// Gitleaks version bundled into the JAR for hermetic secret scanning
-ext.gitleaksVersion = '8.21.2'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
@@ -32,20 +30,6 @@ repositories {
     }
 }
 
-ext {
-    jgitVersion = '7.6.0.202603022253-r'
-    apacheHttpVersion = '4.5.14'
-    jettyVersion = '12.1.8'
-    jakartaServletVersion = '6.1.0'
-    slf4jVersion = '2.0.17'
-    logbackVersion = '1.5.32'
-    hikariVersion = '7.0.2'
-    h2Version = '2.4.240'
-    sqliteVersion = '3.51.3.0'
-    postgresVersion = '42.7.10'
-    mongoVersion = '5.6.4'
-    testContainersVersion = '2.0.4'
-}
 
 dependencies {
     // Servlet API
@@ -55,12 +39,12 @@ dependencies {
     api "jakarta.annotation:jakarta.annotation-api:3.0.0"
     
     // Apache Commons Validator for email validation
-    implementation "commons-validator:commons-validator:1.10.1"
+    implementation "commons-validator:commons-validator:${commonsValidatorVersion}"
 
     // BouncyCastle for GPG signature verification
-    implementation "org.bouncycastle:bcprov-jdk18on:1.83"
-    implementation "org.bouncycastle:bcpg-jdk18on:1.83"
-    
+    implementation "org.bouncycastle:bcprov-jdk18on:${bouncyCastleVersion}"
+    implementation "org.bouncycastle:bcpg-jdk18on:${bouncyCastleVersion}"
+
     // JGit dependencies
     api "org.eclipse.jgit:org.eclipse.jgit:${jgitVersion}"
     implementation "org.eclipse.jgit:org.eclipse.jgit.http.apache:${jgitVersion}"
@@ -71,7 +55,7 @@ dependencies {
     
 
     // Jackson for JSON — BOM pins all jackson-* modules to the same version
-    api platform('tools.jackson:jackson-bom:3.1.1')
+    api platform("tools.jackson:jackson-bom:${jacksonBomVersion}")
     api "tools.jackson.core:jackson-databind"
     
     // Logging
@@ -97,23 +81,23 @@ dependencies {
     compileOnly "org.mongodb:mongodb-driver-sync:${mongoVersion}"
 
     // Lombok
-    compileOnly 'org.projectlombok:lombok:1.18.44'
-    annotationProcessor 'org.projectlombok:lombok:1.18.44'
+    compileOnly "org.projectlombok:lombok:${lombokVersion}"
+    annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
 
     // Testing
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.14.3'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.14.3'
+    testImplementation "org.junit.jupiter:junit-jupiter-api:${junitVersion}"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${junitVersion}"
     testRuntimeOnly "com.h2database:h2:${h2Version}"
     testRuntimeOnly "org.xerial:sqlite-jdbc:${sqliteVersion}"
-    testImplementation 'org.mockito:mockito-core:5.17.0'
-    testImplementation 'org.junit.jupiter:junit-jupiter-params:5.14.3'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.14.3'
+    testImplementation "org.mockito:mockito-core:${mockitoVersion}"
+    testImplementation "org.junit.jupiter:junit-jupiter-params:${junitVersion}"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher:${junitPlatformVersion}"
     testImplementation "org.mongodb:mongodb-driver-sync:${mongoVersion}"
     testImplementation "org.testcontainers:testcontainers:${testContainersVersion}"
     testImplementation "org.testcontainers:testcontainers-junit-jupiter:${testContainersVersion}"
     testImplementation "org.testcontainers:testcontainers-mongodb:${testContainersVersion}"
-    testCompileOnly 'org.projectlombok:lombok:1.18.44'
-    testAnnotationProcessor 'org.projectlombok:lombok:1.18.44'
+    testCompileOnly "org.projectlombok:lombok:${lombokVersion}"
+    testAnnotationProcessor "org.projectlombok:lombok:${lombokVersion}"
 }
 
 tasks.named('test') {
