@@ -5,6 +5,7 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import org.eclipse.jetty.ee11.servlet.FilterHolder;
 import org.eclipse.jetty.ee11.servlet.ServletContextHandler;
@@ -12,7 +13,8 @@ import org.eclipse.jetty.ee11.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jgit.http.server.GitServlet;
-import org.finos.gitproxy.approval.AutoApprovalGateway;
+import org.finos.gitproxy.approval.ApprovalGateway;
+import org.finos.gitproxy.approval.UiApprovalGateway;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.config.GpgConfig;
 import org.finos.gitproxy.db.PushStore;
@@ -37,7 +39,19 @@ class JettyProxyFixture implements AutoCloseable {
     private final int port;
     private final PushStore pushStore;
 
+    /**
+     * Create a fixture with UI (block-then-approve) approval mode for the transparent proxy path. This is the
+     * production default: clean pushes are blocked pending human review.
+     */
     JettyProxyFixture(URI giteaUri) throws Exception {
+        this(giteaUri, UiApprovalGateway::new);
+    }
+
+    /**
+     * Create a fixture with a custom approval gateway factory for the transparent proxy path. The factory receives the
+     * shared {@link PushStore} and returns the gateway to use in {@link PushFinalizerFilter}.
+     */
+    JettyProxyFixture(URI giteaUri, Function<PushStore, ApprovalGateway> proxyGatewayFactory) throws Exception {
         server = new Server();
         var connector = new ServerConnector(server);
         connector.setPort(0); // ephemeral
@@ -104,7 +118,7 @@ class JettyProxyFixture implements AutoCloseable {
         addFilter(context, proxyMapping, new GpgSignatureFilter(GpgConfig.defaultConfig()));
         addFilter(context, proxyMapping, new ValidationSummaryFilter());
         addFilter(context, proxyMapping, new FetchFinalizerFilter());
-        addFilter(context, proxyMapping, new PushFinalizerFilter(serviceUrl, new AutoApprovalGateway(pushStore)));
+        addFilter(context, proxyMapping, new PushFinalizerFilter(serviceUrl, proxyGatewayFactory.apply(pushStore)));
         addFilter(context, proxyMapping, new AuditLogFilter());
 
         server.setHandler(context);
