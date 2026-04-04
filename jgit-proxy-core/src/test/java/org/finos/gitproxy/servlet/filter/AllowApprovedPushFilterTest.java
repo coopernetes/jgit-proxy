@@ -34,7 +34,6 @@ class AllowApprovedPushFilterTest {
                 .name(repoName)
                 .slug("owner/" + repoName)
                 .build());
-        // A non-null commit is required for the filter to proceed
         details.setCommit(org.finos.gitproxy.git.Commit.builder()
                 .sha(commitTo)
                 .author(org.finos.gitproxy.git.Contributor.builder()
@@ -130,6 +129,44 @@ class AllowApprovedPushFilterTest {
         filter.doHttpFilter(req, resp);
 
         verify(req, never()).setAttribute(eq(PRE_APPROVED_ATTR), any());
+    }
+
+    @Test
+    void tagPush_approvedRecord_setsPreApproved() throws Exception {
+        // Tag pushes have commit == null; the filter must still honour a prior approval.
+        InMemoryPushStore store = new InMemoryPushStore();
+        PushRecord approved = PushRecord.builder()
+                .commitTo("tagsha123")
+                .branch("refs/tags/v1.0")
+                .repoName("my-repo")
+                .build();
+        store.save(approved);
+        store.approve(
+                approved.getId(),
+                Attestation.builder()
+                        .pushId(approved.getId())
+                        .type(Attestation.Type.APPROVAL)
+                        .reviewerUsername("admin")
+                        .build());
+
+        AllowApprovedPushFilter filter = new AllowApprovedPushFilter(store, "http://localhost:8080");
+
+        // No commit set — mirrors what ParseGitRequestFilter produces for a tag push
+        GitRequestDetails details = new GitRequestDetails();
+        details.setCommitTo("tagsha123");
+        details.setBranch("refs/tags/v1.0");
+        details.setRepoRef(GitRequestDetails.RepoRef.builder()
+                .owner("owner")
+                .name("my-repo")
+                .slug("owner/my-repo")
+                .build());
+
+        HttpServletRequest req = mockPushRequest(details);
+        HttpServletResponse resp = mock(HttpServletResponse.class);
+
+        filter.doHttpFilter(req, resp);
+
+        verify(req).setAttribute(PRE_APPROVED_ATTR, Boolean.TRUE);
     }
 
     @Test

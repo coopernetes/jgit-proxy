@@ -40,7 +40,7 @@ git-proxy:
   filters:
     whitelists:
       - enabled: true
-        order: 1100
+        order: 110
         operations:
           - FETCH
           - PUSH
@@ -50,7 +50,7 @@ git-proxy:
           - finos/git-proxy
           - coopernetes/test-repo
       - enabled: true
-        order: 1200
+        order: 120
         operations:
           - FETCH
         owners:

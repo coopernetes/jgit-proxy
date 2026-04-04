@@ -159,6 +159,24 @@ class CheckEmptyBranchFilterTest {
     }
 
     @Test
+    void tagPush_skipped() throws Exception {
+        // Tags always point to an existing commit — pushedCommits is empty and commitFrom is zeros,
+        // which normally triggers the "empty new branch" rejection. Tags must be skipped.
+        GitRequestDetails details = new GitRequestDetails();
+        details.setOperation(HttpOperation.PUSH);
+        details.setBranch("refs/tags/v1.0");
+        details.setCommitFrom("0000000000000000000000000000000000000000");
+        details.setCommitTo("abc123def456abc123def456abc123def456abc12");
+        // pushedCommits left empty
+        FakeResponse fakeResponse = new FakeResponse();
+
+        new CheckEmptyBranchFilter().doHttpFilter(mockPushRequest(details), fakeResponse.mock);
+
+        assertFalse(fakeResponse.committed.get(), "Tag push must not be rejected as an empty branch");
+        assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
+    }
+
+    @Test
     void nullRequestDetails_filterDoesNothing() throws Exception {
         HttpServletRequest req = mock(HttpServletRequest.class);
         when(req.getContentType()).thenReturn("application/x-git-receive-pack-request");

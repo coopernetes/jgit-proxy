@@ -125,7 +125,10 @@ public class CheckHiddenCommitsHook implements GitProxyHook {
             for (ReceiveCommand cmd : commands) {
                 if (cmd.getResult() != ReceiveCommand.Result.NOT_ATTEMPTED) continue;
                 if (cmd.getType() == ReceiveCommand.Type.DELETE) continue;
-                walk.markStart(walk.parseCommit(cmd.getNewId()));
+                // Dereference annotated tags to their target commit before walking
+                ObjectId commitId = repo.resolve(cmd.getNewId().name() + "^{commit}");
+                if (commitId == null) continue; // non-commit object (blob/tree tag) — skip
+                walk.markStart(walk.parseCommit(commitId));
             }
 
             for (Ref ref : repo.getRefDatabase().getRefsByPrefix("refs/")) {

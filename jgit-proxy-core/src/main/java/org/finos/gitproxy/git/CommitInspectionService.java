@@ -37,7 +37,8 @@ public class CommitInspectionService {
      */
     public static Commit getCommitDetails(Repository repository, String commitId) throws IOException {
         try (RevWalk revWalk = new RevWalk(repository)) {
-            ObjectId objectId = repository.resolve(commitId);
+            // Use "^{commit}" to dereference annotated tags to their target commit
+            ObjectId objectId = repository.resolve(commitId + "^{commit}");
             if (objectId == null) {
                 throw new IOException("Commit not found: " + commitId);
             }
@@ -63,7 +64,8 @@ public class CommitInspectionService {
 
         try (Git git = new Git(repository)) {
             ObjectId fromId = repository.resolve(fromCommit);
-            ObjectId toId = repository.resolve(toCommit);
+            // Use "^{commit}" to dereference annotated tags to their target commit
+            ObjectId toId = repository.resolve(toCommit + "^{commit}");
 
             if (toId == null) {
                 throw new IOException("Commit not found: " + toCommit);
@@ -181,7 +183,8 @@ public class CommitInspectionService {
      * {@code null} if the oldest new commit is a root commit (base is the empty tree).
      */
     private static ObjectId findNewBranchBase(Repository repository, String toCommit) throws IOException {
-        ObjectId toId = repository.resolve(toCommit);
+        // Use "^{commit}" to dereference annotated tags to their target commit
+        ObjectId toId = repository.resolve(toCommit + "^{commit}");
         if (toId == null) return null;
 
         try (Git git = new Git(repository)) {

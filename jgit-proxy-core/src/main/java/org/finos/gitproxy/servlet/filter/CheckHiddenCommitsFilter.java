@@ -119,7 +119,8 @@ public class CheckHiddenCommitsFilter extends AbstractProviderAwareGitProxyFilte
         Set<String> result = new HashSet<>();
 
         try (RevWalk walk = new RevWalk(repo)) {
-            ObjectId tip = repo.resolve(toCommit);
+            // Dereference annotated tags to their target commit before walking
+            ObjectId tip = repo.resolve(toCommit + "^{commit}");
             if (tip == null) {
                 log.warn("Could not resolve commitTo {} in cached repository", toCommit);
                 return result;

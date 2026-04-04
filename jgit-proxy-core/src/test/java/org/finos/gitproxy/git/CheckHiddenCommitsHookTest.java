@@ -120,6 +120,52 @@ class CheckHiddenCommitsHookTest {
     }
 
     @Test
+    void lightweightTag_passes() throws Exception {
+        // A lightweight tag points directly to a commit — no hidden-commit risk
+        RevCommit c1 = createCommit("init");
+        RevCommit tagged = createCommit("tagged");
+
+        ReceivePack rp = new ReceivePack(repo);
+        // Lightweight tag: newId IS the commit SHA
+        ReceiveCommand cmd = new ReceiveCommand(ObjectId.zeroId(), tagged.getId(), "refs/tags/v1.0");
+        PushContext pushContext = new PushContext();
+
+        new CheckHiddenCommitsHook(pushContext).onPreReceive(rp, List.of(cmd));
+
+        assertEquals(
+                ReceiveCommand.Result.NOT_ATTEMPTED, cmd.getResult(), "Lightweight tag must pass hidden-commit check");
+    }
+
+    @Test
+    void annotatedTag_passes() throws Exception {
+        // Annotated tags point to a tag object (not a commit); the hook must dereference it
+        RevCommit c1 = createCommit("init");
+        RevCommit tagged = createCommit("tagged");
+
+        // Create the annotated tag object in the repo
+        org.eclipse.jgit.lib.ObjectInserter inserter = repo.newObjectInserter();
+        org.eclipse.jgit.lib.TagBuilder tb = new org.eclipse.jgit.lib.TagBuilder();
+        tb.setTag("v2.0");
+        tb.setObjectId(tagged);
+        tb.setTagger(new PersonIdent("Dev", "dev@example.com"));
+        tb.setMessage("Release 2.0");
+        ObjectId tagObjId = inserter.insert(tb);
+        inserter.flush();
+
+        ReceivePack rp = new ReceivePack(repo);
+        // newId is the tag OBJECT, not the commit
+        ReceiveCommand cmd = new ReceiveCommand(ObjectId.zeroId(), tagObjId, "refs/tags/v2.0");
+        PushContext pushContext = new PushContext();
+
+        new CheckHiddenCommitsHook(pushContext).onPreReceive(rp, List.of(cmd));
+
+        assertEquals(
+                ReceiveCommand.Result.NOT_ATTEMPTED,
+                cmd.getResult(),
+                "Annotated tag must pass hidden-commit check (tag object dereferenced to commit)");
+    }
+
+    @Test
     void nullPushContext_doesNotThrow() throws Exception {
         RevCommit c1 = createCommit("init");
         RevCommit c2 = createCommit("second");

@@ -51,6 +51,12 @@ public class CheckEmptyBranchFilter extends AbstractGitProxyFilter {
             return;
         }
 
+        // Tags legitimately point to existing commits — pushedCommits will be empty but that is expected.
+        if (requestDetails.isTagPush()) {
+            log.debug("Tag push detected (ref={}), skipping empty branch check", requestDetails.getBranch());
+            return;
+        }
+
         var commits = requestDetails.getPushedCommits();
         if (commits != null && !commits.isEmpty()) {
             return;

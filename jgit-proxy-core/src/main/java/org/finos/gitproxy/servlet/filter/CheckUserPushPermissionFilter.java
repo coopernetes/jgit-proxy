@@ -50,12 +50,15 @@ public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
             return;
         }
 
-        // Branch deletions send commitTo = 0000...0 (zero SHA) with no new commits.
-        // There is no author to extract identity from; the user is already authenticated
-        // by HTTP basic auth at the transport layer, so let deletions pass through.
+        // Branch deletions and tag pushes carry no commit author to identify the user;
+        // identity is already verified by HTTP basic auth at the transport layer.
         String commitTo = requestDetails.getCommitTo();
         if (commitTo != null && commitTo.matches("^0+$")) {
             log.debug("Branch deletion detected (commitTo={}), skipping user permission check", commitTo);
+            return;
+        }
+        if (requestDetails.isTagPush()) {
+            log.debug("Tag push detected (ref={}), skipping user email check", requestDetails.getBranch());
             return;
         }
 
