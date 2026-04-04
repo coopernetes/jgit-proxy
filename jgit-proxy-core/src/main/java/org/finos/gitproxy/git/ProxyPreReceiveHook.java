@@ -6,7 +6,6 @@ import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.transport.PreReceiveHook;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
 import org.finos.gitproxy.db.model.PushStep;
@@ -20,7 +19,9 @@ import org.finos.gitproxy.db.model.StepStatus;
  * directly.
  */
 @Slf4j
-public class ProxyPreReceiveHook implements PreReceiveHook {
+public class ProxyPreReceiveHook implements GitProxyHook {
+
+    private static final int ORDER = 270;
 
     private final PushContext pushContext;
 
@@ -55,9 +56,20 @@ public class ProxyPreReceiveHook implements PreReceiveHook {
 
         pushContext.addStep(PushStep.builder()
                 .stepName("inspection")
+                .stepOrder(ORDER)
                 .status(StepStatus.PASS)
                 .logs(logs)
                 .build());
+    }
+
+    @Override
+    public int getOrder() {
+        return ORDER;
+    }
+
+    @Override
+    public String getName() {
+        return "ProxyPreReceiveHook";
     }
 
     private void inspectCommits(ReceivePack rp, Repository repo, ReceiveCommand cmd, List<String> logs)

@@ -8,7 +8,6 @@ import static org.finos.gitproxy.git.GitClientUtils.sym;
 import java.util.Collection;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.jgit.transport.PreReceiveHook;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
 import org.finos.gitproxy.db.model.PushStep;
@@ -24,9 +23,9 @@ import org.finos.gitproxy.service.UserAuthorizationService;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class CheckUserPushPermissionHook implements PreReceiveHook {
+public class CheckUserPushPermissionHook implements GitProxyHook {
 
-    private static final int STEP_ORDER = 2000;
+    private static final int ORDER = 150;
 
     private final UserAuthorizationService userAuthorizationService;
     private final ValidationContext validationContext;
@@ -40,7 +39,7 @@ public class CheckUserPushPermissionHook implements PreReceiveHook {
             log.debug("No push user found in repo config, skipping permission check");
             pushContext.addStep(PushStep.builder()
                     .stepName("checkUserPermission")
-                    .stepOrder(STEP_ORDER)
+                    .stepOrder(ORDER)
                     .status(StepStatus.PASS)
                     .build());
             return;
@@ -73,8 +72,18 @@ public class CheckUserPushPermissionHook implements PreReceiveHook {
         log.debug("Push user {} is authorized", pushUser);
         pushContext.addStep(PushStep.builder()
                 .stepName("checkUserPermission")
-                .stepOrder(STEP_ORDER)
+                .stepOrder(ORDER)
                 .status(StepStatus.PASS)
                 .build());
+    }
+
+    @Override
+    public int getOrder() {
+        return ORDER;
+    }
+
+    @Override
+    public String getName() {
+        return "CheckUserPushPermissionHook";
     }
 }

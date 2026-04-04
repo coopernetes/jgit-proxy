@@ -26,9 +26,9 @@ public class WhitelistAggregateFilter extends AbstractProviderAwareGitProxyFilte
 
     private final List<WhitelistByUrlFilter> whitelistFilters;
 
-    // Whitelist aggregate filters must be in the range 1000-1999
-    private static final int MIN_WHITELIST_ORDER = 1000;
-    private static final int MAX_WHITELIST_ORDER = 1999;
+    // Whitelist aggregate filters must be in the authorization range 50-199
+    private static final int MIN_WHITELIST_ORDER = 50;
+    private static final int MAX_WHITELIST_ORDER = 199;
 
     public WhitelistAggregateFilter(
             int order,
@@ -60,7 +60,7 @@ public class WhitelistAggregateFilter extends AbstractProviderAwareGitProxyFilte
     private static int validateWhitelistOrder(int order) {
         if (order < MIN_WHITELIST_ORDER || order > MAX_WHITELIST_ORDER) {
             throw new IllegalArgumentException(String.format(
-                    "Whitelist filter order must be between %d and %d (inclusive), but was %d",
+                    "Whitelist aggregate filter order must be in the authorization range %d-%d (inclusive), but was %d",
                     MIN_WHITELIST_ORDER, MAX_WHITELIST_ORDER, order));
         }
         return order;

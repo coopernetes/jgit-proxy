@@ -18,12 +18,12 @@ import org.finos.gitproxy.validation.Violation;
  * Proxy-mode adapter for {@link AuthorEmailCheck}. Reads commits from {@link GitRequestDetails} and translates
  * violations into filter-chain rejections.
  *
- * <p>This filter runs at order 2100, which is in the built-in content filters range (2000-4999).
+ * <p>This filter runs at order 250, which is in the content filters range (200-399).
  */
 @Slf4j
 public class CheckAuthorEmailsFilter extends AbstractGitProxyFilter {
 
-    private static final int ORDER = 2100;
+    private static final int ORDER = 250;
     private final AuthorEmailCheck check;
 
     public CheckAuthorEmailsFilter(CommitConfig commitConfig) {

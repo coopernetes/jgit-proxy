@@ -2,8 +2,11 @@ package org.finos.gitproxy.git;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.transport.*;
@@ -104,26 +107,31 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
             persistenceHook.setAutoApproval(approvalGateway != null && approvalGateway.approvesImmediately());
         }
 
-        // Hook chain - order matters:
+        // Orderable validation hooks - sorted by getOrder() before chaining.
+        // Lifecycle hooks (persistence, approval) are pinned outside this list.
         //
-        // 0. PushStorePersistenceHook.preReceive      - record RECEIVED (no steps yet)
-        // 1. RepositoryWhitelistHook         (1000)   - record whitelist PASS (resolver already validated)
-        // 2. CheckUserPushPermissionHook     (2000)   - validates push user authorization
-        // 3. CheckEmptyBranchHook            (2050)   - reject if no commits introduced (short-circuit)
-        // 4. CheckHiddenCommitsHook          (2060)   - reject if pack contains commits outside push range
-        // 5. AuthorEmailValidationHook       (2100)   - validates emails; records "checkAuthorEmails" step
-        // 6. CommitMessageValidationHook     (2200)   - validates messages; records "checkCommitMessages" step
-        // 7. ProxyPreReceiveHook                      - commit inspection; records "inspection" step
-        // 8. DiffGenerationHook                       - generates diffs; records "diff" / "diff:default-branch" steps
-        // 9. DiffScanningHook                (2300)   - scans diff added-lines for blocked content; records "scanDiff"
-        // 10. GpgSignatureHook               (2400)   - checks GPG signatures; records "GpgSignatureHook" step
-        // 11. SecretScanningHook             (2500)   - pipes diff to gitleaks; records "scanSecrets" step
-        // 12. PushStorePersistenceHook.validationResult - saves APPROVED or BLOCKED record with all steps so far
-        // 13. ApprovalPreReceiveHook                  - blocks until reviewer approves/rejects or timeout
+        // Authorization range (0-199):
+        //   RepositoryWhitelistHook         (100) - whitelist PASS (resolver already validated)
+        //   CheckUserPushPermissionHook     (150) - push user authorization
+        // Content filtering range (200-399):
+        //   CheckEmptyBranchHook            (210) - reject if no commits introduced (short-circuit)
+        //   CheckHiddenCommitsHook          (220) - reject if pack contains commits outside push range
+        //   AuthorEmailValidationHook       (250) - validates emails
+        //   CommitMessageValidationHook     (260) - validates messages
+        //   ProxyPreReceiveHook             (270) - commit inspection
+        //   DiffGenerationHook              (280) - generates diffs for scanning and persistence
+        //   DiffScanningHook                (300) - scans diff added-lines for blocked content
+        //   GpgSignatureHook                (320) - checks GPG signatures
+        //   SecretScanningHook              (340) - pipes diff to gitleaks
         //
-        // Post-receive (only runs when pre-receive doesn't stop the chain):
-        // 14. ForwardingPostReceiveHook               - forwards to upstream; records "forward" step
-        // 15. PushStorePersistenceHook.postReceive    - saves FORWARDED or ERROR record with forwarding step
+        // Pinned lifecycle hooks (not orderable):
+        //   [pre]  PushStorePersistenceHook.preReceive      - record RECEIVED
+        //   [post-validation] PushStorePersistenceHook.validationResult - save APPROVED/BLOCKED
+        //   [post-validation] ApprovalPreReceiveHook        - blocks until approved or timeout
+        //
+        // Post-receive:
+        //   ForwardingPostReceiveHook       - forwards to upstream
+        //   PushStorePersistenceHook.postReceive - save FORWARDED/ERROR
 
         var permissionHook = new CheckUserPushPermissionHook(
                 userAuthorizationService != null
@@ -132,38 +140,31 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
                 validationContext,
                 pushContext);
 
+        // Build and sort the orderable validation hook list
+        List<GitProxyHook> validationHooks = new ArrayList<>(List.of(
+                new RepositoryWhitelistHook(pushContext),
+                permissionHook,
+                new CheckEmptyBranchHook(pushContext),
+                new CheckHiddenCommitsHook(pushContext),
+                new AuthorEmailValidationHook(commitConfig, validationContext, pushContext),
+                new CommitMessageValidationHook(commitConfig, validationContext, pushContext),
+                new ProxyPreReceiveHook(pushContext),
+                new DiffGenerationHook(pushContext),
+                new DiffScanningHook(commitConfig, validationContext, pushContext),
+                new GpgSignatureHook(gpgConfig, validationContext, pushContext),
+                new SecretScanningHook(commitConfig.getSecretScanning(), validationContext, pushContext)));
+        validationHooks.sort(Comparator.comparingInt(GitProxyHook::getOrder));
+
         PreReceiveHook[] preHooks;
         if (persistenceHook != null) {
-            preHooks = new PreReceiveHook[] {
-                persistenceHook.preReceiveHook(),
-                new RepositoryWhitelistHook(pushContext),
-                permissionHook,
-                new CheckEmptyBranchHook(pushContext),
-                new CheckHiddenCommitsHook(pushContext),
-                new AuthorEmailValidationHook(commitConfig, validationContext, pushContext),
-                new CommitMessageValidationHook(commitConfig, validationContext, pushContext),
-                new ProxyPreReceiveHook(pushContext),
-                new DiffGenerationHook(pushContext),
-                new DiffScanningHook(commitConfig, validationContext, pushContext),
-                new GpgSignatureHook(gpgConfig, validationContext, pushContext),
-                new SecretScanningHook(commitConfig.getSecretScanning(), validationContext, pushContext),
-                persistenceHook.validationResultHook(validationContext),
-                new ApprovalPreReceiveHook(pushStore, approvalGateway, serviceUrl)
-            };
+            List<PreReceiveHook> hooks = new ArrayList<>();
+            hooks.add(persistenceHook.preReceiveHook());
+            hooks.addAll(validationHooks);
+            hooks.add(persistenceHook.validationResultHook(validationContext));
+            hooks.add(new ApprovalPreReceiveHook(pushStore, approvalGateway, serviceUrl));
+            preHooks = hooks.toArray(PreReceiveHook[]::new);
         } else {
-            preHooks = new PreReceiveHook[] {
-                new RepositoryWhitelistHook(pushContext),
-                permissionHook,
-                new CheckEmptyBranchHook(pushContext),
-                new CheckHiddenCommitsHook(pushContext),
-                new AuthorEmailValidationHook(commitConfig, validationContext, pushContext),
-                new CommitMessageValidationHook(commitConfig, validationContext, pushContext),
-                new ProxyPreReceiveHook(pushContext),
-                new DiffGenerationHook(pushContext),
-                new DiffScanningHook(commitConfig, validationContext, pushContext),
-                new GpgSignatureHook(gpgConfig, validationContext, pushContext),
-                new SecretScanningHook(commitConfig.getSecretScanning(), validationContext, pushContext)
-            };
+            preHooks = validationHooks.toArray(PreReceiveHook[]::new);
         }
 
         rp.setPreReceiveHook(chainPreReceiveHooks(preHooks));

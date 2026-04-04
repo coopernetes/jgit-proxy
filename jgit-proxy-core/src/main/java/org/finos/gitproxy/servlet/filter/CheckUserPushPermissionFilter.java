@@ -19,12 +19,12 @@ import org.finos.gitproxy.service.UserAuthorizationService;
  * Filter that validates a user has permission to push to a repository. This filter checks with the
  * UserAuthorizationService to determine if the user is authorized.
  *
- * <p>This filter runs at order 2000, which is in the built-in content filters range (2000-4999).
+ * <p>This filter runs at order 150, which is in the authorization range (0-199).
  */
 @Slf4j
 public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
 
-    private static final int ORDER = 2000;
+    private static final int ORDER = 150;
     private final UserAuthorizationService userAuthorizationService;
 
     public CheckUserPushPermissionFilter(UserAuthorizationService userAuthorizationService) {

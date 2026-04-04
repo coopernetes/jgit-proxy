@@ -12,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.transport.PreReceiveHook;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
 import org.finos.gitproxy.config.GpgConfig;
@@ -27,9 +26,9 @@ import org.finos.gitproxy.validation.Violation;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class GpgSignatureHook implements PreReceiveHook {
+public class GpgSignatureHook implements GitProxyHook {
 
-    private static final int STEP_ORDER = 2400;
+    private static final int ORDER = 320;
 
     private final GpgConfig config;
     private final ValidationContext validationContext;
@@ -59,10 +58,20 @@ public class GpgSignatureHook implements PreReceiveHook {
         if (allViolations.isEmpty()) {
             pushContext.addStep(PushStep.builder()
                     .stepName("checkSignatures")
-                    .stepOrder(STEP_ORDER)
+                    .stepOrder(ORDER)
                     .status(StepStatus.PASS)
                     .build());
         }
+    }
+
+    @Override
+    public int getOrder() {
+        return ORDER;
+    }
+
+    @Override
+    public String getName() {
+        return "GpgSignatureHook";
     }
 
     private List<Commit> getCommits(Repository repo, ReceiveCommand cmd) throws Exception {

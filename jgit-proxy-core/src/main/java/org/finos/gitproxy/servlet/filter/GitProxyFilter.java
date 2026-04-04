@@ -37,17 +37,18 @@ import org.finos.gitproxy.git.HttpOperation;
  * Filters are executed in order based on their {@link #getOrder()} value. The following ranges are reserved:
  *
  * <ul>
- *   <li><b>Preprocessing filters (Integer.MIN_VALUE to Integer.MIN_VALUE+99):</b> Core system filters that must run
- *       first (e.g., ForceGitClientFilter, ParseGitRequestFilter, EnrichPushCommitsFilter)
- *   <li><b>Custom preprocessing filters (1-999):</b> Reserved for user-defined filters that need to run before
- *       whitelisting
- *   <li><b>Whitelist filters (1000-1999):</b> Authorization filters that determine if a request is allowed. Up to 1000
- *       custom whitelist filters can be configured in this range.
- *   <li><b>Built-in content filters (2000-4999):</b> Core validation filters (email checks, commit message validation,
- *       GPG signatures, etc.). Built-in filters use multiples of 100 (2000, 2100, 2200, etc.) to allow up to 99 custom
- *       filters between each built-in filter.
- *   <li><b>Custom post-processing filters (5000+):</b> User-defined filters that run after all built-in filters
- *   <li><b>Audit filters (Integer.MAX_VALUE):</b> Audit and logging filters that should run last
+ *   <li><b>System filters (Integer.MIN_VALUE to Integer.MIN_VALUE+99):</b> Core preprocessing filters that must run
+ *       first (e.g., ForceGitClientFilter, ParseGitRequestFilter, EnrichPushCommitsFilter).
+ *   <li><b>Authorization filters (0-199):</b> Filters that determine if a request is allowed (pre-approval check,
+ *       repository whitelists, user push-permission checks). Built-in filters use steps of 50; custom filters can be
+ *       inserted between them.
+ *   <li><b>Content filters (200-399):</b> Core validation filters (empty-branch guard, hidden-commit detection, author
+ *       email, commit message, diff scanning, GPG signatures, secret scanning). Built-in filters use steps of 10-30;
+ *       custom filters can be inserted between them.
+ *   <li><b>Extended filters (400-499):</b> Reserved for user-defined post-content filters.
+ *   <li><b>Terminal filters (Integer.MAX_VALUE-3 to Integer.MAX_VALUE-1):</b> Aggregation and finalizer filters that
+ *       must run after all content filters (ValidationSummaryFilter, FetchFinalizerFilter, PushFinalizerFilter).
+ *   <li><b>Audit filters (Integer.MAX_VALUE):</b> Audit and logging filters that must run last.
  * </ul>
  */
 public interface GitProxyFilter extends Filter {

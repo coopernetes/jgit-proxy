@@ -3,7 +3,6 @@ package org.finos.gitproxy.git;
 import java.util.Collection;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.jgit.transport.PreReceiveHook;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
 import org.finos.gitproxy.db.model.PushStep;
@@ -17,9 +16,9 @@ import org.finos.gitproxy.db.model.StepStatus;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class RepositoryWhitelistHook implements PreReceiveHook {
+public class RepositoryWhitelistHook implements GitProxyHook {
 
-    private static final int STEP_ORDER = 1000;
+    private static final int ORDER = 100;
 
     private final PushContext pushContext;
 
@@ -28,8 +27,18 @@ public class RepositoryWhitelistHook implements PreReceiveHook {
         log.debug("Repository whitelist check: passed (resolver already validated)");
         pushContext.addStep(PushStep.builder()
                 .stepName("checkWhitelist")
-                .stepOrder(STEP_ORDER)
+                .stepOrder(ORDER)
                 .status(StepStatus.PASS)
                 .build());
+    }
+
+    @Override
+    public int getOrder() {
+        return ORDER;
+    }
+
+    @Override
+    public String getName() {
+        return "RepositoryWhitelistHook";
     }
 }

@@ -18,12 +18,12 @@ import org.finos.gitproxy.validation.Violation;
  * Proxy-mode adapter for {@link GpgSignatureCheck}. Reads commits from {@link GitRequestDetails} and translates
  * violations into filter-chain rejections.
  *
- * <p>This filter runs at order 2400, which is in the built-in content filters range (2000-4999).
+ * <p>This filter runs at order 320, which is in the content filters range (200-399).
  */
 @Slf4j
 public class GpgSignatureFilter extends AbstractGitProxyFilter {
 
-    private static final int ORDER = 2400;
+    private static final int ORDER = 320;
     private final GpgSignatureCheck check;
 
     public GpgSignatureFilter(GpgConfig config) {

@@ -25,17 +25,19 @@ import org.finos.gitproxy.git.HttpOperation;
  *       short-circuit remaining validation filters.
  * </ol>
  *
- * <p>Must be registered at order 499 - after {@code ParseGitRequestFilter} (which populates {@link GitRequestDetails})
- * but before content validation filters (order 2000+).
+ * <p>Runs at order 50 (authorization range) - after {@code ParseGitRequestFilter} (which populates
+ * {@link GitRequestDetails}) but before whitelist and content validation filters.
  */
 @Slf4j
 public class AllowApprovedPushFilter extends AbstractGitProxyFilter {
+
+    private static final int ORDER = 50;
 
     private final PushStore pushStore;
     private final String serviceUrl;
 
     public AllowApprovedPushFilter(PushStore pushStore, String serviceUrl) {
-        super(499);
+        super(ORDER);
         this.pushStore = pushStore;
         this.serviceUrl = serviceUrl;
     }

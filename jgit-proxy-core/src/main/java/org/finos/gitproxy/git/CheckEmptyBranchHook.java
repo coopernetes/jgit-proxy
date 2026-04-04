@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.transport.PreReceiveHook;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
 import org.finos.gitproxy.db.model.PushStep;
@@ -31,9 +30,9 @@ import org.finos.gitproxy.db.model.StepStatus;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class CheckEmptyBranchHook implements PreReceiveHook {
+public class CheckEmptyBranchHook implements GitProxyHook {
 
-    private static final int STEP_ORDER = 2050;
+    private static final int ORDER = 210;
     private static final String STEP_NAME = "checkEmptyBranch";
 
     private final PushContext pushContext;
@@ -69,10 +68,20 @@ public class CheckEmptyBranchHook implements PreReceiveHook {
         if (pushContext != null) {
             pushContext.addStep(PushStep.builder()
                     .stepName(STEP_NAME)
-                    .stepOrder(STEP_ORDER)
+                    .stepOrder(ORDER)
                     .status(StepStatus.PASS)
                     .build());
         }
+    }
+
+    @Override
+    public int getOrder() {
+        return ORDER;
+    }
+
+    @Override
+    public String getName() {
+        return "CheckEmptyBranchHook";
     }
 
     private List<Commit> getCommits(Repository repo, ReceiveCommand cmd) throws Exception {

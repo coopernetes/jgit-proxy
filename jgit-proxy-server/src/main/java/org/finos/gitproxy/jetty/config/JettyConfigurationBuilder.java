@@ -85,7 +85,7 @@ public class JettyConfigurationBuilder {
                 continue;
             }
 
-            int order = getInt(whitelistConfig, "order", 1100);
+            int order = getInt(whitelistConfig, "order", 110);
 
             // Build whitelist filters for each target type
             List<String> slugs = getStringList(whitelistConfig, "slugs");

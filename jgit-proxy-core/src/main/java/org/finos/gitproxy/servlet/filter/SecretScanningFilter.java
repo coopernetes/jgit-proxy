@@ -23,12 +23,12 @@ import org.finos.gitproxy.git.HttpOperation;
  * <p>Path-based allowlists in gitleaks rules (e.g. suppressing {@code package-lock.json} integrity hashes) are applied
  * correctly because gitleaks has full file-path context when operating in git mode.
  *
- * <p>Runs at order 2500, after {@link ScanDiffFilter} (order 2300).
+ * <p>Runs at order 340, after {@link ScanDiffFilter} (order 300), within the content filters range (200-399).
  */
 @Slf4j
 public class SecretScanningFilter extends AbstractGitProxyFilter {
 
-    private static final int ORDER = 2500;
+    private static final int ORDER = 340;
 
     private final CommitConfig.SecretScanningConfig config;
     private final GitleaksRunner runner;

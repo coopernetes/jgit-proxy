@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.jgit.transport.PreReceiveHook;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
 import org.finos.gitproxy.config.CommitConfig;
@@ -30,9 +29,9 @@ import org.finos.gitproxy.validation.Violation;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class SecretScanningHook implements PreReceiveHook {
+public class SecretScanningHook implements GitProxyHook {
 
-    private static final int STEP_ORDER = 2500;
+    private static final int ORDER = 340;
     private static final String STEP_NAME = "scanSecrets";
 
     private final CommitConfig.SecretScanningConfig config;
@@ -77,7 +76,7 @@ public class SecretScanningHook implements PreReceiveHook {
         if (scannerUnavailable && allViolations.isEmpty()) {
             pushContext.addStep(PushStep.builder()
                     .stepName(STEP_NAME)
-                    .stepOrder(STEP_ORDER)
+                    .stepOrder(ORDER)
                     .status(StepStatus.SKIPPED)
                     .build());
             return;
@@ -86,7 +85,7 @@ public class SecretScanningHook implements PreReceiveHook {
         if (allViolations.isEmpty()) {
             pushContext.addStep(PushStep.builder()
                     .stepName(STEP_NAME)
-                    .stepOrder(STEP_ORDER)
+                    .stepOrder(ORDER)
                     .status(StepStatus.PASS)
                     .build());
             return;
@@ -95,5 +94,15 @@ public class SecretScanningHook implements PreReceiveHook {
         for (Violation v : allViolations) {
             validationContext.addIssue(STEP_NAME, v.reason(), v.formattedDetail());
         }
+    }
+
+    @Override
+    public int getOrder() {
+        return ORDER;
+    }
+
+    @Override
+    public String getName() {
+        return "SecretScanningHook";
     }
 }

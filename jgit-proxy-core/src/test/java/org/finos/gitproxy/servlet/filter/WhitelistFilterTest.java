@@ -120,28 +120,28 @@ class WhitelistFilterTest {
     void whitelistByUrl_orderBelowMinimum_throws() {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new WhitelistByUrlFilter(999, GITHUB, List.of("owner"), AuthorizedByUrlFilter.Target.OWNER));
+                () -> new WhitelistByUrlFilter(49, GITHUB, List.of("owner"), AuthorizedByUrlFilter.Target.OWNER));
     }
 
     @Test
     void whitelistByUrl_orderAboveMaximum_throws() {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new WhitelistByUrlFilter(2000, GITHUB, List.of("owner"), AuthorizedByUrlFilter.Target.OWNER));
+                () -> new WhitelistByUrlFilter(200, GITHUB, List.of("owner"), AuthorizedByUrlFilter.Target.OWNER));
     }
 
     @Test
     void whitelistByUrl_validOrder_succeeds() {
         assertDoesNotThrow(
-                () -> new WhitelistByUrlFilter(1000, GITHUB, List.of("owner"), AuthorizedByUrlFilter.Target.OWNER));
+                () -> new WhitelistByUrlFilter(50, GITHUB, List.of("owner"), AuthorizedByUrlFilter.Target.OWNER));
         assertDoesNotThrow(
-                () -> new WhitelistByUrlFilter(1999, GITHUB, List.of("owner"), AuthorizedByUrlFilter.Target.OWNER));
+                () -> new WhitelistByUrlFilter(199, GITHUB, List.of("owner"), AuthorizedByUrlFilter.Target.OWNER));
     }
 
     @Test
     void whitelistByUrl_applyWhitelist_ownerMatch_setsAttribute() throws Exception {
         var filter =
-                new WhitelistByUrlFilter(1500, GITHUB, List.of("allowed-owner"), AuthorizedByUrlFilter.Target.OWNER);
+                new WhitelistByUrlFilter(100, GITHUB, List.of("allowed-owner"), AuthorizedByUrlFilter.Target.OWNER);
         GitRequestDetails details = makeDetails("allowed-owner", "repo", "allowed-owner/repo");
         HttpServletRequest req = mockPushRequest(details);
 
@@ -153,7 +153,7 @@ class WhitelistFilterTest {
     @Test
     void whitelistByUrl_applyWhitelist_ownerNoMatch_doesNotSetAttribute() throws Exception {
         var filter =
-                new WhitelistByUrlFilter(1500, GITHUB, List.of("allowed-owner"), AuthorizedByUrlFilter.Target.OWNER);
+                new WhitelistByUrlFilter(100, GITHUB, List.of("allowed-owner"), AuthorizedByUrlFilter.Target.OWNER);
         GitRequestDetails details = makeDetails("other-owner", "repo", "other-owner/repo");
         HttpServletRequest req = mockPushRequest(details);
 
@@ -164,7 +164,7 @@ class WhitelistFilterTest {
 
     @Test
     void whitelistByUrl_applyWhitelist_nameMatch_setsAttribute() throws Exception {
-        var filter = new WhitelistByUrlFilter(1500, GITHUB, List.of("my-repo"), AuthorizedByUrlFilter.Target.NAME);
+        var filter = new WhitelistByUrlFilter(100, GITHUB, List.of("my-repo"), AuthorizedByUrlFilter.Target.NAME);
         GitRequestDetails details = makeDetails("owner", "my-repo", "owner/my-repo");
         HttpServletRequest req = mockPushRequest(details);
 
@@ -175,7 +175,7 @@ class WhitelistFilterTest {
 
     @Test
     void whitelistByUrl_applyWhitelist_slugMatch_setsAttribute() throws Exception {
-        var filter = new WhitelistByUrlFilter(1500, GITHUB, List.of("owner/repo"), AuthorizedByUrlFilter.Target.SLUG);
+        var filter = new WhitelistByUrlFilter(100, GITHUB, List.of("owner/repo"), AuthorizedByUrlFilter.Target.SLUG);
         GitRequestDetails details = makeDetails("owner", "repo", "owner/repo");
         HttpServletRequest req = mockPushRequest(details);
 
@@ -186,16 +186,16 @@ class WhitelistFilterTest {
 
     @Test
     void whitelistByUrl_beanName_includesProviderAndTargetAndOrder() {
-        var filter = new WhitelistByUrlFilter(1500, GITHUB, List.of("owner"), AuthorizedByUrlFilter.Target.OWNER);
+        var filter = new WhitelistByUrlFilter(100, GITHUB, List.of("owner"), AuthorizedByUrlFilter.Target.OWNER);
         String name = filter.beanName();
         assertTrue(name.contains("github"));
         assertTrue(name.contains("OWNER"));
-        assertTrue(name.contains("1500"));
+        assertTrue(name.contains("100"));
     }
 
     @Test
     void whitelistByUrl_doHttpFilter_isNoOp() throws Exception {
-        var filter = new WhitelistByUrlFilter(1500, GITHUB, List.of("owner"), AuthorizedByUrlFilter.Target.OWNER);
+        var filter = new WhitelistByUrlFilter(100, GITHUB, List.of("owner"), AuthorizedByUrlFilter.Target.OWNER);
         GitRequestDetails details = makeDetails("owner", "repo", "owner/repo");
         FakeResponse resp = new FakeResponse();
 
@@ -208,13 +208,13 @@ class WhitelistFilterTest {
 
     @Test
     void whitelistAggregate_orderBelowMinimum_throws() {
-        assertThrows(IllegalArgumentException.class, () -> new WhitelistAggregateFilter(999, GITHUB, List.of()));
+        assertThrows(IllegalArgumentException.class, () -> new WhitelistAggregateFilter(49, GITHUB, List.of()));
     }
 
     @Test
     void whitelistAggregate_whitelistMatches_passes() throws Exception {
-        var ownerFilter = new WhitelistByUrlFilter(1500, GITHUB, List.of("owner"), AuthorizedByUrlFilter.Target.OWNER);
-        var aggregate = new WhitelistAggregateFilter(1000, GITHUB, List.of(ownerFilter));
+        var ownerFilter = new WhitelistByUrlFilter(100, GITHUB, List.of("owner"), AuthorizedByUrlFilter.Target.OWNER);
+        var aggregate = new WhitelistAggregateFilter(50, GITHUB, List.of(ownerFilter));
         GitRequestDetails details = makeDetails("owner", "repo", "owner/repo");
         FakeResponse resp = new FakeResponse();
 
@@ -225,9 +225,8 @@ class WhitelistFilterTest {
 
     @Test
     void whitelistAggregate_noWhitelistMatch_blocks() throws Exception {
-        var ownerFilter =
-                new WhitelistByUrlFilter(1500, GITHUB, List.of("allowed"), AuthorizedByUrlFilter.Target.OWNER);
-        var aggregate = new WhitelistAggregateFilter(1000, Set.of(HttpOperation.PUSH), GITHUB, List.of(ownerFilter));
+        var ownerFilter = new WhitelistByUrlFilter(100, GITHUB, List.of("allowed"), AuthorizedByUrlFilter.Target.OWNER);
+        var aggregate = new WhitelistAggregateFilter(50, Set.of(HttpOperation.PUSH), GITHUB, List.of(ownerFilter));
         GitRequestDetails details = makeDetails("not-allowed", "repo", "not-allowed/repo");
         FakeResponse resp = new FakeResponse();
 
@@ -238,7 +237,7 @@ class WhitelistFilterTest {
 
     @Test
     void whitelistAggregate_emptyWhitelist_blocks() throws Exception {
-        var aggregate = new WhitelistAggregateFilter(1000, Set.of(HttpOperation.PUSH), GITHUB, List.of());
+        var aggregate = new WhitelistAggregateFilter(50, Set.of(HttpOperation.PUSH), GITHUB, List.of());
         GitRequestDetails details = makeDetails("owner", "repo", "owner/repo");
         FakeResponse resp = new FakeResponse();
 

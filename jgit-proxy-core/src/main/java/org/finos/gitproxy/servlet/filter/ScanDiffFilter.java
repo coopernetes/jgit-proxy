@@ -32,12 +32,12 @@ import org.finos.gitproxy.validation.Violation;
  * <p>Only added lines (prefixed with {@code +} in the unified diff, excluding the {@code +++} header) are scanned.
  * Deletions and context lines are ignored.
  *
- * <p>This filter runs at order 2300, in the built-in content filters range (2000-4999).
+ * <p>This filter runs at order 300, in the content filters range (200-399).
  */
 @Slf4j
 public class ScanDiffFilter extends AbstractProviderAwareGitProxyFilter {
 
-    private static final int ORDER = 2300;
+    private static final int ORDER = 300;
 
     private final CommitConfig commitConfig;
 
@@ -82,7 +82,7 @@ public class ScanDiffFilter extends AbstractProviderAwareGitProxyFilter {
             PushStep diffStep = PushStep.builder()
                     .pushId(requestDetails.getId().toString())
                     .stepName(DiffGenerationHook.STEP_NAME_PUSH_DIFF)
-                    .stepOrder(ORDER - 50)
+                    .stepOrder(ORDER - 20)
                     .status(StepStatus.PASS)
                     .content(diff)
                     .build();

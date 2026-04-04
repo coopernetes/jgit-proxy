@@ -7,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.transport.PreReceiveHook;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
 import org.finos.gitproxy.config.CommitConfig;
@@ -22,9 +21,9 @@ import org.finos.gitproxy.validation.Violation;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class CommitMessageValidationHook implements PreReceiveHook {
+public class CommitMessageValidationHook implements GitProxyHook {
 
-    private static final int STEP_ORDER = 2200;
+    private static final int ORDER = 260;
 
     private final CommitConfig commitConfig;
     private final ValidationContext validationContext;
@@ -52,10 +51,20 @@ public class CommitMessageValidationHook implements PreReceiveHook {
         if (allViolations.isEmpty()) {
             pushContext.addStep(PushStep.builder()
                     .stepName("checkCommitMessages")
-                    .stepOrder(STEP_ORDER)
+                    .stepOrder(ORDER)
                     .status(StepStatus.PASS)
                     .build());
         }
+    }
+
+    @Override
+    public int getOrder() {
+        return ORDER;
+    }
+
+    @Override
+    public String getName() {
+        return "CommitMessageValidationHook";
     }
 
     private List<Commit> getCommits(Repository repo, ReceiveCommand cmd) throws Exception {

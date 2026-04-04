@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.transport.PreReceiveHook;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
 import org.finos.gitproxy.db.model.PushStep;
@@ -32,7 +31,9 @@ import org.finos.gitproxy.db.model.StepStatus;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class DiffGenerationHook implements PreReceiveHook {
+public class DiffGenerationHook implements GitProxyHook {
+
+    private static final int ORDER = 280;
 
     public static final String STEP_NAME_PUSH_DIFF = "diff";
     public static final String STEP_NAME_BRANCH_DIFF = "diff:default-branch";
@@ -72,7 +73,7 @@ public class DiffGenerationHook implements PreReceiveHook {
 
             PushStep step = PushStep.builder()
                     .stepName(STEP_NAME_PUSH_DIFF)
-                    .stepOrder(3000)
+                    .stepOrder(ORDER)
                     .status(StepStatus.PASS)
                     .content(diff)
                     .build();
@@ -118,7 +119,7 @@ public class DiffGenerationHook implements PreReceiveHook {
 
             PushStep step = PushStep.builder()
                     .stepName(STEP_NAME_BRANCH_DIFF)
-                    .stepOrder(3001)
+                    .stepOrder(ORDER + 1)
                     .status(StepStatus.PASS)
                     .content(diff)
                     .build();
@@ -131,6 +132,16 @@ public class DiffGenerationHook implements PreReceiveHook {
         } catch (IOException e) {
             log.warn("Failed to generate default-branch diff for {}", pushRef, e);
         }
+    }
+
+    @Override
+    public int getOrder() {
+        return ORDER;
+    }
+
+    @Override
+    public String getName() {
+        return "DiffGenerationHook";
     }
 
     /**

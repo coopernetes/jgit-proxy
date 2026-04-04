@@ -15,7 +15,7 @@ import org.finos.gitproxy.git.HttpOperation;
 // initial state & not a mutated result such as ERROR, REJECTED or BLOCKED)
 public class FetchFinalizerFilter extends AbstractGitProxyFilter {
 
-    private static final int ORDER = 5000;
+    private static final int ORDER = Integer.MAX_VALUE - 2;
 
     public FetchFinalizerFilter() {
         super(ORDER, Set.of(HttpOperation.FETCH));

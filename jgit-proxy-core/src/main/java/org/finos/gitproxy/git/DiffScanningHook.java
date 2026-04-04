@@ -5,7 +5,6 @@ import java.util.Collection;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.jgit.transport.PreReceiveHook;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
 import org.finos.gitproxy.config.CommitConfig;
@@ -23,9 +22,9 @@ import org.finos.gitproxy.validation.Violation;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class DiffScanningHook implements PreReceiveHook {
+public class DiffScanningHook implements GitProxyHook {
 
-    private static final int STEP_ORDER = 2300;
+    private static final int ORDER = 300;
 
     private final CommitConfig commitConfig;
     private final ValidationContext validationContext;
@@ -80,10 +79,20 @@ public class DiffScanningHook implements PreReceiveHook {
         if (!anyFailed) {
             pushContext.addStep(PushStep.builder()
                     .stepName("scanDiff")
-                    .stepOrder(STEP_ORDER)
+                    .stepOrder(ORDER)
                     .status(StepStatus.PASS)
                     .logs(logs)
                     .build());
         }
+    }
+
+    @Override
+    public int getOrder() {
+        return ORDER;
+    }
+
+    @Override
+    public String getName() {
+        return "DiffScanningHook";
     }
 }

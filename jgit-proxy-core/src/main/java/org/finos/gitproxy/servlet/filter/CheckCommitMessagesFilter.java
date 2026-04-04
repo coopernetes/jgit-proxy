@@ -18,12 +18,12 @@ import org.finos.gitproxy.validation.Violation;
  * Proxy-mode adapter for {@link CommitMessageCheck}. Reads commits from {@link GitRequestDetails} and translates
  * violations into filter-chain rejections.
  *
- * <p>This filter runs at order 2200, which is in the built-in content filters range (2000-4999).
+ * <p>This filter runs at order 260, which is in the content filters range (200-399).
  */
 @Slf4j
 public class CheckCommitMessagesFilter extends AbstractGitProxyFilter {
 
-    private static final int ORDER = 2200;
+    private static final int ORDER = 260;
     private final CommitMessageCheck check;
 
     public CheckCommitMessagesFilter(CommitConfig commitConfig) {

@@ -32,11 +32,12 @@ import org.finos.gitproxy.git.HttpOperation;
  * <p>This filter deliberately overrides {@link #doFilter} to bypass the {@code preApproved} short-circuit in
  * {@link GitProxyFilter} - it must always run to set the final result status regardless of approval state.
  *
- * <p>Runs at order 5000, after all content validation filters and {@link ValidationSummaryFilter}.
+ * <p>Runs at order {@code Integer.MAX_VALUE - 1}, after all content validation filters and
+ * {@link ValidationSummaryFilter}.
  */
 public class PushFinalizerFilter extends AbstractGitProxyFilter {
 
-    private static final int ORDER = 5000;
+    private static final int ORDER = Integer.MAX_VALUE - 1;
 
     private final String serviceUrl;
     private final ApprovalGateway approvalGateway;

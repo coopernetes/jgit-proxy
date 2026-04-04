@@ -41,12 +41,12 @@ import org.finos.gitproxy.provider.GitProxyProvider;
  * {@link ValidationSummaryFilter}. Requires {@link EnrichPushCommitsFilter} to have run first (for both
  * {@code pushedCommits} and the local repository on {@link GitRequestDetails#getLocalRepository()}).
  *
- * <p>Runs at order 2060, before all other content validation filters.
+ * <p>Runs at order 220, early in the content validation range (200-399).
  */
 @Slf4j
 public class CheckHiddenCommitsFilter extends AbstractProviderAwareGitProxyFilter {
 
-    private static final int ORDER = 2060;
+    private static final int ORDER = 220;
     private static final String PROXY_PATH_PREFIX = "/proxy";
 
     public CheckHiddenCommitsFilter(GitProxyProvider provider) {

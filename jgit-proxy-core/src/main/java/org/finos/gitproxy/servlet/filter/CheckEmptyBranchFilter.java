@@ -27,12 +27,12 @@ import org.finos.gitproxy.git.HttpOperation;
  * <p>This filter short-circuits immediately via {@link #rejectAndSendError} without recording to
  * {@link org.finos.gitproxy.servlet.filter.ValidationSummaryFilter}.
  *
- * <p>Runs at order 2050, before all other content validation filters.
+ * <p>Runs at order 210, at the start of the content validation range (200-399).
  */
 @Slf4j
 public class CheckEmptyBranchFilter extends AbstractGitProxyFilter {
 
-    private static final int ORDER = 2050;
+    private static final int ORDER = 210;
 
     public CheckEmptyBranchFilter() {
         super(ORDER, Set.of(HttpOperation.PUSH));

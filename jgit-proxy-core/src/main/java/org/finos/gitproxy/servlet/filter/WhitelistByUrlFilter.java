@@ -31,9 +31,9 @@ public class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter im
     public static final String WHITELISTED_BY_ATTRIBUTE =
             "org.finos.gitproxy.servlet.filter.WhitelistByUrlFilter.whitelistedBy";
 
-    // Whitelist filters must be in the range 1000-1999
-    private static final int MIN_WHITELIST_ORDER = 1000;
-    private static final int MAX_WHITELIST_ORDER = 1999;
+    // Whitelist filters must be in the authorization range 50-199
+    private static final int MIN_WHITELIST_ORDER = 50;
+    private static final int MAX_WHITELIST_ORDER = 199;
 
     public WhitelistByUrlFilter(int order, GitProxyProvider provider, List<String> whitelist, Target target) {
         super(validateWhitelistOrder(order), DEFAULT_OPERATIONS, provider);
@@ -62,7 +62,7 @@ public class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter im
     private static int validateWhitelistOrder(int order) {
         if (order < MIN_WHITELIST_ORDER || order > MAX_WHITELIST_ORDER) {
             throw new IllegalArgumentException(String.format(
-                    "Whitelist filter order must be between %d and %d (inclusive), but was %d",
+                    "Whitelist filter order must be in the authorization range %d-%d (inclusive), but was %d",
                     MIN_WHITELIST_ORDER, MAX_WHITELIST_ORDER, order));
         }
         return order;

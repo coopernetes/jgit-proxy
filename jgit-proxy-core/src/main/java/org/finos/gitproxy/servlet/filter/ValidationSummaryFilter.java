@@ -32,12 +32,13 @@ import org.finos.gitproxy.git.HttpOperation;
  * queue. When an admin approves the push in the UI, the user can re-push the same commit to have it pass through
  * automatically (detected by {@link AllowApprovedPushFilter}).
  *
- * <p>This filter runs at order 4999, after all built-in content filters (2000–4999).
+ * <p>This filter runs at order {@code Integer.MAX_VALUE - 3}, after all content filters, ensuring every validation
+ * filter has had a chance to record issues before the combined response is sent.
  */
 @Slf4j
 public class ValidationSummaryFilter extends AbstractGitProxyFilter {
 
-    private static final int ORDER = 4999;
+    private static final int ORDER = Integer.MAX_VALUE - 3;
 
     public ValidationSummaryFilter() {
         super(ORDER, Set.of(HttpOperation.PUSH));

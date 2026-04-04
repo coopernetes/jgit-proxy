@@ -16,7 +16,6 @@ import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
-import org.eclipse.jgit.transport.PreReceiveHook;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
 import org.finos.gitproxy.db.model.PushStep;
@@ -41,9 +40,9 @@ import org.finos.gitproxy.db.model.StepStatus;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class CheckHiddenCommitsHook implements PreReceiveHook {
+public class CheckHiddenCommitsHook implements GitProxyHook {
 
-    private static final int STEP_ORDER = 2060;
+    private static final int ORDER = 220;
     private static final String STEP_NAME = "checkHiddenCommits";
 
     private final PushContext pushContext;
@@ -63,7 +62,7 @@ public class CheckHiddenCommitsHook implements PreReceiveHook {
                 if (pushContext != null) {
                     pushContext.addStep(PushStep.builder()
                             .stepName(STEP_NAME)
-                            .stepOrder(STEP_ORDER)
+                            .stepOrder(ORDER)
                             .status(StepStatus.PASS)
                             .build());
                 }
@@ -88,6 +87,16 @@ public class CheckHiddenCommitsHook implements PreReceiveHook {
         } catch (Exception e) {
             log.error("Failed to check hidden commits", e);
         }
+    }
+
+    @Override
+    public int getOrder() {
+        return ORDER;
+    }
+
+    @Override
+    public String getName() {
+        return "CheckHiddenCommitsHook";
     }
 
     private Set<String> collectIntroducedCommits(Repository repo, Collection<ReceiveCommand> commands)
