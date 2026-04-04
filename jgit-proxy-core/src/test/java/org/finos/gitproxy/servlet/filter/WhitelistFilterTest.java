@@ -185,6 +185,63 @@ class WhitelistFilterTest {
     }
 
     @Test
+    void whitelistByUrl_globOwner_matches() throws Exception {
+        var filter =
+                new WhitelistByUrlFilter(100, GITHUB, List.of("open-source-*"), AuthorizedByUrlFilter.Target.OWNER);
+        GitRequestDetails details = makeDetails("open-source-org", "repo", "open-source-org/repo");
+        HttpServletRequest req = mockPushRequest(details);
+
+        filter.applyWhitelist(req);
+
+        verify(req).setAttribute(eq(WHITELISTED_BY_ATTRIBUTE), anyString());
+    }
+
+    @Test
+    void whitelistByUrl_globOwner_noMatch() throws Exception {
+        var filter =
+                new WhitelistByUrlFilter(100, GITHUB, List.of("open-source-*"), AuthorizedByUrlFilter.Target.OWNER);
+        GitRequestDetails details = makeDetails("other-org", "repo", "other-org/repo");
+        HttpServletRequest req = mockPushRequest(details);
+
+        filter.applyWhitelist(req);
+
+        verify(req, never()).setAttribute(eq(WHITELISTED_BY_ATTRIBUTE), anyString());
+    }
+
+    @Test
+    void whitelistByUrl_globSlug_matches() throws Exception {
+        var filter = new WhitelistByUrlFilter(100, GITHUB, List.of("*/public-*"), AuthorizedByUrlFilter.Target.SLUG);
+        GitRequestDetails details = makeDetails("owner", "public-api", "owner/public-api");
+        HttpServletRequest req = mockPushRequest(details);
+
+        filter.applyWhitelist(req);
+
+        verify(req).setAttribute(eq(WHITELISTED_BY_ATTRIBUTE), anyString());
+    }
+
+    @Test
+    void whitelistByUrl_globSlug_noMatch() throws Exception {
+        var filter = new WhitelistByUrlFilter(100, GITHUB, List.of("*/public-*"), AuthorizedByUrlFilter.Target.SLUG);
+        GitRequestDetails details = makeDetails("owner", "private-repo", "owner/private-repo");
+        HttpServletRequest req = mockPushRequest(details);
+
+        filter.applyWhitelist(req);
+
+        verify(req, never()).setAttribute(eq(WHITELISTED_BY_ATTRIBUTE), anyString());
+    }
+
+    @Test
+    void whitelistByUrl_globName_matches() throws Exception {
+        var filter = new WhitelistByUrlFilter(100, GITHUB, List.of("feature-*"), AuthorizedByUrlFilter.Target.NAME);
+        GitRequestDetails details = makeDetails("owner", "feature-xyz", "owner/feature-xyz");
+        HttpServletRequest req = mockPushRequest(details);
+
+        filter.applyWhitelist(req);
+
+        verify(req).setAttribute(eq(WHITELISTED_BY_ATTRIBUTE), anyString());
+    }
+
+    @Test
     void whitelistByUrl_beanName_includesProviderAndTargetAndOrder() {
         var filter = new WhitelistByUrlFilter(100, GITHUB, List.of("owner"), AuthorizedByUrlFilter.Target.OWNER);
         String name = filter.beanName();

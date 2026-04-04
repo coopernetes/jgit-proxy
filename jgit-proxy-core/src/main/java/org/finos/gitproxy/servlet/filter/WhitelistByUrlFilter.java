@@ -4,7 +4,13 @@ import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.nio.file.FileSystems;
+import java.nio.file.PathMatcher;
+import java.nio.file.Paths;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
@@ -22,12 +28,19 @@ import org.finos.gitproxy.provider.GitProxyProvider;
  * <p>This filter accepts any {@link GitProxyProvider}. Care must be taken to ensure that the configured provider
  * follows the common URL scheme when using the default behaviour of this class. Most of the request matching logic is
  * delegated to {@link AuthorizedByUrlFilter} which is implemented by this class.
+ *
+ * <p>Whitelist entries may use glob syntax ({@code *}, {@code ?}, {@code [...]}) as defined by
+ * {@link java.nio.file.FileSystem#getPathMatcher}. For slug patterns spanning both owner and name (e.g.
+ * {@code owner-prefix&#47;*}), use {@code /} as the separator — this mirrors the standard {@code owner/repo} slug
+ * format. Exact matches are always evaluated first; glob patterns are only consulted when no exact match is found.
  */
 @Slf4j
 public class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter implements AuthorizedByUrlFilter {
 
     private final List<String> whitelist;
     private final Target target;
+    private final Map<String, PathMatcher> globPatterns;
+
     public static final String WHITELISTED_BY_ATTRIBUTE =
             "org.finos.gitproxy.servlet.filter.WhitelistByUrlFilter.whitelistedBy";
 
@@ -39,6 +52,7 @@ public class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter im
         super(validateWhitelistOrder(order), DEFAULT_OPERATIONS, provider);
         this.whitelist = whitelist;
         this.target = target;
+        this.globPatterns = compileGlobPatterns(whitelist);
     }
 
     public WhitelistByUrlFilter(
@@ -50,6 +64,22 @@ public class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter im
         super(validateWhitelistOrder(order), appliedOperations, provider);
         this.whitelist = whitelist;
         this.target = target;
+        this.globPatterns = compileGlobPatterns(whitelist);
+    }
+
+    private static Map<String, PathMatcher> compileGlobPatterns(List<String> whitelist) {
+        Map<String, PathMatcher> patterns = new LinkedHashMap<>();
+        for (String entry : whitelist) {
+            if (isGlobPattern(entry)) {
+                patterns.put(entry, FileSystems.getDefault().getPathMatcher("glob:" + entry));
+                log.debug("Compiled glob whitelist pattern: {}", entry);
+            }
+        }
+        return Collections.unmodifiableMap(patterns);
+    }
+
+    private static boolean isGlobPattern(String s) {
+        return s.contains("*") || s.contains("?") || s.contains("[");
     }
 
     /**
@@ -87,15 +117,24 @@ public class WhitelistByUrlFilter extends AbstractProviderAwareGitProxyFilter im
     public Predicate<String> createPredicate(Target target, HttpServletRequest request) {
         var details = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
         if (target == AuthorizedByUrlFilter.Target.OWNER) {
-            return o -> o.equals(details.getRepoRef().getOwner());
+            String owner = details.getRepoRef().getOwner();
+            return o -> o.equals(owner) || matchesGlob(o, owner);
         }
         if (target == AuthorizedByUrlFilter.Target.NAME) {
-            return o -> o.equals(details.getRepoRef().getName());
+            String name = details.getRepoRef().getName();
+            return o -> o.equals(name) || matchesGlob(o, name);
         }
         if (target == AuthorizedByUrlFilter.Target.SLUG) {
-            return o -> o.equals(details.getRepoRef().getSlug());
+            String slug = details.getRepoRef().getSlug();
+            return o -> o.equals(slug) || matchesGlob(o, slug);
         }
         throw new IllegalArgumentException("Unknown target type: " + target);
+    }
+
+    private boolean matchesGlob(String pattern, String value) {
+        PathMatcher matcher = globPatterns.get(pattern);
+        if (matcher == null) return false;
+        return matcher.matches(Paths.get(value));
     }
 
     @Override
