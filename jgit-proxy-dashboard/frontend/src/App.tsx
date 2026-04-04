@@ -1,19 +1,19 @@
-import { useEffect, useState } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import { fetchMe } from './api';
-import { Nav } from './components/Nav';
-import { Providers } from './pages/Providers';
-import { PushDetail } from './pages/PushDetail';
-import { PushList } from './pages/PushList';
-import { Repos } from './pages/Repos';
-import type { CurrentUser } from './types';
+import { useEffect, useState } from 'react'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { fetchMe } from './api'
+import { Nav } from './components/Nav'
+import { Providers } from './pages/Providers'
+import { PushDetail } from './pages/PushDetail'
+import { PushList } from './pages/PushList'
+import { Repos } from './pages/Repos'
+import type { CurrentUser } from './types'
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
 
   useEffect(() => {
-    fetchMe().then(setCurrentUser).catch(console.error);
-  }, []);
+    fetchMe().then(setCurrentUser).catch(console.error)
+  }, [])
 
   return (
     <BrowserRouter>
@@ -29,5 +29,5 @@ export default function App() {
         </main>
       </div>
     </BrowserRouter>
-  );
+  )
 }

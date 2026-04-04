@@ -1,17 +1,14 @@
-import { NavLink } from 'react-router-dom';
-import type { CurrentUser } from '../types';
+import { NavLink } from 'react-router-dom'
+import type { CurrentUser } from '../types'
 
 interface NavProps {
-  currentUser: CurrentUser | null;
+  currentUser: CurrentUser | null
 }
 
 export function Nav({ currentUser }: NavProps) {
   return (
     <header className="bg-slate-800 text-white px-6 py-4 flex items-center gap-4 shadow">
-      <NavLink
-        to="/"
-        className="text-xl font-semibold tracking-wide shrink-0 hover:text-slate-200"
-      >
+      <NavLink to="/" className="text-xl font-semibold tracking-wide shrink-0 hover:text-slate-200">
         &#9889; git-proxy
       </NavLink>
 
@@ -66,5 +63,5 @@ export function Nav({ currentUser }: NavProps) {
         </div>
       )}
     </header>
-  );
+  )
 }

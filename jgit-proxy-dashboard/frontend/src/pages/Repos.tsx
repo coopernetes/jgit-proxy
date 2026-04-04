@@ -17,7 +17,7 @@ const REPOS = [
     description: 'FINOS git-proxy — Node.js reference implementation this project is porting.',
     approved: false,
   },
-];
+]
 
 export function Repos() {
   return (
@@ -27,7 +27,7 @@ export function Repos() {
         <span className="text-xs text-gray-400">Repos visible through this proxy</span>
       </div>
 
-      {REPOS.map(repo => (
+      {REPOS.map((repo) => (
         <div key={repo.url} className="bg-white rounded-lg shadow border border-gray-200 px-6 py-4">
           <div className="flex items-start gap-4">
             <div className="flex-1">
@@ -36,7 +36,7 @@ export function Repos() {
                   src={`https://${repo.providerHost}/favicon.ico`}
                   className="w-4 h-4 rounded"
                   alt=""
-                  onError={e => (e.currentTarget.style.display = 'none')}
+                  onError={(e) => (e.currentTarget.style.display = 'none')}
                 />
                 <span className="text-xs font-medium text-gray-500">{repo.providerName}</span>
               </div>
@@ -71,5 +71,5 @@ export function Repos() {
         </div>
       ))}
     </div>
-  );
+  )
 }

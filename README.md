@@ -218,38 +218,6 @@ The backlog is tracked in [GitHub Issues](https://github.com/coopernetes/jgit-pr
 | [Project vision & design](https://gist.github.com/coopernetes/d02d48efa759282ff8187da0d5dcae64) | High-level goals and priority tracks: sideband streaming UX, checkpoint-based resumption, lifecycle hooks, DAG pipeline execution, SCM OAuth integration, SSH support |
 | [Framework rationale](https://gist.github.com/coopernetes/626541b83a148f4ae21ae2c62c57edea) | Why Java/Jetty + JGit over Node.js/Express: native git protocol handling, in-process pack inspection, sideband streaming |
 
-## Development
+## Contributing
 
-### Build
-
-```shell
-./gradlew build              # compile + unit tests
-./gradlew spotlessApply      # fix formatting (palantir-java-format)
-```
-
-### Integration tests
-
-Test scripts in the repo root exercise both proxy modes end-to-end against a running server. They require a `~/.github-pat` file with a GitHub personal access token.
-
-```shell
-# Store-and-forward mode
-bash test-push-pass.sh   # pushes that should succeed
-bash test-push-fail.sh   # pushes that should be rejected
-
-# Transparent proxy mode
-bash test-proxy-pass.sh
-bash test-proxy-fail.sh
-```
-
-### E2E tests (Docker/Podman required)
-
-```shell
-./gradlew e2eTest
-```
-
-### Docker Compose
-
-```shell
-docker compose up -d          # jgit-proxy + Gitea (h2-mem database)
-bash docker/setup.sh          # one-time: create admin user + test repo in Gitea
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build, run tests, use the manual test scripts in `test/`, and set up the Docker Compose environment.

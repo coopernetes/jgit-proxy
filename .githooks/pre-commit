@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
-# Auto-apply Spotless formatting before each commit.
+# Formatting and lint checks run before each commit.
 # Install once with: ./gradlew installGitHooks
 
 set -euo pipefail
 
 echo "[pre-commit] Running spotlessApply..."
 ./gradlew spotlessApply --quiet
-
-# Re-stage any files that Spotless just reformatted so the formatted
-# versions are included in the commit (not the originals).
 git diff --name-only | xargs -r git add
-
 echo "[pre-commit] Spotless: OK"
+
+echo "[pre-commit] Running Prettier..."
+./gradlew :jgit-proxy-dashboard:npmFormat --quiet
+git diff --name-only -- jgit-proxy-dashboard/frontend/src | xargs -r git add
+echo "[pre-commit] Prettier: OK"
+
+echo "[pre-commit] Running ESLint..."
+./gradlew :jgit-proxy-dashboard:npmLint --quiet
+echo "[pre-commit] ESLint: OK"

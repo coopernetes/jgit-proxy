@@ -40,6 +40,26 @@ tasks.register('npmCi', NpmTask) {
     outputs.dir('frontend/node_modules')
 }
 
+tasks.register('npmLint', NpmTask) {
+    group = 'verification'
+    description = 'Runs ESLint on the React frontend'
+    dependsOn tasks.named('npmCi')
+    args = ['run', 'lint']
+    inputs.dir('frontend/src')
+    inputs.file('frontend/eslint.config.js')
+    inputs.file('frontend/package.json')
+}
+
+tasks.register('npmFormat', NpmTask) {
+    group = 'formatting'
+    description = 'Runs Prettier on the React frontend source'
+    dependsOn tasks.named('npmCi')
+    args = ['run', 'format']
+    inputs.dir('frontend/src')
+    inputs.file('frontend/.prettierrc')
+    inputs.file('frontend/package.json')
+}
+
 tasks.register('npmBuild', NpmTask) {
     group = 'build'
     description = 'Builds the React frontend with Vite'
