@@ -47,16 +47,23 @@ export async function fetchProviders() {
   return res.json()
 }
 
+async function parseErrorResponse(res: Response, fallback: string): Promise<never> {
+  const text = await res.text()
+  try {
+    const err = JSON.parse(text)
+    throw new Error(err.error || fallback)
+  } catch {
+    throw new Error(`${fallback} (HTTP ${res.status})`)
+  }
+}
+
 export async function approvePush(id: string, body: Record<string, string>) {
   const res = await apiFetch(`/api/push/${id}/authorise`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    const err = await res.json()
-    throw new Error(err.error || 'Failed to approve')
-  }
+  if (!res.ok) await parseErrorResponse(res, 'Failed to approve')
   return res.json()
 }
 
@@ -66,9 +73,6 @@ export async function rejectPush(id: string, body: Record<string, string>) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    const err = await res.json()
-    throw new Error(err.error || 'Failed to reject')
-  }
+  if (!res.ok) await parseErrorResponse(res, 'Failed to reject')
   return res.json()
 }

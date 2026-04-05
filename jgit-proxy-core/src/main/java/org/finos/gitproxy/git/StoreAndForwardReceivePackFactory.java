@@ -138,15 +138,9 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
 
         // Store push credentials in repo config so hooks can read them for identity resolution.
         // pushToken is the PAT/password — stored only in-process repo config, never persisted to disk.
-        String pushUser = (String) req.getAttribute("org.finos.gitproxy.pushUser");
-        String pushToken = null;
-        if (pushUser == null) {
-            String[] userPass = extractUserPass(req);
-            if (userPass != null) {
-                pushUser = userPass[0];
-                pushToken = userPass[1];
-            }
-        }
+        String[] userPass = extractUserPass(req);
+        String pushUser = userPass != null ? userPass[0] : null;
+        String pushToken = userPass != null ? userPass[1] : null;
         if (pushUser != null) {
             db.getConfig().setString("gitproxy", null, "pushUser", pushUser);
         }

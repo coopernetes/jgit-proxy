@@ -27,7 +27,14 @@ public class ConfigPushIdentityResolver implements PushIdentityResolver {
         if (pushUsername == null || pushUsername.isBlank()) {
             return Optional.empty();
         }
-        var result = userStore.findByUsername(pushUsername);
+        // Check push-username aliases first (stored as scm identities under the "proxy" provider).
+        var result = userStore.findByScmIdentity("proxy", pushUsername);
+        if (result.isPresent()) {
+            log.debug("Resolved push user '{}' via push-username alias", pushUsername);
+            return result;
+        }
+        // Fall back to direct proxy username match.
+        result = userStore.findByUsername(pushUsername);
         if (result.isPresent()) {
             log.debug("Resolved push user '{}' via proxy username match", pushUsername);
         }

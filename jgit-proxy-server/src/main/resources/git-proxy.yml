@@ -33,10 +33,15 @@ providers:
     enabled: true
   gitlab:
     enabled: true
-  bitbucket:
+  codeberg:
     enabled: true
+  gitea:
+    enabled: true
+#  bitbucket:
+#    enabled: true
 #  internal-gitlab:
 #    enabled: true
+#    type: github
 #    servlet-path: /enterprise
 #    uri: https://gitlab.internal.example.com
 #  debian-gitlab:

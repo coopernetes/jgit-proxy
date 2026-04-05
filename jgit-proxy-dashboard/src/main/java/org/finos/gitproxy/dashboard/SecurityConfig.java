@@ -79,9 +79,13 @@ public class SecurityConfig {
                         .permitAll())
                 .logout(logout -> logout.logoutSuccessUrl("/login.html?logout").permitAll())
                 .csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
                         // The static login form cannot embed a CSRF token; login-CSRF risk is low
                         // (attacker can log you into their account but cannot access your data).
-                        .ignoringRequestMatchers("/login"))
+                        .ignoringRequestMatchers("/login")
+                        // Requests using a custom X-Api-Key header are not vulnerable to CSRF — browsers
+                        // cannot send custom headers cross-origin without a CORS preflight.
+                        .ignoringRequestMatchers(req -> req.getHeader("X-Api-Key") != null))
                 // API calls from the SPA must get 401, not a redirect to /login.
                 // Redirects cause fetch() to follow to the HTML login page and then
                 // JSON.parse blows up on the HTML response.

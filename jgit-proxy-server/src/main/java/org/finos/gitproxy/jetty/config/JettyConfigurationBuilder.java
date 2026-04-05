@@ -16,10 +16,12 @@ import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.db.PushStoreFactory;
 import org.finos.gitproxy.db.jdbc.DataSourceFactory;
 import org.finos.gitproxy.provider.*;
+import org.finos.gitproxy.service.ChainedPushIdentityResolver;
 import org.finos.gitproxy.service.ConfigPushIdentityResolver;
 import org.finos.gitproxy.service.DummyUserAuthorizationService;
 import org.finos.gitproxy.service.LinkedIdentityAuthorizationService;
 import org.finos.gitproxy.service.PushIdentityResolver;
+import org.finos.gitproxy.service.TokenPushIdentityResolver;
 import org.finos.gitproxy.service.UserAuthorizationService;
 import org.finos.gitproxy.servlet.filter.AuthorizedByUrlFilter;
 import org.finos.gitproxy.servlet.filter.WhitelistByUrlFilter;
@@ -240,17 +242,29 @@ public class JettyConfigurationBuilder {
     /** Builds a {@link UserStore} from config. JDBC backends share the same {@link DataSource} as the push store. */
     public UserStore buildUserStore() {
         List<UserEntry> staticUsers = config.getUsers().stream()
-                .map(uc -> UserEntry.builder()
-                        .username(uc.getUsername())
-                        .passwordHash(uc.getPasswordHash())
-                        .emails(uc.getEmails())
-                        .scmIdentities(uc.getScmIdentities().stream()
-                                .map(s -> ScmIdentity.builder()
-                                        .provider(s.getProvider())
-                                        .username(s.getUsername())
-                                        .build())
-                                .toList())
-                        .build())
+                .map(uc -> {
+                    List<ScmIdentity> scmIdentities = new ArrayList<>();
+                    uc.getScmIdentities().stream()
+                            .map(s -> ScmIdentity.builder()
+                                    .provider(s.getProvider())
+                                    .username(s.getUsername())
+                                    .build())
+                            .forEach(scmIdentities::add);
+                    // push-usernames are stored as SCM identities under the synthetic "proxy" provider
+                    // so that ConfigPushIdentityResolver and JdbcUserStore can look them up uniformly.
+                    uc.getPushUsernames().stream()
+                            .map(pushName -> ScmIdentity.builder()
+                                    .provider("proxy")
+                                    .username(pushName)
+                                    .build())
+                            .forEach(scmIdentities::add);
+                    return UserEntry.builder()
+                            .username(uc.getUsername())
+                            .passwordHash(uc.getPasswordHash())
+                            .emails(uc.getEmails())
+                            .scmIdentities(scmIdentities)
+                            .build();
+                })
                 .toList();
 
         String type = config.getDatabase().getType();
@@ -265,12 +279,14 @@ public class JettyConfigurationBuilder {
     }
 
     /**
-     * Builds the {@link PushIdentityResolver}. Uses {@link ConfigPushIdentityResolver} when users are configured,
-     * otherwise returns null (no identity checks).
+     * Builds the {@link PushIdentityResolver}. When users are configured, returns a chain that tries token-based
+     * identity lookup first (provider API → SCM identity match) and falls back to config push-username aliases. Returns
+     * null when no users are configured (open/permissive mode).
      */
     public PushIdentityResolver buildPushIdentityResolver(UserStore userStore) {
         if (config.getUsers().isEmpty()) return null;
-        return new ConfigPushIdentityResolver(userStore);
+        return new ChainedPushIdentityResolver(
+                List.of(new TokenPushIdentityResolver(userStore), new ConfigPushIdentityResolver(userStore)));
     }
 
     /**
