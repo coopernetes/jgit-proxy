@@ -2,7 +2,7 @@
 # Golden-path store-and-forward push: valid commit that should pass all checks.
 set -euo pipefail
 
-GIT_USERNAME=${GIT_USERNAME:-"me"}
+GIT_USERNAME=${GIT_USERNAME:-"coopernetes"}
 GIT_REPO=${GIT_REPO:-"github.com/coopernetes/test-repo.git"}
 PUSH_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/push/${GIT_REPO}"
 TEST_BRANCH="test/push-pass-$(date +%s)"

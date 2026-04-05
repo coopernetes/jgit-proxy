@@ -67,6 +67,13 @@ public class PushRecord {
      */
     private String resolvedUser;
 
+    /**
+     * The actual SCM username on the upstream provider (e.g. GitHub login "coopernetes"). Populated when token-based
+     * identity resolution succeeds; null for config-only resolution or open mode. Use this — not {@link #user} — for
+     * building provider profile links.
+     */
+    private String scmUsername;
+
     /** Authenticated user's email. Populated when user management is available; null until then. */
     private String userEmail;
 
@@ -90,6 +97,9 @@ public class PushRecord {
     /** Whether the push was auto-rejected by policy. */
     @Builder.Default
     private boolean autoRejected = false;
+
+    /** When the push was forwarded upstream. Null until status reaches FORWARDED. */
+    private Instant forwardedAt;
 
     /** Validation steps executed for this push. */
     @Builder.Default

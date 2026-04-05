@@ -58,6 +58,9 @@ public final class PushRecordMapper {
             builder.user(details.getResolvedUser());
             builder.resolvedUser(details.getResolvedUser());
         }
+        if (details.getScmUsername() != null) {
+            builder.scmUsername(details.getScmUsername());
+        }
 
         // Map commit author info from the head commit
         if (details.getCommit() != null) {

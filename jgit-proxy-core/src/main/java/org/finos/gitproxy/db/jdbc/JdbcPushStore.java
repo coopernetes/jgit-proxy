@@ -51,11 +51,11 @@ public class JdbcPushStore implements PushStore {
             jdbc.update("""
                     INSERT INTO push_records (id, timestamp, url, upstream_url, project, repo_name, branch,
                         commit_from, commit_to, message, author, author_email, committer, committer_email,
-                        push_user, resolved_user, user_email, method, status, error_message, blocked_message,
+                        push_user, resolved_user, scm_username, user_email, method, status, error_message, blocked_message,
                         auto_approved, auto_rejected)
                     VALUES (:id, :timestamp, :url, :upstreamUrl, :project, :repoName, :branch,
                         :commitFrom, :commitTo, :message, :author, :authorEmail, :committer, :committerEmail,
-                        :user, :resolvedUser, :userEmail, :method, :status, :errorMessage, :blockedMessage,
+                        :user, :resolvedUser, :scmUsername, :userEmail, :method, :status, :errorMessage, :blockedMessage,
                         :autoApproved, :autoRejected)
                     """, pushRecordParams(record));
 
@@ -145,6 +145,22 @@ public class JdbcPushStore implements PushStore {
     @Override
     public PushRecord cancel(String id, Attestation attestation) {
         return updateStatus(id, PushStatus.CANCELED, attestation);
+    }
+
+    @Override
+    public void updateForwardStatus(String id, PushStatus status, String errorMessage) {
+        Timestamp now = Timestamp.from(java.time.Instant.now());
+        tx.executeWithoutResult(txStatus -> jdbc.update(
+                "UPDATE push_records SET status = :status, error_message = :errorMessage, forwarded_at = :forwardedAt WHERE id = :id",
+                Map.of(
+                        "status",
+                        status.name(),
+                        "errorMessage",
+                        errorMessage != null ? errorMessage : "",
+                        "forwardedAt",
+                        now,
+                        "id",
+                        id)));
     }
 
     @Override
@@ -299,6 +315,7 @@ public class JdbcPushStore implements PushStore {
                 .addValue("committerEmail", r.getCommitterEmail())
                 .addValue("user", r.getUser())
                 .addValue("resolvedUser", r.getResolvedUser())
+                .addValue("scmUsername", r.getScmUsername())
                 .addValue("userEmail", r.getUserEmail())
                 .addValue("method", r.getMethod())
                 .addValue("status", r.getStatus().name())

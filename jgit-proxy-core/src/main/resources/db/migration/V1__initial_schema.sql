@@ -24,7 +24,9 @@ CREATE TABLE IF NOT EXISTS push_records (
     error_message   TEXT,
     blocked_message TEXT,
     auto_approved   BOOLEAN NOT NULL DEFAULT FALSE,
-    auto_rejected   BOOLEAN NOT NULL DEFAULT FALSE
+    auto_rejected   BOOLEAN NOT NULL DEFAULT FALSE,
+    scm_username    VARCHAR(255),
+    forwarded_at    TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS push_steps (

@@ -124,11 +124,12 @@ public final class GitProxyServletRegistrar {
         log.info("Registered GitServlet for {} at {}", provider.getName(), pushMapping);
     }
 
-    public static void registerProxyServlet(ServletContextHandler context, GitProxyProvider provider) {
+    public static void registerProxyServlet(
+            ServletContextHandler context, GitProxyProvider provider, PushStore pushStore) {
         String proxyPath = PROXY_PATH_PREFIX + provider.servletPath();
         String proxyMapping = proxyPath + "/*";
 
-        var proxyServlet = new GitProxyServlet();
+        var proxyServlet = new GitProxyServlet(pushStore);
         var proxyServletHolder = new ServletHolder(proxyServlet);
         proxyServletHolder.setName("proxy-" + provider.getName());
         proxyServletHolder.setInitParameter("proxyTo", provider.getUri().toString());

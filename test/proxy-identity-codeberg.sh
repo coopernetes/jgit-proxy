@@ -5,7 +5,7 @@
 # for provider=codeberg → identity cannot be resolved → push rejected outright.
 # No approval needed (hard block, not pending-review).
 #
-# Expected: push fails with "not registered" error, no push record forwarded.
+# Expected: push fails with "identity not linked" error, no push record forwarded.
 set -euo pipefail
 
 GIT_USERNAME=${GIT_USERNAME:-"coopernetes"}
@@ -37,9 +37,9 @@ git commit -m "test: proxy identity verification — codeberg unresolved"
 OUTPUT=$(git push origin "${TEST_BRANCH}" 2>&1 || true)
 echo "${OUTPUT}"
 
-if echo "${OUTPUT}" | grep -q "not registered"; then
+if echo "${OUTPUT}" | grep -qi "identity not linked"; then
     echo "PASSED (correctly blocked: coopernetes has no codeberg SCM identity)"
 else
-    echo "FAILED — expected 'not registered' rejection"
+    echo "FAILED — expected "identity not linked" rejection"
     exit 1
 fi

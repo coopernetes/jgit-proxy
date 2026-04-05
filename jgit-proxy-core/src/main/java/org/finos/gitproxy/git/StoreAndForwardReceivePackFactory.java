@@ -193,7 +193,8 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
                         : new org.finos.gitproxy.service.DummyUserAuthorizationService(),
                 validationContext,
                 pushContext,
-                provider);
+                provider,
+                serviceUrl);
 
         var identityVerificationHook = new IdentityVerificationHook(
                 pushIdentityResolver, commitConfig.getIdentityVerification(), validationContext, pushContext, provider);

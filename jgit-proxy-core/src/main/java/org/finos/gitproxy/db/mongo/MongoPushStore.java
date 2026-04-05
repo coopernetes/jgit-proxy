@@ -109,6 +109,13 @@ public class MongoPushStore implements PushStore {
     }
 
     @Override
+    public void updateForwardStatus(String id, PushStatus status, String errorMessage) {
+        Document set = new Document("status", status.name()).append("forwardedAt", new java.util.Date());
+        if (errorMessage != null) set.append("errorMessage", errorMessage);
+        getCollection().updateOne(Filters.eq("_id", id), new Document("$set", set));
+    }
+
+    @Override
     public void close() {
         mongoClient.close();
     }
@@ -146,13 +153,16 @@ public class MongoPushStore implements PushStore {
                 .append("committer", r.getCommitter())
                 .append("committerEmail", r.getCommitterEmail())
                 .append("user", r.getUser())
+                .append("resolvedUser", r.getResolvedUser())
+                .append("scmUsername", r.getScmUsername())
                 .append("userEmail", r.getUserEmail())
                 .append("method", r.getMethod())
                 .append("status", r.getStatus().name())
                 .append("errorMessage", r.getErrorMessage())
                 .append("blockedMessage", r.getBlockedMessage())
                 .append("autoApproved", r.isAutoApproved())
-                .append("autoRejected", r.isAutoRejected());
+                .append("autoRejected", r.isAutoRejected())
+                .append("forwardedAt", r.getForwardedAt() != null ? Date.from(r.getForwardedAt()) : null);
 
         if (r.getSteps() != null && !r.getSteps().isEmpty()) {
             doc.append(
@@ -190,13 +200,19 @@ public class MongoPushStore implements PushStore {
                 .committer(doc.getString("committer"))
                 .committerEmail(doc.getString("committerEmail"))
                 .user(doc.getString("user"))
+                .resolvedUser(doc.getString("resolvedUser"))
+                .scmUsername(doc.getString("scmUsername"))
                 .userEmail(doc.getString("userEmail"))
                 .method(doc.getString("method"))
                 .status(PushStatus.valueOf(doc.getString("status")))
                 .errorMessage(doc.getString("errorMessage"))
                 .blockedMessage(doc.getString("blockedMessage"))
                 .autoApproved(doc.getBoolean("autoApproved", false))
-                .autoRejected(doc.getBoolean("autoRejected", false));
+                .autoRejected(doc.getBoolean("autoRejected", false))
+                .forwardedAt(
+                        doc.getDate("forwardedAt") != null
+                                ? doc.getDate("forwardedAt").toInstant()
+                                : null);
 
         List<Document> stepDocs = doc.getList("steps", Document.class);
         if (stepDocs != null) {

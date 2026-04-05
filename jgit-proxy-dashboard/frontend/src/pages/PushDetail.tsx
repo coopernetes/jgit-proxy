@@ -515,13 +515,18 @@ export function PushDetail({ currentUser }: PushDetailProps) {
                     const upstreamHost = record.upstreamUrl
                       ? new URL(record.upstreamUrl).hostname
                       : null
-                    const scmUser = record.user
-                    if (scmUser) {
-                      return (
-                        <div className="space-y-0.5">
+                    // scmUsername  = real provider handle (coopernetes) — use for link
+                    // resolvedUser = proxy account (admin) — show when it differs from scmUsername
+                    // user         = raw HTTP Basic username — only show in open/unresolved mode
+                    const displayHandle =
+                      record.scmUsername ?? (record.resolvedUser ? null : record.user)
+                    if (!displayHandle && !record.resolvedUser) return null
+                    return (
+                      <div className="space-y-0.5">
+                        {displayHandle && (
                           <div className="flex items-center justify-end gap-1">
                             <span className="text-gray-400">pusher</span>
-                            {upstreamHost && (
+                            {upstreamHost && record.scmUsername && (
                               <img
                                 src={`https://${upstreamHost}/favicon.ico`}
                                 className="w-3.5 h-3.5"
@@ -530,25 +535,25 @@ export function PushDetail({ currentUser }: PushDetailProps) {
                                 }}
                               />
                             )}
-                            {record.resolvedUser && upstreamHost ? (
+                            {record.scmUsername && upstreamHost ? (
                               <a
-                                href={`https://${upstreamHost}/${scmUser}`}
+                                href={`https://${upstreamHost}/${record.scmUsername}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-600 hover:underline font-medium"
                               >
-                                {scmUser}
+                                {record.scmUsername}
                               </a>
                             ) : (
-                              <span className="text-gray-600">{scmUser}</span>
+                              <span className="text-gray-600">{displayHandle}</span>
                             )}
                           </div>
-                          {record.resolvedUser && record.resolvedUser !== scmUser && (
-                            <div className="text-gray-400">user: {record.resolvedUser}</div>
-                          )}
-                        </div>
-                      )
-                    }
+                        )}
+                        {record.resolvedUser && record.resolvedUser !== record.scmUsername && (
+                          <div className="text-gray-400">user: {record.resolvedUser}</div>
+                        )}
+                      </div>
+                    )
                   } catch {
                     // URL parsing failed
                   }

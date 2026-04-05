@@ -50,6 +50,7 @@ export interface PushRecord {
   author?: string
   user?: string
   resolvedUser?: string
+  scmUsername?: string
   committer?: string
   timestamp?: string | number
   blockedMessage?: string

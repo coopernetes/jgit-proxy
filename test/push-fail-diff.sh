@@ -4,7 +4,7 @@
 # Tests the diff.block.literals and diff.block.patterns config
 set -uo pipefail
 
-GIT_USERNAME=${GIT_USERNAME:-"me"}
+GIT_USERNAME=${GIT_USERNAME:-"coopernetes"}
 GIT_REPO=${GIT_REPO:-"github.com/coopernetes/test-repo.git"}
 PUSH_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/push/${GIT_REPO}"
 PASS=0

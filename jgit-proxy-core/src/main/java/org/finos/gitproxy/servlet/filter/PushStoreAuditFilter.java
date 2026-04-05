@@ -1,10 +1,10 @@
 package org.finos.gitproxy.servlet.filter;
 
 import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
+import static org.finos.gitproxy.servlet.GitProxyServlet.PRE_APPROVED_ATTR;
 
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,23 +45,13 @@ public class PushStoreAuditFilter implements Filter {
         // Only persist push operations
         if (requestDetails == null || requestDetails.getOperation() != HttpOperation.PUSH) return;
 
+        // For transparent-proxy re-pushes (PRE_APPROVED_ATTR is set), the upstream response is handled
+        // asynchronously by GitProxyServlet.onProxyResponseSuccess/Failure, which updates the original
+        // approved record directly. Skip creating a duplicate record here.
+        if (Boolean.TRUE.equals(httpRequest.getAttribute(PRE_APPROVED_ATTR))) return;
+
         try {
             PushRecord record = PushRecordMapper.fromRequestDetails(requestDetails);
-
-            // For approved transparent-proxy re-pushes, check the upstream HTTP response status to
-            // distinguish a successfully forwarded push (2xx → FORWARDED) from a failed one (4xx/5xx → ERROR).
-            // S&F pushes set FORWARDED directly in PushStorePersistenceHook and never reach this code.
-            if (record.getStatus() == org.finos.gitproxy.db.model.PushStatus.APPROVED
-                    && response instanceof HttpServletResponse httpResponse) {
-                int statusCode = httpResponse.getStatus();
-                if (statusCode >= 200 && statusCode < 300) {
-                    record.setStatus(org.finos.gitproxy.db.model.PushStatus.FORWARDED);
-                } else if (statusCode >= 400) {
-                    record.setStatus(org.finos.gitproxy.db.model.PushStatus.ERROR);
-                    record.setErrorMessage("Upstream returned HTTP " + statusCode);
-                }
-            }
-
             pushStore.save(record);
             log.info(
                     "Persisted push record: id={}, repo={}, status={}",

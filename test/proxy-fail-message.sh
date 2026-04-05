@@ -3,7 +3,7 @@
 # Uses the proxy path (/proxy/...) which runs the servlet filter chain
 set -uo pipefail
 
-GIT_USERNAME=${GIT_USERNAME:-"me"}
+GIT_USERNAME=${GIT_USERNAME:-"coopernetes"}
 GIT_REPO=${GIT_REPO:-"github.com/coopernetes/test-repo.git"}
 PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${GIT_REPO}"
 PASS=0

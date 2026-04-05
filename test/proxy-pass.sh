@@ -2,7 +2,7 @@
 # Golden-path transparent-proxy push: valid commit that should pass all checks.
 set -euo pipefail
 
-GIT_USERNAME=${GIT_USERNAME:-"me"}
+GIT_USERNAME=${GIT_USERNAME:-"coopernetes"}
 GIT_REPO=${GIT_REPO:-"github.com/coopernetes/test-repo.git"}
 GITPROXY_API_KEY=${GITPROXY_API_KEY:-""}
 PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${GIT_REPO}"

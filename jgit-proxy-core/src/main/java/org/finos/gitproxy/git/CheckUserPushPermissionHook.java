@@ -33,6 +33,7 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
     private final ValidationContext validationContext;
     private final PushContext pushContext;
     private final GitProxyProvider provider;
+    private final String serviceUrl;
 
     public CheckUserPushPermissionHook(
             PushIdentityResolver identityResolver,
@@ -48,11 +49,22 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
             ValidationContext validationContext,
             PushContext pushContext,
             GitProxyProvider provider) {
+        this(identityResolver, userAuthorizationService, validationContext, pushContext, provider, null);
+    }
+
+    public CheckUserPushPermissionHook(
+            PushIdentityResolver identityResolver,
+            UserAuthorizationService userAuthorizationService,
+            ValidationContext validationContext,
+            PushContext pushContext,
+            GitProxyProvider provider,
+            String serviceUrl) {
         this.identityResolver = identityResolver;
         this.userAuthorizationService = userAuthorizationService;
         this.validationContext = validationContext;
         this.pushContext = pushContext;
         this.provider = provider;
+        this.serviceUrl = serviceUrl;
     }
 
     @Override
@@ -87,12 +99,20 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
 
         if (resolved.isEmpty()) {
             log.warn("Push user '{}' could not be resolved to a registered proxy user", pushUser);
+            String providerName = provider != null ? provider.getName() : "SCM";
+            String profileHint = serviceUrl != null
+                    ? "Link your " + providerName + " identity at:\n  " + sym(LINK) + "  " + serviceUrl + "/profile"
+                    : "Ask an administrator to link your " + providerName + " identity to your proxy account.";
             String detail = GitClientUtils.format(
-                    sym(NO_ENTRY) + "  Push Blocked - User Not Registered",
-                    sym(CROSS_MARK) + "  " + pushUser + " is not registered.\n\nContact an administrator for support.",
+                    sym(NO_ENTRY) + "  Push Blocked - Identity Not Linked",
+                    sym(CROSS_MARK)
+                            + "  Your "
+                            + providerName
+                            + " credentials could not be matched to a proxy account.\n\n"
+                            + profileHint,
                     RED,
                     null);
-            validationContext.addIssue("CheckUserPushPermissionHook", "User does not exist: " + pushUser, detail);
+            validationContext.addIssue("CheckUserPushPermissionHook", "Identity not linked: " + pushUser, detail);
             return;
         }
 
@@ -110,8 +130,16 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
         }
 
         log.debug("Push user '{}' resolved as '{}' and authorized", pushUser, user.getUsername());
-        // Store the resolved proxy username so PushStorePersistenceHook can record it as push_user.
-        rp.getRepository().getConfig().setString("gitproxy", null, "resolvedUser", user.getUsername());
+        config.setString("gitproxy", null, "resolvedUser", user.getUsername());
+        // Store the SCM username (provider-side login, e.g. "coopernetes") when available.
+        // This differs from the proxy username and is the correct handle for provider profile links.
+        if (provider != null && user.getScmIdentities() != null) {
+            user.getScmIdentities().stream()
+                    .filter(id -> provider.getName().equalsIgnoreCase(id.getProvider()))
+                    .map(org.finos.gitproxy.user.ScmIdentity::getUsername)
+                    .findFirst()
+                    .ifPresent(scmUser -> config.setString("gitproxy", null, "scmUsername", scmUser));
+        }
         pushContext.addStep(PushStep.builder()
                 .stepName("checkUserPermission")
                 .stepOrder(ORDER)

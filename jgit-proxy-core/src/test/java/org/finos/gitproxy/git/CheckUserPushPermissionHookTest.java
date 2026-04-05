@@ -88,7 +88,7 @@ class CheckUserPushPermissionHookTest {
         verifyNoInteractions(resolver, authService);
     }
 
-    // ---- resolver returns empty → "not registered" ----
+    // ---- resolver returns empty → "identity not linked" ----
 
     @Test
     void resolverReturnsEmpty_addsNotRegisteredIssue() throws Exception {
@@ -111,8 +111,8 @@ class CheckUserPushPermissionHookTest {
                 "CheckUserPushPermissionHook",
                 validationContext.getIssues().get(0).hookName());
         assertTrue(
-                validationContext.getIssues().get(0).summary().contains("does not exist"),
-                "Issue message should mention 'does not exist'");
+                validationContext.getIssues().get(0).summary().contains("Identity not linked"),
+                "Issue message should mention 'Identity not linked'");
         verifyNoInteractions(authService);
     }
 

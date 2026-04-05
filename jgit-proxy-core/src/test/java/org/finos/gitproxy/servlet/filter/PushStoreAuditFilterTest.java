@@ -1,6 +1,7 @@
 package org.finos.gitproxy.servlet.filter;
 
 import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
+import static org.finos.gitproxy.servlet.GitProxyServlet.PRE_APPROVED_ATTR;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -122,6 +123,19 @@ class PushStoreAuditFilterTest {
         filter.doFilter(req, resp, chain);
 
         verify(chain).doFilter(req, resp);
+        verifyNoInteractions(pushStore);
+    }
+
+    // ---- transparent-proxy re-push is NOT persisted (GitProxyServlet async callback handles it) ----
+
+    @Test
+    void preApprovedRePush_notPersisted() throws Exception {
+        FilterChain chain = mock(FilterChain.class);
+        HttpServletRequest req = pushRequest(pushDetails());
+        when(req.getAttribute(PRE_APPROVED_ATTR)).thenReturn(Boolean.TRUE);
+
+        filter.doFilter(req, mock(HttpServletResponse.class), chain);
+
         verifyNoInteractions(pushStore);
     }
 

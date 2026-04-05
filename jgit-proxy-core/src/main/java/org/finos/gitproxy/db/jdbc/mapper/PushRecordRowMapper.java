@@ -34,6 +34,7 @@ public final class PushRecordRowMapper implements RowMapper<PushRecord> {
                 .committerEmail(rs.getString("committer_email"))
                 .user(rs.getString("push_user"))
                 .resolvedUser(rs.getString("resolved_user"))
+                .scmUsername(rs.getString("scm_username"))
                 .userEmail(rs.getString("user_email"))
                 .method(rs.getString("method"))
                 .status(PushStatus.valueOf(rs.getString("status")))
@@ -41,6 +42,7 @@ public final class PushRecordRowMapper implements RowMapper<PushRecord> {
                 .blockedMessage(rs.getString("blocked_message"))
                 .autoApproved(rs.getBoolean("auto_approved"))
                 .autoRejected(rs.getBoolean("auto_rejected"))
+                .forwardedAt(toInstant(rs.getTimestamp("forwarded_at")))
                 .build();
     }
 

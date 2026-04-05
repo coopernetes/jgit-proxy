@@ -5,6 +5,7 @@ import java.util.Optional;
 import org.finos.gitproxy.db.model.Attestation;
 import org.finos.gitproxy.db.model.PushQuery;
 import org.finos.gitproxy.db.model.PushRecord;
+import org.finos.gitproxy.db.model.PushStatus;
 
 /**
  * Storage abstraction for push records. Implementations exist for in-memory, JDBC (H2, SQLite, Postgres), and MongoDB.
@@ -48,6 +49,17 @@ public interface PushStore {
      * @return the updated record
      */
     PushRecord cancel(String id, Attestation attestation);
+
+    /**
+     * Update the forward status of a transparent-proxy re-push after the upstream HTTP response is received. Only
+     * touches {@code status} and (on error) {@code errorMessage} — does not modify attestation or steps.
+     *
+     * @param id the push record ID
+     * @param status {@link org.finos.gitproxy.db.model.PushStatus#FORWARDED} on success,
+     *     {@link org.finos.gitproxy.db.model.PushStatus#ERROR} on failure
+     * @param errorMessage human-readable upstream error detail; {@code null} for FORWARDED
+     */
+    void updateForwardStatus(String id, PushStatus status, String errorMessage);
 
     /** Initialize the store (create tables, indexes, etc.). Called once at startup. */
     void initialize();

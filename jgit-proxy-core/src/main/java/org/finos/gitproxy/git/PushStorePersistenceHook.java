@@ -105,16 +105,20 @@ public class PushStorePersistenceHook {
             String pushId = rp.getRepository().getConfig().getString("gitproxy", null, "pushId");
             if (pushId == null) return;
 
-            // Re-read resolvedUser here — it is set by CheckUserPushPermissionHook (order 150),
-            // which runs after preReceiveHook(), so it was not available when the RECEIVED record
-            // was written. validationResultHook fires after all validation hooks complete.
+            // Re-read resolvedUser and scmUsername here — both are set by CheckUserPushPermissionHook
+            // (order 150), which runs after preReceiveHook(), so they were not available when the
+            // RECEIVED record was written. validationResultHook fires after all validation hooks complete.
             String resolvedUserLate = rp.getRepository().getConfig().getString("gitproxy", null, "resolvedUser");
+            String scmUsernameLate = rp.getRepository().getConfig().getString("gitproxy", null, "scmUsername");
 
             try {
                 pushStore.findById(pushId).ifPresent(initial -> {
                     PushRecord record = copyBase(initial);
                     if (resolvedUserLate != null) {
                         record.setResolvedUser(resolvedUserLate);
+                    }
+                    if (scmUsernameLate != null) {
+                        record.setScmUsername(scmUsernameLate);
                     }
 
                     // Collect all steps: validation issues + push context (diffs, etc.)

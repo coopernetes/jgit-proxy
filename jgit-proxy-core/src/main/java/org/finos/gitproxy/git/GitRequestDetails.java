@@ -44,6 +44,13 @@ public class GitRequestDetails {
      */
     private String resolvedUser;
 
+    /**
+     * The actual SCM username on the upstream provider (e.g. GitHub login "coopernetes"). Populated when the resolved
+     * {@link org.finos.gitproxy.user.UserEntry} has a matching SCM identity for the provider. Use this for provider
+     * profile links — {@link #resolvedUser} is the proxy account, not the SCM handle.
+     */
+    private String scmUsername;
+
     private List<GitProxyFilter> filters = new ArrayList<>();
     private List<PushStep> steps = new ArrayList<>(); // Filter/hook results for audit trail
     private GitResult result = GitResult.PENDING;

@@ -85,7 +85,7 @@ public class GitProxyJettyApplication {
                     pushIdentityResolver,
                     userAuthService,
                     configBuilder.getHeartbeatIntervalSeconds());
-            GitProxyServletRegistrar.registerProxyServlet(context, provider);
+            GitProxyServletRegistrar.registerProxyServlet(context, provider, pushStore);
             GitProxyServletRegistrar.registerFilters(
                     context,
                     provider,

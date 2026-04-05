@@ -3,9 +3,9 @@
 #
 # Scenario: push as coopernetes using a Codeberg PAT. No entry exists in
 # user_scm_identities for provider=codeberg → identity cannot be resolved.
-# With a user store configured, the proxy blocks the push as "not registered".
+# With a user store configured, the proxy blocks the push as "Identity Not Linked".
 #
-# Expected: push fails with "not registered" error, no push record created.
+# Expected: push fails with "identity not linked" error, no push record created.
 #
 # Override GIT_EMAIL / GIT_AUTHOR_NAME when adapting for a different deployment.
 set -euo pipefail
@@ -39,10 +39,10 @@ git commit -m "test: identity verification — codeberg unresolved"
 OUTPUT=$(git push origin "${TEST_BRANCH}" 2>&1 || true)
 echo "${OUTPUT}"
 
-if echo "${OUTPUT}" | grep -q "not registered"; then
+if echo "${OUTPUT}" | grep -qi "identity not linked"; then
     echo "PASSED (correctly blocked: coopernetes has no codeberg SCM identity)"
 else
-    echo "FAILED — expected 'not registered' rejection"
+    echo "FAILED — expected "identity not linked" rejection"
     echo "If running in open mode (no user store), this push may have succeeded."
     exit 1
 fi

@@ -85,6 +85,15 @@ public class InMemoryPushStore implements PushStore {
     }
 
     @Override
+    public void updateForwardStatus(String id, PushStatus status, String errorMessage) {
+        PushRecord record = records.get(id);
+        if (record == null) return;
+        record.setStatus(status);
+        record.setForwardedAt(java.time.Instant.now());
+        if (errorMessage != null) record.setErrorMessage(errorMessage);
+    }
+
+    @Override
     public void initialize() {
         // Nothing to do for in-memory store
     }

@@ -95,7 +95,7 @@ public class GitProxyWithDashboardApplication {
                     pushIdentityResolver,
                     userAuthService,
                     configBuilder.getHeartbeatIntervalSeconds());
-            GitProxyServletRegistrar.registerProxyServlet(context, provider);
+            GitProxyServletRegistrar.registerProxyServlet(context, provider, pushStore);
             GitProxyServletRegistrar.registerFilters(
                     context,
                     provider,

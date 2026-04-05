@@ -1,6 +1,9 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.servlet.GitProxyServlet.*;
+import static org.finos.gitproxy.servlet.GitProxyServlet.APPROVED_PUSH_ID_ATTR;
+import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
+import static org.finos.gitproxy.servlet.GitProxyServlet.PRE_APPROVED_ATTR;
+import static org.finos.gitproxy.servlet.GitProxyServlet.SERVICE_URL_ATTR;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -75,11 +78,12 @@ public class AllowApprovedPushFilter extends AbstractGitProxyFilter {
                 .build());
 
         if (!approved.isEmpty()) {
-            log.info(
-                    "Push {} (commitTo={}) was previously approved - allowing re-push through",
-                    approved.get(0).getId(),
-                    commitTo);
+            String approvedId = approved.get(0).getId();
+            log.info("Push {} (commitTo={}) was previously approved - allowing re-push through", approvedId, commitTo);
             request.setAttribute(PRE_APPROVED_ATTR, Boolean.TRUE);
+            // Store the original push ID so GitProxyServlet can update its status to FORWARDED/ERROR
+            // via the async response callbacks after the upstream responds.
+            request.setAttribute(APPROVED_PUSH_ID_ATTR, approvedId);
         }
     }
 }

@@ -94,7 +94,7 @@ class JettyProxyFixture implements AutoCloseable {
         String proxyServletPath = PROXY_PREFIX + provider.servletPath();
         String proxyMapping = proxyServletPath + "/*";
 
-        var proxyServlet = new GitProxyServlet();
+        var proxyServlet = new GitProxyServlet(pushStore);
         var proxyHolder = new ServletHolder(proxyServlet);
         proxyHolder.setName("proxy-gitea-e2e");
         proxyHolder.setInitParameter("proxyTo", giteaUri.toString());
