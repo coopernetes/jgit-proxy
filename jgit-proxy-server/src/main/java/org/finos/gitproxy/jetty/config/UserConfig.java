@@ -17,4 +17,11 @@ public class UserConfig {
 
     /** SCM identities: provider + username pairs (e.g. github/alice). */
     private List<ScmIdentityConfig> scmIdentities = new ArrayList<>();
+
+    /**
+     * HTTP Basic-auth usernames that are accepted for this proxy user. Allows a user to push under an alias (e.g.
+     * {@code push-usernames: [me, alice]}). The proxy {@code username} is always implicitly valid; entries here are
+     * additional aliases only.
+     */
+    private List<String> pushUsernames = new ArrayList<>();
 }

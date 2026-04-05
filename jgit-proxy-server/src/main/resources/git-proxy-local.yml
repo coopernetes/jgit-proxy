@@ -16,9 +16,9 @@ users:
     password-hash: "{noop}admin"
     emails:
       - developer@example.com
-    push-usernames:
-      - me
-      - admin
+    scm-identities:
+      - provider: github
+        username: coopernetes
 commit:
   author:
     email:
