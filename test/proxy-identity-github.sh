@@ -8,7 +8,7 @@
 # Expected: push succeeds, resolved_user = admin, identity badge = green.
 set -euo pipefail
 
-GIT_USERNAME=${GIT_USERNAME:-"coopernetes"}
+GIT_USERNAME=${GIT_USERNAME:-"me"}
 GIT_PASSWORD=${GIT_PASSWORD:-"$(cat ~/.github-pat)"}
 GIT_REPO=${GIT_REPO:-"github.com/coopernetes/test-repo.git"}
 GITPROXY_API_KEY=${GITPROXY_API_KEY:-"foobarbaz"}
