@@ -170,8 +170,7 @@ public class PushStorePersistenceHook {
                         if (serviceUrl != null && !autoApproval) {
                             rp.sendMessage(color(
                                     CYAN,
-                                    "" + sym(LINK) + "  View push record: " + serviceUrl + "/#/push/"
-                                            + record.getId()));
+                                    "" + sym(LINK) + "  View push record: " + serviceUrl + "/push/" + record.getId()));
                         }
 
                         // Reject all commands immediately - no approval wait
@@ -206,7 +205,7 @@ public class PushStorePersistenceHook {
                     if (serviceUrl != null && !autoApproval) {
                         rp.sendMessage(color(
                                 CYAN,
-                                "" + sym(LINK) + "  View push record: " + serviceUrl + "/#/push/" + record.getId()));
+                                "" + sym(LINK) + "  View push record: " + serviceUrl + "/push/" + record.getId()));
                     }
 
                     pushStore.save(record);
@@ -301,10 +300,14 @@ public class PushStorePersistenceHook {
                 .url(providerUri)
                 .project(provider.getUri().getHost());
 
-        // Extract push user from repo config (set by StoreAndForwardReceivePackFactory)
+        // Prefer the resolved proxy username (set by CheckUserPushPermissionHook after identity
+        // resolution) so that push_user matches the dashboard login. Fall back to the raw HTTP Basic
+        // username if resolution didn't run (open mode / no user store configured).
+        String resolvedUser = repo.getConfig().getString("gitproxy", null, "resolvedUser");
         String pushUser = repo.getConfig().getString("gitproxy", null, "pushUser");
-        if (pushUser != null) {
-            builder.user(pushUser);
+        String userToStore = resolvedUser != null ? resolvedUser : pushUser;
+        if (userToStore != null) {
+            builder.user(userToStore);
         }
 
         // Extract upstream URL and repo name from repo config (set by StoreAndForwardRepositoryResolver)

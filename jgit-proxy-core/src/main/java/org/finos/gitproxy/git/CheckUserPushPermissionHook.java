@@ -113,6 +113,8 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
         }
 
         log.debug("Push user '{}' resolved as '{}' and authorized", pushUser, user.getUsername());
+        // Store the resolved proxy username so PushStorePersistenceHook can record it as push_user.
+        rp.getRepository().getConfig().setString("gitproxy", null, "resolvedUser", user.getUsername());
         pushContext.addStep(PushStep.builder()
                 .stepName("checkUserPermission")
                 .stepOrder(ORDER)

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Diff2HtmlUI } from 'diff2html/lib/ui/js/diff2html-ui-slim'
 import 'diff2html/bundles/css/diff2html.min.css'
-import { approvePush, fetchPush, rejectPush } from '../api'
+import { approvePush, cancelPush, fetchPush, rejectPush } from '../api'
 import { StatusBadge } from '../components/StatusBadge'
 import type { CurrentUser, PushRecord, Step } from '../types'
 
@@ -68,6 +68,223 @@ function stripAnsi(str: string) {
   return (str ?? '').replace(/\x1b\[[0-9;]*m/g, '')
 }
 
+/**
+ * Build a direct link to the commit on the upstream SCM.
+ * GitHub / Gitea / Codeberg: {repo}/commit/{sha}
+ * GitLab: {repo}/-/commit/{sha}
+ */
+function upstreamCommitUrl(upstreamUrl: string, sha: string): string {
+  const base = upstreamUrl.replace(/\/$/, '').replace(/\.git$/, '')
+  if (/gitlab\./.test(base)) return `${base}/-/commit/${sha}`
+  return `${base}/commit/${sha}`
+}
+
+// Steps that represent forwarding/post-receive operations
+const FORWARDING_STEPS = new Set(['ForwardingPostReceiveHook', 'forward', 'ForwardingHook'])
+
+function PushTimeline({ record }: { record: PushRecord }) {
+  type TimelineEvent = {
+    icon: string
+    label: string
+    detail?: string
+    link?: string
+    time?: string | number
+    color: string
+  }
+
+  const events: TimelineEvent[] = []
+
+  // 1. Received
+  events.push({
+    icon: '↓',
+    label: 'Push received',
+    time: record.timestamp,
+    color: 'text-gray-500',
+  })
+
+  // 2. Validation ran — summarise as a single event using the first/last step timestamp
+  const visibleSteps = (record.steps ?? []).filter((s) => !NON_VALIDATION_STEPS.has(s.stepName))
+  if (visibleSteps.length > 0) {
+    const failed = visibleSteps.filter((s) => s.status === 'FAIL' || s.status === 'BLOCKED')
+    const lastStep = [...visibleSteps].sort((a, b) => a.stepOrder - b.stepOrder).at(-1)
+    events.push({
+      icon: failed.length > 0 ? '✗' : '✓',
+      label:
+        failed.length > 0
+          ? `Validation failed (${failed.length} issue${failed.length > 1 ? 's' : ''})`
+          : `Validation passed (${visibleSteps.length} check${visibleSteps.length > 1 ? 's' : ''})`,
+      detail: failed.map((s) => stepDisplayName(s.stepName)).join(', ') || undefined,
+      time: lastStep?.timestamp,
+      color: failed.length > 0 ? 'text-red-500' : 'text-green-500',
+    })
+  }
+
+  // 3. Blocked event — show if currently blocked/rejected, or if there was a review
+  //    (attestation present means it went through the approval gate, regardless of final status)
+  const wasBlocked =
+    record.status === 'BLOCKED' ||
+    record.status === 'REJECTED' ||
+    record.status === 'CANCELED' ||
+    (record.attestation != null && !record.autoApproved)
+  if (wasBlocked) {
+    events.push({
+      icon: '⏸',
+      label: 'Blocked — pending review',
+      detail: record.blockedMessage ?? undefined,
+      time: record.timestamp,
+      color: 'text-amber-500',
+    })
+  }
+
+  // 4. Attestation (review event)
+  if (record.attestation) {
+    const att = record.attestation
+    const typeLabel =
+      att.type === 'APPROVAL' ? 'Approved' : att.type === 'REJECTION' ? 'Rejected' : 'Canceled'
+    events.push({
+      icon: att.type === 'APPROVAL' ? '✓' : att.type === 'REJECTION' ? '✗' : '○',
+      label: `${typeLabel} by ${att.reviewerUsername}${att.reviewerEmail ? ` (${att.reviewerEmail})` : ''}`,
+      detail: att.reason ?? undefined,
+      time: att.timestamp,
+      color:
+        att.type === 'APPROVAL'
+          ? 'text-green-600'
+          : att.type === 'REJECTION'
+            ? 'text-red-600'
+            : 'text-gray-400',
+    })
+  }
+
+  // 5. Forwarded — check for a forwarding step first (S&F), else use record status
+  const forwardStep = (record.steps ?? []).find((s) => FORWARDING_STEPS.has(s.stepName))
+  if (record.status === 'FORWARDED') {
+    const commitLink =
+      record.upstreamUrl && record.commitTo
+        ? upstreamCommitUrl(record.upstreamUrl, record.commitTo)
+        : undefined
+    events.push({
+      icon: '→',
+      label: 'Forwarded to upstream',
+      detail: record.upstreamUrl ?? undefined,
+      link: commitLink,
+      time: forwardStep?.timestamp,
+      color: 'text-blue-500',
+    })
+  }
+
+  // 6. Error
+  if (record.status === 'ERROR') {
+    events.push({
+      icon: '!',
+      label: 'Error',
+      detail: record.errorMessage ?? undefined,
+      time: record.timestamp,
+      color: 'text-red-600',
+    })
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow border border-gray-200 px-6 py-4">
+      <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Timeline</h2>
+      <ol className="relative border-l border-gray-200 ml-2 space-y-4">
+        {events.map((ev, i) => (
+          <li key={i} className="ml-5">
+            <span
+              className={`absolute -left-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-white border border-gray-200 text-xs font-bold ${ev.color}`}
+            >
+              {ev.icon}
+            </span>
+            <div className="text-sm text-gray-800 font-medium leading-snug">{ev.label}</div>
+            {ev.detail && <div className="text-xs text-gray-500 mt-0.5 font-mono">{ev.detail}</div>}
+            {ev.link && (
+              <a
+                href={ev.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-600 hover:underline mt-0.5 block"
+              >
+                View commit ↗
+              </a>
+            )}
+            {ev.time && <div className="text-xs text-gray-400 mt-0.5">{formatTime(ev.time)}</div>}
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
+
+function RePushGuidance({ record }: { record: PushRecord }) {
+  const branch = record.branch?.replace('refs/heads/', '') ?? '<branch>'
+
+  if (record.status === 'APPROVED') {
+    return (
+      <div className="bg-blue-50 border border-blue-200 rounded-lg px-6 py-4">
+        <div className="text-sm font-semibold text-blue-800 mb-1">
+          Push approved — re-push to forward
+        </div>
+        <p className="text-sm text-blue-700 mb-3">
+          This push has been approved. Push the same commits again to forward them upstream.
+        </p>
+        <pre className="text-xs bg-white border border-blue-200 rounded px-3 py-2 font-mono text-blue-900 select-all">
+          git push origin {branch}
+        </pre>
+      </div>
+    )
+  }
+
+  const att = record.attestation
+  const reviewer = att?.reviewerUsername ?? 'a reviewer'
+  const reason = att?.reason
+
+  if (record.status === 'CANCELED') {
+    return (
+      <div className="bg-gray-50 border border-gray-200 rounded-lg px-6 py-4">
+        <div className="text-sm font-semibold text-gray-700 mb-1">Push canceled</div>
+        <p className="text-sm text-gray-600 mb-3">
+          <strong>{reviewer}</strong> canceled this push before review
+          {reason ? (
+            <>
+              : <em>"{reason}"</em>
+            </>
+          ) : (
+            '.'
+          )}{' '}
+          The commits themselves are fine — re-push when ready.
+        </p>
+        <pre className="text-xs bg-white border border-gray-200 rounded px-3 py-2 font-mono text-gray-800 select-all">
+          git push origin {branch}
+        </pre>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-red-50 border border-red-200 rounded-lg px-6 py-4">
+      <div className="text-sm font-semibold text-red-800 mb-1">Push rejected — action required</div>
+      <p className="text-sm text-red-700 mb-1">
+        <strong>{reviewer}</strong> rejected this push
+        {reason ? (
+          <>
+            : <em>"{reason}"</em>
+          </>
+        ) : (
+          '.'
+        )}
+      </p>
+      <p className="text-sm text-red-700 mb-3">
+        Address the feedback, amend your commits, and push again.
+      </p>
+      <pre className="text-xs bg-white border border-red-200 rounded px-3 py-2 font-mono text-red-900 select-all whitespace-pre-wrap">{`# Amend the last commit and re-push
+git commit --amend
+git push origin ${branch}
+
+# Or delete the remote branch
+git push origin :${branch}`}</pre>
+    </div>
+  )
+}
+
 interface PushDetailProps {
   currentUser: CurrentUser | null
 }
@@ -85,6 +302,7 @@ export function PushDetail({ currentUser }: PushDetailProps) {
   const [saving, setSaving] = useState(false)
   const [actionError, setActionError] = useState('')
   const [openSteps, setOpenSteps] = useState<Record<string, boolean>>({})
+  const [canceling, setCanceling] = useState(false)
 
   async function load(pushId: string) {
     setLoading(true)
@@ -173,6 +391,20 @@ export function PushDetail({ currentUser }: PushDetailProps) {
     }
   }
 
+  async function handleCancel() {
+    if (!record) return
+    setCanceling(true)
+    setActionError('')
+    try {
+      await cancelPush(record.id)
+      await load(record.id)
+    } catch (e) {
+      setActionError(String(e))
+    } finally {
+      setCanceling(false)
+    }
+  }
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
       <button onClick={() => navigate('/')} className="text-sm text-blue-600 hover:underline">
@@ -193,6 +425,19 @@ export function PushDetail({ currentUser }: PushDetailProps) {
                   {(record.project ?? '') + '/' + (record.repoName ?? record.url ?? '')}
                 </div>
                 <div className="text-sm text-gray-500 mt-0.5 font-mono">{record.branch}</div>
+                {record.upstreamUrl && (
+                  <div className="text-xs text-gray-400 mt-1">
+                    <span className="text-gray-500">Upstream: </span>
+                    <a
+                      href={record.upstreamUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-blue-600 hover:underline"
+                    >
+                      {record.upstreamUrl}
+                    </a>
+                  </div>
+                )}
                 {record.message && (
                   <div className="text-sm text-gray-700 italic mt-1">{record.message}</div>
                 )}
@@ -222,6 +467,9 @@ export function PushDetail({ currentUser }: PushDetailProps) {
               </div>
             )}
           </div>
+
+          {/* Push timeline */}
+          <PushTimeline record={record} />
 
           {/* Commits */}
           {record.commits && record.commits.length > 0 && (
@@ -329,7 +577,12 @@ export function PushDetail({ currentUser }: PushDetailProps) {
             )}
           </div>
 
-          {/* Approve / Reject */}
+          {/* Re-push guidance */}
+          {(record.status === 'REJECTED' ||
+            record.status === 'CANCELED' ||
+            record.status === 'APPROVED') && <RePushGuidance record={record} />}
+
+          {/* Approve / Reject / Cancel */}
           {record.status === 'BLOCKED' && (
             <div className="bg-white rounded-lg shadow border border-gray-200 px-6 py-5">
               <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
@@ -356,17 +609,24 @@ export function PushDetail({ currentUser }: PushDetailProps) {
               <div className="flex gap-3">
                 <button
                   onClick={handleApprove}
-                  disabled={saving || !reviewReason.trim()}
+                  disabled={saving || canceling || !reviewReason.trim()}
                   className="px-4 py-2 text-sm font-medium rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                 >
                   ✓ Approve
                 </button>
                 <button
                   onClick={handleReject}
-                  disabled={saving || !reviewReason.trim()}
+                  disabled={saving || canceling || !reviewReason.trim()}
                   className="px-4 py-2 text-sm font-medium rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
                 >
                   ✗ Reject
+                </button>
+                <button
+                  onClick={handleCancel}
+                  disabled={saving || canceling}
+                  className="ml-auto px-4 py-2 text-sm font-medium rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {canceling ? 'Canceling…' : 'Cancel push'}
                 </button>
               </div>
             </div>

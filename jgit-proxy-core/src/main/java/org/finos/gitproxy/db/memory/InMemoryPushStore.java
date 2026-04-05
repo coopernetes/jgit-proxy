@@ -58,7 +58,10 @@ public class InMemoryPushStore implements PushStore {
             comparator = comparator.reversed();
         }
 
-        return stream.sorted(comparator).limit(query.getLimit()).toList();
+        return stream.sorted(comparator)
+                .skip(query.getOffset())
+                .limit(query.getLimit())
+                .toList();
     }
 
     @Override

@@ -43,9 +43,12 @@ public class PushController {
             @RequestParam(required = false) String repo,
             @RequestParam(required = false) String user,
             @RequestParam(required = false) String search,
-            @RequestParam(defaultValue = "50") int limit) {
+            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(defaultValue = "0") int offset,
+            @RequestParam(defaultValue = "true") boolean newestFirst) {
 
-        PushQuery.PushQueryBuilder query = PushQuery.builder().limit(limit).newestFirst(true);
+        PushQuery.PushQueryBuilder query =
+                PushQuery.builder().limit(limit).offset(offset).newestFirst(newestFirst);
 
         if (status != null && !status.isBlank()) {
             try {

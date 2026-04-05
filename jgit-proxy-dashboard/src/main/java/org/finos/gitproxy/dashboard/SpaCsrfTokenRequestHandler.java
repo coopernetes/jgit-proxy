@@ -24,9 +24,13 @@ class SpaCsrfTokenRequestHandler extends CsrfTokenRequestAttributeHandler {
 
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response, Supplier<CsrfToken> csrfToken) {
-        // Eagerly load the token — this causes CookieCsrfTokenRepository to write the cookie on every response,
-        // so the SPA always has a fresh token available without a separate round-trip.
+        // Set up the XOR-encoded request attribute (for BREACH-safe form submissions).
         delegate.handle(request, response, csrfToken);
+        // Eagerly evaluate the token supplier — this triggers CookieCsrfTokenRepository.saveToken()
+        // and writes the XSRF-TOKEN cookie on every response. Without this, the deferred supplier is
+        // never called and the cookie may be absent, causing the SPA to send no X-XSRF-TOKEN header
+        // and receive a 403 on mutating requests.
+        csrfToken.get();
     }
 
     @Override

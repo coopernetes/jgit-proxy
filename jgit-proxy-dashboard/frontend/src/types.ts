@@ -15,6 +15,7 @@ export interface Step {
   errorMessage?: string
   blockedMessage?: string
   content?: string
+  timestamp?: string
 }
 
 export interface Commit {
@@ -28,9 +29,11 @@ export interface Commit {
 }
 
 export interface Attestation {
+  type?: 'APPROVAL' | 'REJECTION' | 'CANCELLATION'
   reviewerUsername: string
   reviewerEmail?: string
   reason?: string
+  timestamp?: string
 }
 
 export interface PushRecord {
@@ -39,6 +42,7 @@ export interface PushRecord {
   project?: string
   repoName?: string
   url?: string
+  upstreamUrl?: string
   branch?: string
   commitTo?: string
   commitFrom?: string
@@ -48,6 +52,9 @@ export interface PushRecord {
   committer?: string
   timestamp?: string | number
   blockedMessage?: string
+  errorMessage?: string
+  autoApproved?: boolean
+  autoRejected?: boolean
   attestation?: Attestation
   commits?: Commit[]
   steps?: Step[]

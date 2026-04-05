@@ -121,7 +121,7 @@ public class PushFinalizerFilter extends AbstractGitProxyFilter {
         String pushId = details.getId().toString();
         String summary = buildValidationSummary(details.getSteps());
         String divider = "\n────────────────────────────────────────\n";
-        String link = color(CYAN, sym(LINK) + "  View push record: " + serviceUrl + "/#/push/" + pushId);
+        String link = color(CYAN, sym(LINK) + "  View push record: " + serviceUrl + "/push/" + pushId);
         String fullMessage = summary + divider + link;
         sendGitError(request, response, fullMessage);
     }
