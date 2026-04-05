@@ -8,7 +8,7 @@
 # Expected: push fails with "identity not linked" error, no push record forwarded.
 set -euo pipefail
 
-GIT_USERNAME=${GIT_USERNAME:-"coopernetes"}
+GIT_USERNAME=${GIT_USERNAME:-"me"}
 GIT_PASSWORD=${GIT_PASSWORD:-"$(cat ~/.codeberg-pat)"}
 GIT_REPO=${GIT_REPO:-"codeberg.org/coopernetes/test-repo-codeberg.git"}
 GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-"Thomas Cooper"}

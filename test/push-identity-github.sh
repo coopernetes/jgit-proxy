@@ -8,7 +8,7 @@
 # Expected: push succeeds, resolved_user = admin on the push record.
 set -euo pipefail
 
-GIT_USERNAME=${GIT_USERNAME:-"coopernetes"}
+GIT_USERNAME=${GIT_USERNAME:-"me"}
 GIT_PASSWORD=${GIT_PASSWORD:-"$(cat ~/.github-pat)"}
 GIT_REPO=${GIT_REPO:-"github.com/coopernetes/test-repo.git"}
 PUSH_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/push/${GIT_REPO}"

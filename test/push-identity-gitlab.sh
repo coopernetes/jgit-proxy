@@ -13,7 +13,7 @@
 # a different deployment.
 set -euo pipefail
 
-GIT_USERNAME=${GIT_USERNAME:-"coopernetes"}
+GIT_USERNAME=${GIT_USERNAME:-"me"}
 GIT_PASSWORD=${GIT_PASSWORD:-"$(cat ~/.gitlab-pat)"}
 GIT_REPO=${GIT_REPO:-"gitlab.com/coopernetes/test-repo-gitlab.git"}
 GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-"Thomas Cooper"}
