@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS push_records (
     committer       VARCHAR(255),
     committer_email VARCHAR(255),
     push_user       VARCHAR(255),
+    resolved_user   VARCHAR(255),
     user_email      VARCHAR(255),
     method          VARCHAR(10),
     status          VARCHAR(20) NOT NULL DEFAULT 'RECEIVED',
@@ -77,6 +78,7 @@ CREATE TABLE IF NOT EXISTS proxy_users (
 CREATE TABLE IF NOT EXISTS user_emails (
     username VARCHAR(255) NOT NULL REFERENCES proxy_users(username) ON DELETE CASCADE,
     email    VARCHAR(255) NOT NULL,
+    verified BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (username, email)
 );
 
@@ -84,6 +86,7 @@ CREATE TABLE IF NOT EXISTS user_scm_identities (
     username         VARCHAR(255) NOT NULL REFERENCES proxy_users(username) ON DELETE CASCADE,
     provider         VARCHAR(100) NOT NULL,
     scm_username     VARCHAR(255) NOT NULL,
+    verified         BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (username, provider, scm_username)
 );
 

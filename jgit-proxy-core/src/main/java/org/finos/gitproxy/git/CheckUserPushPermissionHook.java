@@ -2,7 +2,6 @@ package org.finos.gitproxy.git;
 
 import static org.finos.gitproxy.git.GitClientUtils.AnsiColor.*;
 import static org.finos.gitproxy.git.GitClientUtils.SymbolCodes.*;
-import static org.finos.gitproxy.git.GitClientUtils.color;
 import static org.finos.gitproxy.git.GitClientUtils.sym;
 
 import java.util.Collection;
@@ -94,7 +93,6 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
                     RED,
                     null);
             validationContext.addIssue("CheckUserPushPermissionHook", "User does not exist: " + pushUser, detail);
-            rp.sendMessage(color(RED, "  " + sym(CROSS_MARK) + "  " + pushUser + " - not registered"));
             return;
         }
 
@@ -108,7 +106,6 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
                     null);
             validationContext.addIssue(
                     "CheckUserPushPermissionHook", "User not authorized: " + user.getUsername(), detail);
-            rp.sendMessage(color(RED, "  " + sym(CROSS_MARK) + "  " + user.getUsername() + " - not authorized"));
             return;
         }
 

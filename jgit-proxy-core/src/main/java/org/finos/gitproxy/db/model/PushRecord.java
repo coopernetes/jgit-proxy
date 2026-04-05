@@ -61,6 +61,12 @@ public class PushRecord {
     /** Authenticated user performing the push. */
     private String user;
 
+    /**
+     * SCM identity resolved for this push (proxy username after successful identity resolution). Null if resolution
+     * failed.
+     */
+    private String resolvedUser;
+
     /** Authenticated user's email. Populated when user management is available; null until then. */
     private String userEmail;
 

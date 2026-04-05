@@ -56,6 +56,7 @@ public final class PushRecordMapper {
         // didn't run (e.g. open mode with no user store configured).
         if (details.getResolvedUser() != null) {
             builder.user(details.getResolvedUser());
+            builder.resolvedUser(details.getResolvedUser());
         }
 
         // Map commit author info from the head commit

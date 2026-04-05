@@ -2,7 +2,6 @@ package org.finos.gitproxy.git;
 
 import static org.finos.gitproxy.git.GitClientUtils.AnsiColor.*;
 import static org.finos.gitproxy.git.GitClientUtils.SymbolCodes.*;
-import static org.finos.gitproxy.git.GitClientUtils.color;
 import static org.finos.gitproxy.git.GitClientUtils.sym;
 
 import java.util.ArrayList;
@@ -102,7 +101,7 @@ public class IdentityVerificationHook implements GitProxyHook {
             try {
                 List<Commit> commits = getCommits(repo, cmd);
                 for (Commit commit : commits) {
-                    collectViolations(commit, user.getUsername(), registeredEmails, violations, rp);
+                    collectViolations(commit, user.getUsername(), registeredEmails, violations);
                 }
             } catch (Exception e) {
                 log.error("Failed to verify identity for {}", cmd.getRefName(), e);
@@ -128,31 +127,30 @@ public class IdentityVerificationHook implements GitProxyHook {
             validationContext.addIssue(
                     STEP_NAME, "Commit identity does not match push user " + user.getUsername(), detail);
         } else {
-            // WARN mode — warnings already sent per-commit; push proceeds
+            // WARN mode — push proceeds; violations are surfaced via the validation summary, not
+            // immediate per-message streaming, so they appear in the correct order with context.
             log.warn(
                     "Identity verification warnings for push user '{}': {} mismatch(es)",
                     user.getUsername(),
                     violations.size());
-            recordPass();
+            pushContext.addStep(PushStep.builder()
+                    .stepName(STEP_NAME)
+                    .stepOrder(ORDER)
+                    .status(StepStatus.PASS)
+                    .content(String.join("\n", violations))
+                    .build());
         }
     }
 
     private void collectViolations(
-            Commit commit,
-            String pushUsername,
-            List<String> registeredEmails,
-            List<String> violations,
-            ReceivePack rp) {
+            Commit commit, String pushUsername, List<String> registeredEmails, List<String> violations) {
         String sha = abbrev(commit.getSha());
         boolean authorFlagged = false;
 
         if (commit.getAuthor() != null) {
             String email = commit.getAuthor().getEmail();
             if (email != null && !registeredEmails.contains(email)) {
-                String warn = sha + " author <" + email + "> not registered to " + pushUsername;
-                rp.sendMessage(color(YELLOW, "  " + sym(WARNING) + "  " + warn));
-                violations.add(
-                        sym(CROSS_MARK) + "  " + sha + ": author <" + email + "> is not registered to " + pushUsername);
+                violations.add(sha + ": author <" + email + "> not registered to " + pushUsername);
                 authorFlagged = true;
             }
         }
@@ -160,16 +158,12 @@ public class IdentityVerificationHook implements GitProxyHook {
         if (commit.getCommitter() != null) {
             String email = commit.getCommitter().getEmail();
             if (email != null && !registeredEmails.contains(email)) {
-                // Skip duplicate message when committer == author email (common case)
                 boolean sameAsAuthor = commit.getAuthor() != null
                         && email.equals(commit.getAuthor().getEmail());
                 if (!sameAsAuthor) {
-                    String warn = sha + " committer <" + email + "> not registered to " + pushUsername;
-                    rp.sendMessage(color(YELLOW, "  " + sym(WARNING) + "  " + warn));
-                    violations.add(sym(CROSS_MARK) + "  " + sha + ": committer <" + email + "> is not registered to "
-                            + pushUsername);
+                    violations.add(sha + ": committer <" + email + "> not registered to " + pushUsername);
                 } else if (!authorFlagged) {
-                    // author email was fine but committer email is the same unregistered email — already reported above
+                    violations.add(sha + ": author+committer <" + email + "> not registered to " + pushUsername);
                 }
             }
         }

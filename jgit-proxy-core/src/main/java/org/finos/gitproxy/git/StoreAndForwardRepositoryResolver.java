@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.errors.RepositoryNotFoundException;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.transport.CredentialsProvider;
-import org.eclipse.jgit.transport.ServiceMayNotContinueException;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.transport.resolver.RepositoryResolver;
 import org.eclipse.jgit.transport.resolver.ServiceNotAuthorizedException;
@@ -18,14 +17,10 @@ import org.finos.gitproxy.provider.GitProxyProvider;
  * Repository resolver for store-and-forward mode. Syncs a local bare repo from the upstream provider on each open,
  * ensuring the local mirror is fresh for both fetch and push operations.
  *
- * <p><strong>Public repositories only.</strong> The local cache clones and fetches without credentials - no PATs or
- * tokens are ever written to disk. If the upstream repository requires authentication (private repo), the clone will
- * fail and the client receives a clear error directing them to use the transparent proxy path instead.
- *
- * <p>Client credentials are extracted from the request and stored as a request attribute
- * ({@link #CREDENTIALS_ATTRIBUTE}) so that {@link StoreAndForwardReceivePackFactory} can pass them to
- * {@link ForwardingPostReceiveHook} for the upstream push. These credentials exist only in memory for the duration of
- * the request.
+ * <p>Supports both public and private repositories. Client credentials are extracted from the request and used
+ * transiently for the upstream clone/fetch — they are never written to disk. The same credentials are stored as a
+ * request attribute ({@link #CREDENTIALS_ATTRIBUTE}) so that {@link StoreAndForwardReceivePackFactory} can pass them to
+ * {@link ForwardingPostReceiveHook} for the upstream push.
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -38,8 +33,7 @@ public class StoreAndForwardRepositoryResolver implements RepositoryResolver<Htt
 
     @Override
     public Repository open(HttpServletRequest req, String name)
-            throws RepositoryNotFoundException, ServiceNotAuthorizedException, ServiceNotEnabledException,
-                    ServiceMayNotContinueException {
+            throws RepositoryNotFoundException, ServiceNotAuthorizedException, ServiceNotEnabledException {
 
         // JGit passes name as the path after the servlet mapping, e.g. "owner/repo.git"
         String cleanName = name.replaceAll("\\.git$", "");
@@ -47,11 +41,12 @@ public class StoreAndForwardRepositoryResolver implements RepositoryResolver<Htt
         // Construct the clean upstream URL (no credentials, ever)
         String cleanUpstreamUrl = provider.getUri() + "/" + cleanName + ".git";
 
-        // Extract client credentials for the upstream push (in-memory only).
-        // These are NOT used for cloning - the cache always clones unauthenticated.
+        // Extract client credentials — used for both the upstream clone/fetch AND the upstream push.
+        // Credentials are held in memory only and never written to disk.
         String[] userPass = extractCredentials(req);
+        CredentialsProvider creds = null;
         if (userPass != null) {
-            CredentialsProvider creds = new UsernamePasswordCredentialsProvider(userPass[0], userPass[1]);
+            creds = new UsernamePasswordCredentialsProvider(userPass[0], userPass[1]);
             req.setAttribute(CREDENTIALS_ATTRIBUTE, creds);
             req.setAttribute("org.finos.gitproxy.pushUser", userPass[0]);
         }
@@ -59,9 +54,7 @@ public class StoreAndForwardRepositoryResolver implements RepositoryResolver<Htt
         log.info("Opening store-and-forward repository: {} -> {}", name, cleanUpstreamUrl);
 
         try {
-            // Clone or fetch from upstream WITHOUT credentials.
-            // This intentionally only works for public repositories.
-            Repository repo = cache.getOrClone(cleanUpstreamUrl);
+            Repository repo = cache.getOrClone(cleanUpstreamUrl, creds);
 
             // Store the upstream URL so PostReceiveHook can find it
             repo.getConfig().setString("gitproxy", null, "upstreamUrl", cleanUpstreamUrl);
@@ -70,16 +63,6 @@ public class StoreAndForwardRepositoryResolver implements RepositoryResolver<Htt
             return repo;
         } catch (Exception e) {
             log.error("Failed to open repository: {} from upstream {}", name, cleanUpstreamUrl, e);
-
-            // Provide a clear error for private repos that fail to clone
-            String message = e.getMessage() != null ? e.getMessage() : "";
-            if (message.contains("Authentication") || message.contains("401") || message.contains("403")) {
-                throw new ServiceMayNotContinueException("Store-and-forward mode only supports public repositories. "
-                        + "For private repositories, use the proxy path: /proxy"
-                        + provider.servletPath()
-                        + "/" + cleanName);
-            }
-
             throw new RepositoryNotFoundException(name, e);
         }
     }

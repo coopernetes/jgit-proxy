@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.config.CommitConfig;
+import org.finos.gitproxy.db.model.StepStatus;
 import org.finos.gitproxy.git.Commit;
 import org.finos.gitproxy.git.GitClientUtils;
 import org.finos.gitproxy.git.GitRequestDetails;
@@ -118,12 +119,17 @@ public class IdentityVerificationFilter extends AbstractGitProxyFilter {
                     null);
             recordIssue(request, "Commit identity does not match push user " + user.getUsername(), detail);
         } else {
-            // WARN mode — log only, push proceeds
+            // WARN mode — push proceeds but record violation count for the dashboard amber badge
             log.warn(
                     "Identity verification warnings for push user '{}': {} mismatch(es): {}",
                     user.getUsername(),
                     violations.size(),
                     violations);
+            recordStep(
+                    request,
+                    StepStatus.PASS,
+                    null,
+                    violations.size() + " commit email(s) not registered to " + user.getUsername());
         }
     }
 

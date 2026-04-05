@@ -49,6 +49,7 @@ export interface PushRecord {
   message?: string
   author?: string
   user?: string
+  resolvedUser?: string
   committer?: string
   timestamp?: string | number
   blockedMessage?: string
@@ -68,13 +69,19 @@ export interface Provider {
   proxyPath: string
 }
 
+export interface EmailEntry {
+  email: string
+  verified: boolean
+}
+
 export interface ScmIdentity {
   provider: string
   username: string
+  verified: boolean
 }
 
 export interface CurrentUser {
   username: string
-  emails: string[]
+  emails: EmailEntry[]
   scmIdentities: ScmIdentity[]
 }

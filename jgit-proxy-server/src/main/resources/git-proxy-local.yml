@@ -19,6 +19,34 @@ users:
     scm-identities:
       - provider: github
         username: coopernetes
+      - provider: gitlab
+        username: coopernetes
+      # codeberg intentionally omitted — used to test unresolved identity scenario
+
+  - username: dev-full
+    password-hash: "{noop}password"
+    emails:
+      - dev-full@example.com
+    push-usernames:
+      - dev-full
+    scm-identities:
+      - provider: github
+        username: dev-full-gh
+
+  - username: dev-no-scm
+    password-hash: "{noop}password"
+    emails:
+      - dev-no-scm@example.com
+    push-usernames:
+      - dev-no-scm
+
+  - username: dev-no-email
+    password-hash: "{noop}password"
+    push-usernames:
+      - dev-no-email
+    scm-identities:
+      - provider: github
+        username: dev-no-email-gh
 commit:
   author:
     email:
@@ -64,6 +92,24 @@ filters:
       slugs:
         - finos/git-proxy
         - coopernetes/test-repo
+    - enabled: true
+      order: 111
+      operations:
+        - FETCH
+        - PUSH
+      providers:
+        - gitlab
+      slugs:
+        - coopernetes/test-repo-gitlab
+    - enabled: true
+      order: 112
+      operations:
+        - FETCH
+        - PUSH
+      providers:
+        - codeberg
+      slugs:
+        - coopernetes/test-repo-codeberg
     - enabled: true
       order: 120
       operations:

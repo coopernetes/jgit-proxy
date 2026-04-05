@@ -233,7 +233,12 @@ class IdentityVerificationFilterTest {
 
         assertFalse(resp.committed.get());
         assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult(), "WARN mode must not reject push");
-        assertTrue(details.getSteps().isEmpty(), "WARN mode should not record a FAIL step");
+        // WARN mode records a PASS step with violation details in content (for the amber dashboard badge)
+        assertFalse(details.getSteps().isEmpty(), "WARN mode should record a step");
+        var step = details.getSteps().get(0);
+        assertEquals("identityVerification", step.getStepName());
+        assertEquals(org.finos.gitproxy.db.model.StepStatus.PASS, step.getStatus());
+        assertNotNull(step.getContent(), "WARN mode step should carry violation details in content");
     }
 
     // ---- resolver returns empty → skip (CheckUserPushPermissionFilter handles "not registered") ----

@@ -217,4 +217,38 @@ class StoreForwardModeE2ETest {
     // pushed tip in the pack, and those are always a subset of the introduced commit range.
     // The check is a defensive measure against maliciously crafted packs; it is covered by the
     // passing tests above (which confirm the hook does not disrupt normal pushes).
+
+    // ---- Identity resolution tests ----
+
+    @Test
+    @Order(100)
+    @Disabled("requires user store configuration with identity verification enabled")
+    void resolvedUser_isPopulatedOnPushRecord() throws Exception {
+        // This test validates that when a push is made by a user with a registered SCM identity
+        // (configured in git-proxy-local.yml), the push record's resolvedUser field is populated.
+        // Requires: dev-full user with dev-full-gh SCM identity for the test provider.
+        // Expected: resolvedUser == "dev-full" on the persisted push record.
+        assertTrue(
+                cloneCommitPush(
+                        "sf-identity-resolved", GiteaContainer.VALID_AUTHOR_EMAIL, "feat: test identity resolution"),
+                "push by registered user should succeed");
+        // TODO: Add assertion to fetch the push record from the store and verify
+        // pushStore.findById(pushId).get().getResolvedUser() is not null
+    }
+
+    @Test
+    @Order(101)
+    @Disabled("requires user store configuration with identity verification enabled")
+    void unregisteredUser_isBlockedWhenUserStoreConfigured() throws Exception {
+        // This test validates that when a push is attempted by an unregistered user,
+        // and the proxy has identity verification enabled, the push is blocked.
+        // Requires: configured user store with identity verification.
+        // Expected: push fails with message mentioning user not registered.
+        assertFalse(
+                cloneCommitPush(
+                        "sf-identity-unregistered",
+                        GiteaContainer.VALID_AUTHOR_EMAIL,
+                        "feat: attempt by unregistered user"),
+                "push by unregistered user should be blocked");
+    }
 }

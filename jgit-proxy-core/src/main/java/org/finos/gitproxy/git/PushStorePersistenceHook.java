@@ -105,9 +105,17 @@ public class PushStorePersistenceHook {
             String pushId = rp.getRepository().getConfig().getString("gitproxy", null, "pushId");
             if (pushId == null) return;
 
+            // Re-read resolvedUser here — it is set by CheckUserPushPermissionHook (order 150),
+            // which runs after preReceiveHook(), so it was not available when the RECEIVED record
+            // was written. validationResultHook fires after all validation hooks complete.
+            String resolvedUserLate = rp.getRepository().getConfig().getString("gitproxy", null, "resolvedUser");
+
             try {
                 pushStore.findById(pushId).ifPresent(initial -> {
                     PushRecord record = copyBase(initial);
+                    if (resolvedUserLate != null) {
+                        record.setResolvedUser(resolvedUserLate);
+                    }
 
                     // Collect all steps: validation issues + push context (diffs, etc.)
                     List<PushStep> steps = new ArrayList<>();
@@ -308,6 +316,10 @@ public class PushStorePersistenceHook {
         String userToStore = resolvedUser != null ? resolvedUser : pushUser;
         if (userToStore != null) {
             builder.user(userToStore);
+        }
+        // Store the resolvedUser separately — only set when identity resolution succeeded
+        if (resolvedUser != null) {
+            builder.resolvedUser(resolvedUser);
         }
 
         // Extract upstream URL and repo name from repo config (set by StoreAndForwardRepositoryResolver)

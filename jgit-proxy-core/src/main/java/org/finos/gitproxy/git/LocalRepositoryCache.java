@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.URIish;
 
 /**
@@ -69,19 +70,35 @@ public class LocalRepositoryCache {
      * @throws IOException If I/O operations fail
      */
     public Repository getOrClone(String remoteUrl) throws GitAPIException, IOException {
+        return getOrClone(remoteUrl, null);
+    }
+
+    /**
+     * Get or create a local clone of a remote repository, using the supplied credentials for clone and fetch.
+     * Credentials are passed transiently to JGit — they are never written to disk.
+     */
+    public Repository getOrClone(String remoteUrl, CredentialsProvider credentials)
+            throws GitAPIException, IOException {
         String cacheKey = getCacheKey(remoteUrl);
 
         CachedRepository cached = cache.get(cacheKey);
         if (cached != null && cached.isValid()) {
             log.debug("Using cached repository for: {}", remoteUrl);
-            // Increment open count so JGit's close() doesn't drop it to zero while we still cache it
+            // Re-fetch with current credentials so private repos stay up to date
+            if (credentials != null) {
+                try (Git git = Git.open(new File(cacheDirectory.toFile(), cacheKey))) {
+                    git.fetch()
+                            .setRemote("origin")
+                            .setCredentialsProvider(credentials)
+                            .call();
+                }
+            }
             cached.repository.incrementOpen();
             return cached.repository;
         }
 
-        // Clone or fetch the repository
         log.info("Cloning repository from: {}", remoteUrl);
-        return cloneOrFetch(remoteUrl, cacheKey);
+        return cloneOrFetch(remoteUrl, cacheKey, credentials);
     }
 
     /**
@@ -93,7 +110,7 @@ public class LocalRepositoryCache {
      * @throws GitAPIException If git operations fail
      * @throws IOException If I/O operations fail
      */
-    private synchronized Repository cloneOrFetch(String remoteUrl, String cacheKey)
+    private synchronized Repository cloneOrFetch(String remoteUrl, String cacheKey, CredentialsProvider credentials)
             throws GitAPIException, IOException {
         // Double-check after acquiring lock
         CachedRepository cached = cache.get(cacheKey);
@@ -108,12 +125,10 @@ public class LocalRepositoryCache {
         if (repoDir.exists()) {
             log.debug("Repository directory exists, opening and fetching: {}", repoDir);
             Git git = Git.open(repoDir);
-            // Fetch latest changes with depth if configured
-            if (cloneDepth > 0) {
-                git.fetch().setRemote("origin").setDepth(cloneDepth).call();
-            } else {
-                git.fetch().setRemote("origin").call();
-            }
+            var fetchCmd = git.fetch().setRemote("origin");
+            if (credentials != null) fetchCmd.setCredentialsProvider(credentials);
+            if (cloneDepth > 0) fetchCmd.setDepth(cloneDepth);
+            fetchCmd.call();
             repository = git.getRepository();
         } else {
             log.debug("Cloning repository to: {} with depth: {}", repoDir, cloneDepth);
@@ -121,11 +136,8 @@ public class LocalRepositoryCache {
                     .setURI(remoteUrl)
                     .setDirectory(repoDir)
                     .setBare(true);
-
-            // Set shallow clone depth if configured
-            if (cloneDepth > 0) {
-                cloneCommand.setDepth(cloneDepth);
-            }
+            if (credentials != null) cloneCommand.setCredentialsProvider(credentials);
+            if (cloneDepth > 0) cloneCommand.setDepth(cloneDepth);
 
             Git git = cloneCommand.call();
             repository = git.getRepository();

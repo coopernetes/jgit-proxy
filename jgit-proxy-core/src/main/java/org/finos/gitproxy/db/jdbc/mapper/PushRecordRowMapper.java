@@ -33,6 +33,7 @@ public final class PushRecordRowMapper implements RowMapper<PushRecord> {
                 .committer(rs.getString("committer"))
                 .committerEmail(rs.getString("committer_email"))
                 .user(rs.getString("push_user"))
+                .resolvedUser(rs.getString("resolved_user"))
                 .userEmail(rs.getString("user_email"))
                 .method(rs.getString("method"))
                 .status(PushStatus.valueOf(rs.getString("status")))

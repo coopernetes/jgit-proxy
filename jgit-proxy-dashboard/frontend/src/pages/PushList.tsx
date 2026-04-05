@@ -77,7 +77,7 @@ export function PushList({ currentUser }: PushListProps) {
         [...selectedIds].map((id) =>
           approvePush(id, {
             reviewerUsername: currentUser?.username ?? '',
-            reviewerEmail: currentUser?.emails[0] ?? '',
+            reviewerEmail: currentUser?.emails[0]?.email ?? '',
             reason: bulkReason,
           }),
         ),
@@ -101,7 +101,7 @@ export function PushList({ currentUser }: PushListProps) {
         [...selectedIds].map((id) =>
           rejectPush(id, {
             reviewerUsername: currentUser?.username ?? '',
-            reviewerEmail: currentUser?.emails[0] ?? '',
+            reviewerEmail: currentUser?.emails[0]?.email ?? '',
             reason: bulkReason,
           }),
         ),
@@ -344,30 +344,29 @@ export function PushList({ currentUser }: PushListProps) {
                 />
               )}
               <StatusBadge status={push.status} />
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-gray-900 truncate">
-                  {(push.project ?? '') + '/' + (push.repoName ?? push.url ?? 'unknown')}
+              <div className="flex-1 min-w-0 space-y-0.5">
+                <div className="font-mono text-sm text-gray-900 truncate">
+                  {push.upstreamUrl ??
+                    push.url ??
+                    (push.project ?? '') + '/' + (push.repoName ?? 'unknown')}
                 </div>
-                <div className="text-sm text-gray-500 truncate">
-                  <span>{push.branch ?? '—'}</span>
-                  <span className="mx-1 text-gray-300">&middot;</span>
-                  <span className="font-mono text-xs">{(push.commitTo ?? '').substring(0, 8)}</span>
-                  {push.message && (
-                    <span>
-                      {' '}
-                      &middot; <em>{push.message}</em>
-                    </span>
-                  )}
+                <div className="text-xs text-gray-500 truncate">{push.branch ?? '—'}</div>
+                <div className="font-mono text-xs text-gray-400 break-all">
+                  {push.commitTo ?? '—'}
                 </div>
-                {push.upstreamUrl && (
-                  <div className="text-xs text-gray-400 truncate font-mono mt-0.5">
-                    {push.upstreamUrl}
-                  </div>
-                )}
               </div>
               <div className="text-right text-sm text-gray-500 shrink-0">
                 <div>{push.author ?? push.user ?? '—'}</div>
-                <div className="text-xs text-gray-400">{formatTime(push.timestamp)}</div>
+                {push.resolvedUser ? (
+                  <span className="inline-flex items-center gap-0.5 text-xs text-green-600 font-medium">
+                    ● identity resolved
+                  </span>
+                ) : push.user ? (
+                  <span className="inline-flex items-center gap-0.5 text-xs text-gray-400 font-medium">
+                    ● identity unresolved
+                  </span>
+                ) : null}
+                <div className="text-xs text-gray-400 mt-0.5">{formatTime(push.timestamp)}</div>
               </div>
               <svg
                 className="w-4 h-4 text-gray-300 shrink-0"

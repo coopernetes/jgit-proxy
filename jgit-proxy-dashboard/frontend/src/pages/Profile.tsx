@@ -1,8 +1,20 @@
 import { useEffect, useState } from 'react'
 import { addEmail, addScmIdentity, fetchMe, removeEmail, removeScmIdentity } from '../api'
-import type { CurrentUser, ScmIdentity } from '../types'
+import type { CurrentUser, EmailEntry, ScmIdentity } from '../types'
 
 const KNOWN_PROVIDERS = ['github', 'gitlab', 'codeberg', 'gitea', 'bitbucket']
+
+function VerifiedBadge({ verified }: { verified: boolean }) {
+  return verified ? (
+    <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+      ✓ verified
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+      unverified
+    </span>
+  )
+}
 
 export function Profile() {
   const [profile, setProfile] = useState<CurrentUser | null>(null)
@@ -44,11 +56,11 @@ export function Profile() {
     }
   }
 
-  async function handleRemoveEmail(email: string) {
+  async function handleRemoveEmail(entry: EmailEntry) {
     setEmailError(null)
     try {
-      await removeEmail(email)
-      setProfile((p) => p && { ...p, emails: p.emails.filter((e) => e !== email) })
+      await removeEmail(entry.email)
+      setProfile((p) => p && { ...p, emails: p.emails.filter((e) => e.email !== entry.email) })
     } catch (err: unknown) {
       setEmailError(err instanceof Error ? err.message : 'Failed to remove email')
     }
@@ -134,11 +146,17 @@ export function Profile() {
             <p className="text-sm text-gray-400 italic">No email addresses registered.</p>
           ) : (
             <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
-              {profile.emails.map((email) => (
-                <li key={email} className="flex items-center justify-between px-4 py-3 text-sm">
-                  <span className="text-gray-800">{email}</span>
+              {profile.emails.map((entry) => (
+                <li
+                  key={entry.email}
+                  className="flex items-center justify-between px-4 py-3 text-sm"
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="text-gray-800">{entry.email}</span>
+                    <VerifiedBadge verified={entry.verified} />
+                  </span>
                   <button
-                    onClick={() => handleRemoveEmail(email)}
+                    onClick={() => handleRemoveEmail(entry)}
                     className="text-gray-400 hover:text-red-500 transition-colors text-xs"
                     title="Remove"
                   >
@@ -192,6 +210,7 @@ export function Profile() {
                       {id.provider}
                     </span>
                     <span className="text-gray-800">{id.username}</span>
+                    <VerifiedBadge verified={id.verified} />
                   </span>
                   <button
                     onClick={() => handleRemoveIdentity(id)}

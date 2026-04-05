@@ -104,6 +104,33 @@ public class JdbcUserStore implements MutableUserStore {
         return usernames.stream().flatMap(u -> findByUsername(u).stream()).toList();
     }
 
+    /** Returns all email entries for a user with their verified status, ordered by email. */
+    public List<Map<String, Object>> findEmailsWithVerified(String username) {
+        return jdbc
+                .queryForList(
+                        "SELECT email, verified FROM user_emails WHERE username = :u ORDER BY email",
+                        Map.of("u", username))
+                .stream()
+                .<Map<String, Object>>map(row -> Map.of(
+                        "email", row.get("email"),
+                        "verified", Boolean.TRUE.equals(row.get("verified"))))
+                .toList();
+    }
+
+    /** Returns all SCM identity entries for a user with their verified status. */
+    public List<Map<String, Object>> findScmIdentitiesWithVerified(String username) {
+        return jdbc
+                .queryForList(
+                        "SELECT provider, scm_username, verified FROM user_scm_identities WHERE username = :u",
+                        Map.of("u", username))
+                .stream()
+                .<Map<String, Object>>map(row -> Map.of(
+                        "provider", row.get("provider"),
+                        "username", row.get("scm_username"),
+                        "verified", Boolean.TRUE.equals(row.get("verified"))))
+                .toList();
+    }
+
     @Override
     public void addEmail(String username, String email) {
         jdbc.update(

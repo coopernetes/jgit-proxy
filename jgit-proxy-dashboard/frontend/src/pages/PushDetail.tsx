@@ -38,10 +38,45 @@ const STEP_DISPLAY_NAMES: Record<string, string> = {
   GpgSignatureHook: 'GPG signature',
   scanSecrets: 'Secret scanning',
   SecretScanningFilter: 'Secret scanning',
+  identityVerification: 'Identity verification',
+  IdentityVerificationFilter: 'Identity verification',
+  IdentityVerificationHook: 'Identity verification',
   CheckUserPushPermissionFilter: 'Push permissions',
   CheckUserPushPermissionHook: 'Push permissions',
   WhitelistAggregateFilter: 'Repository whitelist',
   RepositoryWhitelistHook: 'Repository whitelist',
+}
+
+function IdentityBadge({ record }: { record: PushRecord }) {
+  if (record.resolvedUser) {
+    // Check if identity verification step passed but had email warnings (content is set)
+    const idStep = (record.steps ?? []).find((s) => s.stepName === 'identityVerification')
+    const hasEmailWarning = idStep?.status === 'PASS' && !!idStep?.content
+    if (hasEmailWarning) {
+      return (
+        <span
+          className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"
+          title={idStep?.content ?? undefined}
+        >
+          ⚠ identity resolved, email unregistered
+        </span>
+      )
+    }
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+        ✓ identity resolved
+      </span>
+    )
+  }
+  // Only show "unresolved" if there's actually a push user — not for anonymous/open-mode pushes
+  if (record.user) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+        identity unresolved
+      </span>
+    )
+  }
+  return null
 }
 
 function stepDisplayName(name: string): string {
@@ -119,13 +154,9 @@ function PushTimeline({ record }: { record: PushRecord }) {
     })
   }
 
-  // 3. Blocked event — show if currently blocked/rejected, or if there was a review
-  //    (attestation present means it went through the approval gate, regardless of final status)
-  const wasBlocked =
-    record.status === 'BLOCKED' ||
-    record.status === 'REJECTED' ||
-    record.status === 'CANCELED' ||
-    (record.attestation != null && !record.autoApproved)
+  // 3. Blocked event — show if currently blocked, or if there was a review
+  //    (attestation present means it went through the approval gate)
+  const wasBlocked = record.status === 'BLOCKED' || record.attestation != null
   if (wasBlocked) {
     events.push({
       icon: '⏸',
@@ -259,23 +290,50 @@ function RePushGuidance({ record }: { record: PushRecord }) {
     )
   }
 
+  // Rejection: check if it's a reviewer rejection or validation failure
+  const isReviewerRejected = att && att.type === 'REJECTION'
+
+  if (isReviewerRejected) {
+    // Reviewer explicitly rejected the push
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg px-6 py-4">
+        <div className="text-sm font-semibold text-red-800 mb-1">
+          Push rejected — action required
+        </div>
+        <p className="text-sm text-red-700 mb-1">
+          <strong>{reviewer}</strong> rejected this push
+          {reason ? (
+            <>
+              : <em>"{reason}"</em>
+            </>
+          ) : (
+            '.'
+          )}
+        </p>
+        <p className="text-sm text-red-700 mb-3">
+          Address the feedback, amend your commits, and push again.
+        </p>
+        <pre className="text-xs bg-white border border-red-200 rounded px-3 py-2 font-mono text-red-900 select-all whitespace-pre-wrap">{`# Amend the last commit and re-push
+git commit --amend
+git push origin ${branch}
+
+# Or delete the remote branch
+git push origin :${branch}`}</pre>
+      </div>
+    )
+  }
+
+  // Validation failure (auto-rejected)
   return (
     <div className="bg-red-50 border border-red-200 rounded-lg px-6 py-4">
-      <div className="text-sm font-semibold text-red-800 mb-1">Push rejected — action required</div>
-      <p className="text-sm text-red-700 mb-1">
-        <strong>{reviewer}</strong> rejected this push
-        {reason ? (
-          <>
-            : <em>"{reason}"</em>
-          </>
-        ) : (
-          '.'
-        )}
-      </p>
+      <div className="text-sm font-semibold text-red-800 mb-1">
+        Push blocked by validation — action required
+      </div>
       <p className="text-sm text-red-700 mb-3">
-        Address the feedback, amend your commits, and push again.
+        Your push was blocked by an automated check. Review the validation results above, fix the
+        issues in your commits, and re-push.
       </p>
-      <pre className="text-xs bg-white border border-red-200 rounded px-3 py-2 font-mono text-red-900 select-all whitespace-pre-wrap">{`# Amend the last commit and re-push
+      <pre className="text-xs bg-white border border-red-200 rounded px-3 py-2 font-mono text-red-900 select-all whitespace-pre-wrap">{`# Fix the issues, amend the last commit, and re-push
 git commit --amend
 git push origin ${branch}
 
@@ -362,7 +420,7 @@ export function PushDetail({ currentUser }: PushDetailProps) {
     try {
       await approvePush(record.id, {
         reviewerUsername: currentUser?.username ?? '',
-        reviewerEmail: currentUser?.emails[0] ?? '',
+        reviewerEmail: currentUser?.emails[0]?.email ?? '',
         reason: reviewReason,
       })
       await load(record.id)
@@ -380,7 +438,7 @@ export function PushDetail({ currentUser }: PushDetailProps) {
     try {
       await rejectPush(record.id, {
         reviewerUsername: currentUser?.username ?? '',
-        reviewerEmail: currentUser?.emails[0] ?? '',
+        reviewerEmail: currentUser?.emails[0]?.email ?? '',
         reason: reviewReason,
       })
       await load(record.id)
@@ -420,37 +478,84 @@ export function PushDetail({ currentUser }: PushDetailProps) {
           <div className="bg-white rounded-lg shadow border border-gray-200 px-6 py-4">
             <div className="flex items-start gap-4">
               <StatusBadge status={record.status} className="mt-1" />
-              <div className="flex-1">
-                <div className="text-lg font-semibold text-gray-900">
-                  {(record.project ?? '') + '/' + (record.repoName ?? record.url ?? '')}
+
+              {/* Left: commit details */}
+              <div className="flex-1 min-w-0 space-y-0.5">
+                <div className="font-mono text-sm text-gray-900 truncate">
+                  {record.upstreamUrl ??
+                    record.url ??
+                    (record.project ?? '') + '/' + (record.repoName ?? '')}
                 </div>
-                <div className="text-sm text-gray-500 mt-0.5 font-mono">{record.branch}</div>
-                {record.upstreamUrl && (
-                  <div className="text-xs text-gray-400 mt-1">
-                    <span className="text-gray-500">Upstream: </span>
-                    <a
-                      href={record.upstreamUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-mono text-blue-600 hover:underline"
-                    >
-                      {record.upstreamUrl}
-                    </a>
-                  </div>
-                )}
+                <div className="text-xs text-gray-500 font-mono">{record.branch}</div>
+                <div className="text-xs font-mono text-gray-400 break-all">{record.commitTo}</div>
                 {record.message && (
-                  <div className="text-sm text-gray-700 italic mt-1">{record.message}</div>
+                  <div className="text-xs text-gray-600 italic pt-0.5">{record.message}</div>
                 )}
               </div>
-              <div className="text-right text-sm text-gray-500 shrink-0">
-                <div>{record.author ?? record.user ?? '—'}</div>
-                {record.committer && record.committer !== record.author && (
-                  <div className="text-xs text-gray-400">committer: {record.committer}</div>
+
+              {/* Right: identity + timestamp */}
+              <div className="text-right text-xs text-gray-500 shrink-0 space-y-1">
+                {/* Git author (forgeable — labelled) */}
+                {record.author && (
+                  <div>
+                    <span className="text-gray-400">author: </span>
+                    <span className="text-gray-600">{record.author}</span>
+                  </div>
                 )}
-                <div className="text-xs font-mono text-gray-400 mt-0.5">
-                  {record.commitTo ?? ''}
-                </div>
-                <div className="text-xs text-gray-400">{formatTime(record.timestamp)}</div>
+                {/* Git committer — only if different from author */}
+                {record.committer && record.committer !== record.author && (
+                  <div>
+                    <span className="text-gray-400">committer: </span>
+                    <span className="text-gray-600">{record.committer}</span>
+                  </div>
+                )}
+                {/* Authenticated push identity */}
+                {(() => {
+                  try {
+                    const upstreamHost = record.upstreamUrl
+                      ? new URL(record.upstreamUrl).hostname
+                      : null
+                    const scmUser = record.user
+                    if (scmUser) {
+                      return (
+                        <div className="space-y-0.5">
+                          <div className="flex items-center justify-end gap-1">
+                            <span className="text-gray-400">pusher</span>
+                            {upstreamHost && (
+                              <img
+                                src={`https://${upstreamHost}/favicon.ico`}
+                                className="w-3.5 h-3.5"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none'
+                                }}
+                              />
+                            )}
+                            {record.resolvedUser && upstreamHost ? (
+                              <a
+                                href={`https://${upstreamHost}/${scmUser}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline font-medium"
+                              >
+                                {scmUser}
+                              </a>
+                            ) : (
+                              <span className="text-gray-600">{scmUser}</span>
+                            )}
+                          </div>
+                          {record.resolvedUser && record.resolvedUser !== scmUser && (
+                            <div className="text-gray-400">user: {record.resolvedUser}</div>
+                          )}
+                        </div>
+                      )
+                    }
+                  } catch {
+                    // URL parsing failed
+                  }
+                  return null
+                })()}
+                <IdentityBadge record={record} />
+                <div className="text-gray-400">{formatTime(record.timestamp)}</div>
               </div>
             </div>
             {record.blockedMessage && (
@@ -593,7 +698,7 @@ export function PushDetail({ currentUser }: PushDetailProps) {
                 <strong>
                   {currentUser
                     ? currentUser.username +
-                      (currentUser.emails[0] ? ` (${currentUser.emails[0]})` : '')
+                      (currentUser.emails[0] ? ` (${currentUser.emails[0].email})` : '')
                     : '…'}
                 </strong>
               </div>

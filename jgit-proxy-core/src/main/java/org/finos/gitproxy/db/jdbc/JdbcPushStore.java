@@ -51,11 +51,11 @@ public class JdbcPushStore implements PushStore {
             jdbc.update("""
                     INSERT INTO push_records (id, timestamp, url, upstream_url, project, repo_name, branch,
                         commit_from, commit_to, message, author, author_email, committer, committer_email,
-                        push_user, user_email, method, status, error_message, blocked_message,
+                        push_user, resolved_user, user_email, method, status, error_message, blocked_message,
                         auto_approved, auto_rejected)
                     VALUES (:id, :timestamp, :url, :upstreamUrl, :project, :repoName, :branch,
                         :commitFrom, :commitTo, :message, :author, :authorEmail, :committer, :committerEmail,
-                        :user, :userEmail, :method, :status, :errorMessage, :blockedMessage,
+                        :user, :resolvedUser, :userEmail, :method, :status, :errorMessage, :blockedMessage,
                         :autoApproved, :autoRejected)
                     """, pushRecordParams(record));
 
@@ -298,6 +298,7 @@ public class JdbcPushStore implements PushStore {
                 .addValue("committer", r.getCommitter())
                 .addValue("committerEmail", r.getCommitterEmail())
                 .addValue("user", r.getUser())
+                .addValue("resolvedUser", r.getResolvedUser())
                 .addValue("userEmail", r.getUserEmail())
                 .addValue("method", r.getMethod())
                 .addValue("status", r.getStatus().name())
