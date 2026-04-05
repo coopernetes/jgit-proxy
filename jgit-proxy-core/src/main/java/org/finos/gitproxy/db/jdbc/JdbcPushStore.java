@@ -117,8 +117,9 @@ public class JdbcPushStore implements PushStore {
 
         sql.append(" ORDER BY timestamp ");
         sql.append(query.isNewestFirst() ? "DESC" : "ASC");
-        sql.append(" LIMIT :limit");
+        sql.append(" LIMIT :limit OFFSET :offset");
         params.addValue("limit", query.getLimit());
+        params.addValue("offset", query.getOffset());
 
         List<PushRecord> results = jdbc.query(sql.toString(), params, PushRecordRowMapper.INSTANCE);
         results.forEach(this::hydrate);

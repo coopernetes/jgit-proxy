@@ -21,7 +21,7 @@ export default function App() {
         <Nav currentUser={currentUser} />
         <main className="flex-1">
           <Routes>
-            <Route path="/" element={<PushList />} />
+            <Route path="/" element={<PushList currentUser={currentUser} />} />
             <Route path="/push/:id" element={<PushDetail currentUser={currentUser} />} />
             <Route path="/providers" element={<Providers />} />
             <Route path="/repos" element={<Repos />} />

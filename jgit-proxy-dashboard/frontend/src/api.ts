@@ -76,3 +76,13 @@ export async function rejectPush(id: string, body: Record<string, string>) {
   if (!res.ok) await parseErrorResponse(res, 'Failed to reject')
   return res.json()
 }
+
+export async function cancelPush(id: string) {
+  const res = await apiFetch(`/api/push/${id}/cancel`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
+  if (!res.ok) await parseErrorResponse(res, 'Failed to cancel')
+  return res.json()
+}

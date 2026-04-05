@@ -22,6 +22,10 @@ public class PushQuery {
     @Builder.Default
     private int limit = 100;
 
+    /** Number of results to skip (for pagination). */
+    @Builder.Default
+    private int offset = 0;
+
     /** Order results by timestamp descending (newest first). Defaults to true. */
     @Builder.Default
     private boolean newestFirst = true;

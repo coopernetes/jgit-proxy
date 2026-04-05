@@ -37,6 +37,13 @@ public class GitRequestDetails {
      */
     private String upstreamUsername;
 
+    /**
+     * The resolved proxy username for the push. Set by {@code CheckUserPushPermissionFilter} /
+     * {@code CheckUserPushPermissionHook} after identity resolution. Stored as {@code push_user} in the push record so
+     * that dashboard "my pushes" filtering works against the proxy login, not the raw HTTP Basic username.
+     */
+    private String resolvedUser;
+
     private List<GitProxyFilter> filters = new ArrayList<>();
     private List<PushStep> steps = new ArrayList<>(); // Filter/hook results for audit trail
     private GitResult result = GitResult.PENDING;

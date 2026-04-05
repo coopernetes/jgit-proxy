@@ -105,6 +105,7 @@ public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
                 pushUsername,
                 user.getUsername(),
                 repositoryUrl);
+        requestDetails.setResolvedUser(user.getUsername());
     }
 
     /**

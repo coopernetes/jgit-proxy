@@ -52,6 +52,12 @@ public final class PushRecordMapper {
             }
         }
 
+        // Store the resolved proxy username — falls back to the raw HTTP Basic username if resolution
+        // didn't run (e.g. open mode with no user store configured).
+        if (details.getResolvedUser() != null) {
+            builder.user(details.getResolvedUser());
+        }
+
         // Map commit author info from the head commit
         if (details.getCommit() != null) {
             Commit head = details.getCommit();
