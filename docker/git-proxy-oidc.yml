@@ -1,0 +1,43 @@
+# jgit-proxy configuration for Docker Compose OIDC profile.
+# Mount at /app/conf/git-proxy-local.yml when starting with the oidc compose override:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.oidc.yml up -d
+#   bash docker/setup.sh    # (first time only — creates Gitea admin + test repo)
+#
+# Open http://localhost:8080 and log in.  Any username is accepted (no password required).
+#
+# ── One-time /etc/hosts setup ─────────────────────────────────────────────────
+# mock-oauth2-server dynamically derives its issuer URL from the incoming request's
+# Host header.  For the issuer to be consistent between jgit-proxy (Docker DNS) and
+# your browser (host network), both must use the same hostname.  Add to /etc/hosts:
+#
+#   127.0.0.1  mock-oauth2
+#
+# Linux/Mac: /etc/hosts   Windows: C:\Windows\System32\drivers\etc\hosts
+# ──────────────────────────────────────────────────────────────────────────────
+# With this entry the URL http://mock-oauth2:9090/... resolves to localhost:9090
+# in your browser (→ Docker host port 9090) AND to the container via Docker DNS.
+
+auth:
+  provider: oidc
+  oidc:
+    issuer-uri: http://mock-oauth2:9090/default
+    client-id: gitproxy-client
+    client-secret: gitproxy-secret
+    # No jwk-set-uri needed: mock-oauth2-server mirrors the request hostname in its
+    # discovery document so the issuer Spring Security sees matches the iss claim.
+
+# OIDC users do not need to be pre-seeded; /api/me returns the authenticated username
+# even if the user has no DB record yet.  Add entries here only if you need a user to
+# have pre-configured SCM identities before their first login.
+
+providers:
+  github:
+    enabled: false
+  gitlab:
+    enabled: false
+  bitbucket:
+    enabled: false
+  gitea:
+    enabled: true
+    uri: http://gitea:3000

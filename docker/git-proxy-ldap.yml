@@ -1,0 +1,35 @@
+# jgit-proxy configuration for Docker Compose LDAP profile.
+# Mount at /app/conf/git-proxy-local.yml when starting with the ldap compose override:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.ldap.yml up -d
+#
+# Credentials: testuser / testpass123  (authenticated by OpenLDAP, not the password-hash below)
+# The password-hash field is ignored when auth.provider=ldap; it is a placeholder so the user
+# record is seeded into the DB (required for /api/me to return profile data).
+
+auth:
+  provider: ldap
+  ldap:
+    url: ldap://openldap:389/dc=example,dc=com
+    user-dn-patterns: cn={0},ou=users
+
+users:
+  - username: testuser
+    password-hash: "{noop}unused"
+    emails:
+      - testuser@example.com
+  - username: admin
+    password-hash: "{noop}unused"
+    emails:
+      - admin@example.com
+
+providers:
+  github:
+    enabled: false
+  gitlab:
+    enabled: false
+  bitbucket:
+    enabled: false
+  gitea:
+    enabled: true
+    uri: http://gitea:3000

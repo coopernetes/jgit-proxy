@@ -1,0 +1,40 @@
+# Docker Compose overlay — LDAP authentication profile.
+#
+# Start the full stack with LDAP auth:
+#   docker compose -f docker-compose.yml -f docker-compose.ldap.yml up -d
+#   bash docker/setup.sh    # (first time only — creates Gitea admin + test repo)
+#
+# Log in at http://localhost:8080 with:
+#   username: testuser      password: testpass123
+#   username: admin         password: admin
+#
+# To add more users, edit docker/ldap-bootstrap.ldif and recreate the openldap container.
+
+services:
+
+  openldap:
+    image: docker.io/osixia/openldap:1.5.0
+    environment:
+      LDAP_DOMAIN: example.com
+      LDAP_ADMIN_PASSWORD: adminpassword
+      LDAP_TLS: "false"
+    volumes:
+      - ./docker/ldap-bootstrap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/01-users.ldif:ro
+    # --copy-service is required for osixia/openldap to pick up custom LDIF files.
+    command: ["--loglevel", "warning", "--copy-service"]
+    ports:
+      - "389:389"
+    healthcheck:
+      test: ["CMD", "ldapsearch", "-x", "-H", "ldap://localhost", "-b", "dc=example,dc=com",
+             "-D", "cn=admin,dc=example,dc=com", "-w", "adminpassword", "-s", "base"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  jgit-proxy:
+    volumes:
+      - ./docker/git-proxy-ldap.yml:/app/conf/git-proxy-local.yml:ro
+    depends_on:
+      openldap:
+        condition: service_healthy
