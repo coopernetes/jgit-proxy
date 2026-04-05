@@ -362,7 +362,7 @@ export function PushDetail({ currentUser }: PushDetailProps) {
     try {
       await approvePush(record.id, {
         reviewerUsername: currentUser?.username ?? '',
-        reviewerEmail: currentUser?.email ?? '',
+        reviewerEmail: currentUser?.emails[0] ?? '',
         reason: reviewReason,
       })
       await load(record.id)
@@ -380,7 +380,7 @@ export function PushDetail({ currentUser }: PushDetailProps) {
     try {
       await rejectPush(record.id, {
         reviewerUsername: currentUser?.username ?? '',
-        reviewerEmail: currentUser?.email ?? '',
+        reviewerEmail: currentUser?.emails[0] ?? '',
         reason: reviewReason,
       })
       await load(record.id)
@@ -592,7 +592,8 @@ export function PushDetail({ currentUser }: PushDetailProps) {
                 Reviewing as{' '}
                 <strong>
                   {currentUser
-                    ? currentUser.username + (currentUser.email ? ` (${currentUser.email})` : '')
+                    ? currentUser.username +
+                      (currentUser.emails[0] ? ` (${currentUser.emails[0]})` : '')
                     : '…'}
                 </strong>
               </div>

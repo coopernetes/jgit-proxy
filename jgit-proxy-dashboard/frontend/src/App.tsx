@@ -5,6 +5,7 @@ import { Nav } from './components/Nav'
 import { Providers } from './pages/Providers'
 import { PushDetail } from './pages/PushDetail'
 import { PushList } from './pages/PushList'
+import { Profile } from './pages/Profile'
 import { Repos } from './pages/Repos'
 import type { CurrentUser } from './types'
 
@@ -25,6 +26,7 @@ export default function App() {
             <Route path="/push/:id" element={<PushDetail currentUser={currentUser} />} />
             <Route path="/providers" element={<Providers />} />
             <Route path="/repos" element={<Repos />} />
+            <Route path="/profile" element={<Profile />} />
           </Routes>
         </main>
       </div>

@@ -77,7 +77,7 @@ export function PushList({ currentUser }: PushListProps) {
         [...selectedIds].map((id) =>
           approvePush(id, {
             reviewerUsername: currentUser?.username ?? '',
-            reviewerEmail: currentUser?.email ?? '',
+            reviewerEmail: currentUser?.emails[0] ?? '',
             reason: bulkReason,
           }),
         ),
@@ -101,7 +101,7 @@ export function PushList({ currentUser }: PushListProps) {
         [...selectedIds].map((id) =>
           rejectPush(id, {
             reviewerUsername: currentUser?.username ?? '',
-            reviewerEmail: currentUser?.email ?? '',
+            reviewerEmail: currentUser?.emails[0] ?? '',
             reason: bulkReason,
           }),
         ),

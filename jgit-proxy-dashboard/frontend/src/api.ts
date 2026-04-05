@@ -86,3 +86,36 @@ export async function cancelPush(id: string) {
   if (!res.ok) await parseErrorResponse(res, 'Failed to cancel')
   return res.json()
 }
+
+export async function addEmail(email: string) {
+  const res = await apiFetch('/api/me/emails', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+  if (!res.ok) await parseErrorResponse(res, 'Failed to add email')
+  return res.json()
+}
+
+export async function removeEmail(email: string) {
+  const res = await apiFetch(`/api/me/emails/${encodeURIComponent(email)}`, { method: 'DELETE' })
+  if (!res.ok) await parseErrorResponse(res, 'Failed to remove email')
+}
+
+export async function addScmIdentity(provider: string, username: string) {
+  const res = await apiFetch('/api/me/identities', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider, username }),
+  })
+  if (!res.ok) await parseErrorResponse(res, 'Failed to add SCM identity')
+  return res.json()
+}
+
+export async function removeScmIdentity(provider: string, scmUsername: string) {
+  const res = await apiFetch(
+    `/api/me/identities/${encodeURIComponent(provider)}/${encodeURIComponent(scmUsername)}`,
+    { method: 'DELETE' },
+  )
+  if (!res.ok) await parseErrorResponse(res, 'Failed to remove SCM identity')
+}

@@ -16,7 +16,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
  * <p>Users are loaded from the YAML config into this store on startup via {@link #upsertAll(List)}. Passwords set in
  * the DB after initial seeding are preserved (upsert is INSERT … ON CONFLICT DO NOTHING for the password column).
  */
-public class JdbcUserStore implements UserStore {
+public class JdbcUserStore implements MutableUserStore {
 
     private static final Logger log = LoggerFactory.getLogger(JdbcUserStore.class);
 
@@ -102,6 +102,38 @@ public class JdbcUserStore implements UserStore {
         List<String> usernames =
                 jdbc.queryForList("SELECT username FROM proxy_users ORDER BY username", Map.of(), String.class);
         return usernames.stream().flatMap(u -> findByUsername(u).stream()).toList();
+    }
+
+    @Override
+    public void addEmail(String username, String email) {
+        jdbc.update(
+                "INSERT INTO user_emails (username, email) VALUES (:u, :email)",
+                Map.of("u", username, "email", email.toLowerCase()));
+        log.debug("Added email '{}' for user '{}'", email, username);
+    }
+
+    @Override
+    public void removeEmail(String username, String email) {
+        jdbc.update(
+                "DELETE FROM user_emails WHERE username = :u AND email = :email",
+                Map.of("u", username, "email", email.toLowerCase()));
+        log.debug("Removed email '{}' for user '{}'", email, username);
+    }
+
+    @Override
+    public void addScmIdentity(String username, String provider, String scmUsername) {
+        jdbc.update(
+                "INSERT INTO user_scm_identities (username, provider, scm_username) VALUES (:u, :provider, :scmUsername)",
+                Map.of("u", username, "provider", provider, "scmUsername", scmUsername));
+        log.debug("Added SCM identity '{}/{}' for user '{}'", provider, scmUsername, username);
+    }
+
+    @Override
+    public void removeScmIdentity(String username, String provider, String scmUsername) {
+        jdbc.update(
+                "DELETE FROM user_scm_identities WHERE username = :u AND provider = :provider AND scm_username = :scmUsername",
+                Map.of("u", username, "provider", provider, "scmUsername", scmUsername));
+        log.debug("Removed SCM identity '{}/{}' for user '{}'", provider, scmUsername, username);
     }
 
     private UserEntry buildEntry(String username, String passwordHash) {

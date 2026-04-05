@@ -68,7 +68,13 @@ export interface Provider {
   proxyPath: string
 }
 
+export interface ScmIdentity {
+  provider: string
+  username: string
+}
+
 export interface CurrentUser {
   username: string
-  email?: string
+  emails: string[]
+  scmIdentities: ScmIdentity[]
 }

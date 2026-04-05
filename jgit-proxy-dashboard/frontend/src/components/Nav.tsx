@@ -66,7 +66,14 @@ export function Nav({ currentUser }: NavProps) {
 
       {currentUser && (
         <div className="ml-auto flex items-center gap-3 text-sm text-slate-300">
-          <span>{currentUser.username}</span>
+          <NavLink
+            to="/profile"
+            className={({ isActive }) =>
+              'transition-colors ' + (isActive ? 'text-white' : 'hover:text-white')
+            }
+          >
+            {currentUser.username}
+          </NavLink>
           <button
             onClick={logout}
             className="px-2 py-1 rounded text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"

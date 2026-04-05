@@ -1,7 +1,8 @@
 package org.finos.gitproxy.dashboard.controller;
 
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import org.finos.gitproxy.user.UserEntry;
 import org.finos.gitproxy.user.UserStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
@@ -17,20 +18,20 @@ public class AuthController {
     @Autowired
     private UserStore userStore;
 
-    /** Returns the currently authenticated user's username and primary email (if known). */
+    /** Returns the currently authenticated user's full profile: username, emails, and SCM identities. */
     @GetMapping("/me")
     public Map<String, Object> me() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String username = auth != null ? auth.getName() : null;
 
-        String email = userStore
-                .findByUsername(username)
-                .flatMap(u -> u.getEmails().stream().findFirst())
-                .orElse(null);
+        UserEntry user = username != null ? userStore.findByUsername(username).orElse(null) : null;
+        List<String> emails = user != null ? user.getEmails() : List.of();
+        List<Map<String, String>> scmIdentities = user != null
+                ? user.getScmIdentities().stream()
+                        .map(id -> Map.of("provider", id.getProvider(), "username", id.getUsername()))
+                        .toList()
+                : List.of();
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("username", username);
-        result.put("email", email);
-        return result;
+        return Map.of("username", username != null ? username : "", "emails", emails, "scmIdentities", scmIdentities);
     }
 }
