@@ -195,6 +195,81 @@ class IdentityVerificationHookTest {
         assertEquals(StepStatus.PASS, pc.getSteps().get(0).getStatus());
     }
 
+    // ---- DELETE command → skipped entirely, no violation ----
+
+    @Test
+    void deleteCommand_skipped() throws Exception {
+        repo.getConfig().setString("gitproxy", null, "pushUser", "alice-git");
+        repo.getConfig().save();
+        when(resolver.resolve(any(GitProxyProvider.class), eq("alice-git"), isNull()))
+                .thenReturn(Optional.of(alice()));
+
+        RevCommit c1 = createCommit("init", "other@example.com");
+        ReceivePack rp = new ReceivePack(repo);
+        // DELETE: newId is zero
+        ReceiveCommand cmd = new ReceiveCommand(
+                c1.getId(), org.eclipse.jgit.lib.ObjectId.zeroId(), "refs/heads/main", ReceiveCommand.Type.DELETE);
+        PushContext pc = new PushContext();
+        ValidationContext vc = new ValidationContext();
+
+        hook(CommitConfig.IdentityVerificationMode.STRICT, vc, pc).onPreReceive(rp, List.of(cmd));
+
+        assertFalse(vc.hasIssues(), "DELETE commands should not trigger identity violation");
+    }
+
+    // ---- author and committer same unregistered email → single combined violation ----
+
+    @Test
+    void strictMode_authorAndCommitterSameEmail_singleViolation() throws Exception {
+        repo.getConfig().setString("gitproxy", null, "pushUser", "alice-git");
+        repo.getConfig().save();
+        when(resolver.resolve(any(GitProxyProvider.class), eq("alice-git"), isNull()))
+                .thenReturn(Optional.of(alice())); // alice only has alice@example.com
+
+        // Commit where author and committer are both "other@example.com" (unregistered, same address)
+        RevCommit c1 = createCommit("init", "other@example.com");
+        RevCommit c2 = createCommit("second", "other@example.com");
+        ReceivePack rp = new ReceivePack(repo);
+        ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
+        PushContext pc = new PushContext();
+        ValidationContext vc = new ValidationContext();
+
+        hook(CommitConfig.IdentityVerificationMode.STRICT, vc, pc).onPreReceive(rp, List.of(cmd));
+
+        assertTrue(vc.hasIssues());
+        // Should produce exactly one violation per commit (author+committer collapsed), not two
+        String summary = vc.getIssues().get(0).summary();
+        assertTrue(summary.contains("alice"), "Violation should reference the push user");
+    }
+
+    // ---- warn mode records step content with violation details ----
+
+    @Test
+    void warnMode_emailMismatch_stepContentContainsViolations() throws Exception {
+        repo.getConfig().setString("gitproxy", null, "pushUser", "alice-git");
+        repo.getConfig().save();
+        when(resolver.resolve(any(GitProxyProvider.class), eq("alice-git"), isNull()))
+                .thenReturn(Optional.of(alice()));
+
+        RevCommit c1 = createCommit("init", "other@example.com");
+        RevCommit c2 = createCommit("second", "other@example.com");
+        ReceivePack rp = new ReceivePack(repo);
+        ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
+        PushContext pc = new PushContext();
+        ValidationContext vc = new ValidationContext();
+
+        hook(CommitConfig.IdentityVerificationMode.WARN, vc, pc).onPreReceive(rp, List.of(cmd));
+
+        assertFalse(vc.hasIssues());
+        // WARN mode records a PASS step with the violation in content (for the amber UI badge)
+        var step = pc.getSteps().stream()
+                .filter(s -> "identityVerification".equals(s.getStepName()))
+                .findFirst();
+        assertTrue(step.isPresent(), "WARN mode should record an identityVerification step");
+        assertNotNull(step.get().getContent(), "Step content should contain violation details");
+        assertTrue(step.get().getContent().contains("not registered"));
+    }
+
     // ---- resolver returns empty → skip (CheckUserPushPermissionHook handles "not registered") ----
 
     @Test
