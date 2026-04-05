@@ -18,6 +18,7 @@ import org.finos.gitproxy.config.GpgConfig;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.git.*;
 import org.finos.gitproxy.jetty.config.JettyConfigurationBuilder;
+import org.finos.gitproxy.provider.BitbucketProvider;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.service.DummyUserAuthorizationService;
 import org.finos.gitproxy.service.PushIdentityResolver;
@@ -220,7 +221,11 @@ public final class GitProxyServletRegistrar {
             log.info("Registered {} whitelist filter(s) for provider {}", whitelistFilters.size(), provider.getName());
         }
 
+        if (provider instanceof BitbucketProvider bitbucketProvider) {
+            filters.add(new BitbucketIdentityFilter(bitbucketProvider));
+        }
         filters.add(new CheckUserPushPermissionFilter(pushIdentityResolver, userAuthorizationService));
+        filters.add(new IdentityVerificationFilter(pushIdentityResolver, commitConfig.getIdentityVerification()));
         filters.add(new CheckEmptyBranchFilter());
         filters.add(new CheckHiddenCommitsFilter(provider));
         filters.add(new CheckAuthorEmailsFilter(commitConfig));

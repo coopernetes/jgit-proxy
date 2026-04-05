@@ -98,16 +98,28 @@ providers:
   bitbucket:
     enabled: true
 
-  # Custom provider — requires explicit URI
-  internal-gitlab:
+  # Self-hosted GitHub Enterprise Server — name contains "github" so type is inferred
+  internal-github:
     enabled: true
-    servlet-path: /enterprise
-    uri: https://gitlab.internal.example.com
+    uri: https://github.corp.example.com
 
-  debian-gitlab:
+  # Self-hosted instance with an arbitrary name — use 'type' to select the provider implementation
+  my-internal-server:
     enabled: true
-    servlet-path: /debian
-    uri: https://salsa.debian.org/
+    type: github          # uses GitHubProvider (identity resolution, GHES API path logic, etc.)
+    uri: https://github.corp.example.com
+
+  # Self-hosted Forgejo instance
+  my-forgejo:
+    enabled: true
+    type: forgejo         # also accepts: codeberg
+    uri: https://forge.internal.example.com
+
+  # Bitbucket Data Center (self-hosted)
+  acme-bitbucket:
+    enabled: true
+    type: bitbucket
+    uri: https://bitbucket.acme.com
 ```
 
 ### Provider properties
@@ -117,6 +129,25 @@ providers:
 | `enabled` | boolean | `true` | Whether the provider is active |
 | `servlet-path` | string | `""` | Additional URL prefix for this provider |
 | `uri` | string | _(built-in default)_ | Upstream base URI (required for custom providers) |
+| `type` | string | _(inferred from name)_ | Provider implementation to use: `github`, `gitlab`, `bitbucket`, `codeberg`, `forgejo`. Set this when the provider name does not contain the type keyword. |
+
+When `type` (or the provider name) matches a known implementation, the full typed provider is used — including its API URL logic, identity resolution, and (for Bitbucket) credential rewriting. A custom `uri` overrides only the upstream address; all other behaviour is inherited from the provider type.
+
+### Bitbucket identity resolution
+
+Bitbucket does not enforce the git push username — only the token is validated. To enable identity resolution (required for push permission checks and commit identity verification), the proxy adopts the convention that the **HTTP Basic-auth username in the remote URL must be the user's Bitbucket account email address**.
+
+Configure the remote URL like this:
+
+```
+https://<email>:<api-token>@bitbucket.org/<workspace>/<repo>.git
+```
+
+The proxy calls `GET /2.0/user` using those credentials to look up the user's Bitbucket `username` (the auto-generated URL-safe identifier, e.g. `a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6`). It then rewrites the outbound credentials to `username:token` before forwarding the push to Bitbucket — this is necessary because Bitbucket's git endpoint only accepts the internal username, not an email address.
+
+**Required API token scopes:** `read:user:bitbucket` and `write:repository:bitbucket`.
+
+> **M&A / private server use case:** This same mechanism works for self-hosted Bitbucket Data Center instances. Set `uri` to your internal Bitbucket URL and the proxy will route and rewrite credentials accordingly, making it straightforward to gate pushes to acquired-company repositories during an integration period.
 
 ## Commit validation
 

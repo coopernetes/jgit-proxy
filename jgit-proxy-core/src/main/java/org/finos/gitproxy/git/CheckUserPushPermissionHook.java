@@ -12,6 +12,7 @@ import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
 import org.finos.gitproxy.db.model.PushStep;
 import org.finos.gitproxy.db.model.StepStatus;
+import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.service.PushIdentityResolver;
 import org.finos.gitproxy.service.UserAuthorizationService;
 import org.finos.gitproxy.user.UserEntry;
@@ -32,14 +33,14 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
     private final UserAuthorizationService userAuthorizationService;
     private final ValidationContext validationContext;
     private final PushContext pushContext;
-    private final String providerName;
+    private final GitProxyProvider provider;
 
     public CheckUserPushPermissionHook(
             PushIdentityResolver identityResolver,
             UserAuthorizationService userAuthorizationService,
             ValidationContext validationContext,
             PushContext pushContext) {
-        this(identityResolver, userAuthorizationService, validationContext, pushContext, "");
+        this(identityResolver, userAuthorizationService, validationContext, pushContext, (GitProxyProvider) null);
     }
 
     public CheckUserPushPermissionHook(
@@ -47,12 +48,12 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
             UserAuthorizationService userAuthorizationService,
             ValidationContext validationContext,
             PushContext pushContext,
-            String providerName) {
+            GitProxyProvider provider) {
         this.identityResolver = identityResolver;
         this.userAuthorizationService = userAuthorizationService;
         this.validationContext = validationContext;
         this.pushContext = pushContext;
-        this.providerName = providerName != null ? providerName : "";
+        this.provider = provider;
     }
 
     @Override
@@ -82,9 +83,8 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
         }
 
         // Resolve identity: who is the person behind these credentials?
-        Optional<UserEntry> resolved = identityResolver != null
-                ? identityResolver.resolve(providerName, pushUser, pushToken)
-                : Optional.empty();
+        Optional<UserEntry> resolved =
+                identityResolver != null ? identityResolver.resolve(provider, pushUser, pushToken) : Optional.empty();
 
         if (resolved.isEmpty()) {
             log.warn("Push user '{}' could not be resolved to a registered proxy user", pushUser);

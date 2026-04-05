@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.List;
 import java.util.UUID;
 import javax.sql.DataSource;
-import org.finos.gitproxy.db.jdbc.DataSourceFactory; // used in setUp and upsertAll_secondCall_preservesExistingPassword
+import org.finos.gitproxy.db.jdbc.DataSourceFactory;
 import org.finos.gitproxy.db.jdbc.JdbcPushStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,27 +23,29 @@ class JdbcUserStoreIntegrationTest {
     @BeforeEach
     void setUp() {
         DataSource ds = DataSourceFactory.h2InMemory("user-test-" + UUID.randomUUID());
-        // schema.sql includes the user tables — initialize via JdbcPushStore which owns the schema resource
         JdbcPushStore pushStore = new JdbcPushStore(ds);
         pushStore.initialize();
         store = new JdbcUserStore(ds);
     }
 
-    private static UserEntry user(String username, List<String> emails, List<String> pushUsernames) {
+    private static UserEntry user(String username, List<String> emails, List<ScmIdentity> scmIdentities) {
         return UserEntry.builder()
                 .username(username)
                 .passwordHash("{noop}pw")
                 .emails(emails)
-                .pushUsernames(pushUsernames)
-                .scmIdentities(List.of())
+                .scmIdentities(scmIdentities)
                 .build();
+    }
+
+    private static ScmIdentity scm(String provider, String login) {
+        return ScmIdentity.builder().provider(provider).username(login).build();
     }
 
     // ---- basic upsert / findByUsername ----
 
     @Test
     void upsertAll_insertsUser_findByUsernameReturns() {
-        store.upsertAll(List.of(user("alice", List.of("alice@example.com"), List.of("alice"))));
+        store.upsertAll(List.of(user("alice", List.of("alice@example.com"), List.of())));
 
         var result = store.findByUsername("alice");
         assertTrue(result.isPresent());
@@ -60,15 +62,12 @@ class JdbcUserStoreIntegrationTest {
 
     @Test
     void upsertAll_secondCall_preservesExistingPassword() {
-        // First seed with one password
         store.upsertAll(List.of(user("alice", List.of("alice@example.com"), List.of())));
 
-        // Second call with a different password hash — should not overwrite (check-then-insert)
         UserEntry aliceNewPw = UserEntry.builder()
                 .username("alice")
                 .passwordHash("{bcrypt}$2a$12$different-hash")
                 .emails(List.of("alice@example.com"))
-                .pushUsernames(List.of())
                 .scmIdentities(List.of())
                 .build();
         store.upsertAll(List.of(aliceNewPw));
@@ -115,51 +114,77 @@ class JdbcUserStoreIntegrationTest {
         assertTrue(store.findByEmail("new@example.com").isPresent(), "New email must be present");
     }
 
-    // ---- push usernames ----
+    // ---- scm identities ----
 
     @Test
-    void upsertAll_insertsPushUsernames_findByPushUsernameReturns() {
-        store.upsertAll(List.of(user("alice", List.of(), List.of("corp-alice", "alice-github"))));
+    void upsertAll_insertsScmIdentities_findByScmIdentityReturns() {
+        store.upsertAll(
+                List.of(user("alice", List.of(), List.of(scm("github", "alice-gh"), scm("gitlab", "alice-gl")))));
 
-        var result = store.findByPushUsername("corp-alice");
+        var result = store.findByScmIdentity("github", "alice-gh");
         assertTrue(result.isPresent());
         assertEquals("alice", result.get().getUsername());
 
-        assertTrue(store.findByPushUsername("alice-github").isPresent());
+        assertTrue(store.findByScmIdentity("gitlab", "alice-gl").isPresent());
     }
 
     @Test
-    void findByPushUsername_notRegistered_returnsEmpty() {
-        store.upsertAll(List.of(user("alice", List.of(), List.of("alice"))));
+    void findByScmIdentity_wrongProvider_returnsEmpty() {
+        store.upsertAll(List.of(user("alice", List.of(), List.of(scm("github", "alice-gh")))));
 
-        assertTrue(store.findByPushUsername("bob").isEmpty());
+        assertTrue(store.findByScmIdentity("gitlab", "alice-gh").isEmpty());
     }
 
     @Test
-    void findByPushUsername_null_returnsEmpty() {
-        assertTrue(store.findByPushUsername(null).isEmpty());
+    void findByScmIdentity_notRegistered_returnsEmpty() {
+        store.upsertAll(List.of(user("alice", List.of(), List.of(scm("github", "alice-gh")))));
+
+        assertTrue(store.findByScmIdentity("github", "bob-gh").isEmpty());
     }
 
     @Test
-    void upsertAll_pushUsernamesReplaced_onSecondCall() {
-        store.upsertAll(List.of(user("alice", List.of(), List.of("old-handle"))));
-        store.upsertAll(List.of(user("alice", List.of(), List.of("new-handle"))));
-
-        assertFalse(store.findByPushUsername("old-handle").isPresent(), "Old push username must be replaced");
-        assertTrue(store.findByPushUsername("new-handle").isPresent(), "New push username must be present");
+    void findByScmIdentity_null_returnsEmpty() {
+        assertTrue(store.findByScmIdentity(null, "alice-gh").isEmpty());
+        assertTrue(store.findByScmIdentity("github", null).isEmpty());
     }
 
-    // ---- returned entry hydrates pushUsernames ----
+    @Test
+    void upsertAll_scmIdentitiesReplaced_onSecondCall() {
+        store.upsertAll(List.of(user("alice", List.of(), List.of(scm("github", "old-handle")))));
+        store.upsertAll(List.of(user("alice", List.of(), List.of(scm("github", "new-handle")))));
+
+        assertFalse(store.findByScmIdentity("github", "old-handle").isPresent(), "Old SCM identity must be replaced");
+        assertTrue(store.findByScmIdentity("github", "new-handle").isPresent(), "New SCM identity must be present");
+    }
+
+    // ---- returned entry hydrates scmIdentities ----
 
     @Test
-    void findByUsername_returnedEntry_hasPushUsernames() {
-        store.upsertAll(List.of(user("alice", List.of(), List.of("corp-alice", "alice-github"))));
+    void findByUsername_returnedEntry_hasScmIdentities() {
+        store.upsertAll(
+                List.of(user("alice", List.of(), List.of(scm("github", "alice-gh"), scm("gitlab", "alice-gl")))));
 
         var result = store.findByUsername("alice");
         assertTrue(result.isPresent());
-        var pushUsernames = result.get().getPushUsernames();
-        assertTrue(pushUsernames.contains("corp-alice"));
-        assertTrue(pushUsernames.contains("alice-github"));
+        var ids = result.get().getScmIdentities();
+        assertTrue(
+                ids.stream().anyMatch(id -> "github".equals(id.getProvider()) && "alice-gh".equals(id.getUsername())));
+        assertTrue(
+                ids.stream().anyMatch(id -> "gitlab".equals(id.getProvider()) && "alice-gl".equals(id.getUsername())));
+    }
+
+    // ---- multiple users, correct routing ----
+
+    @Test
+    void multipleUsers_scmIdentitiesRoutedCorrectly() {
+        store.upsertAll(List.of(
+                user("alice", List.of(), List.of(scm("github", "alice-gh"))),
+                user("bob", List.of(), List.of(scm("github", "bob-gh")))));
+
+        assertEquals(
+                "alice", store.findByScmIdentity("github", "alice-gh").get().getUsername());
+        assertEquals("bob", store.findByScmIdentity("github", "bob-gh").get().getUsername());
+        assertTrue(store.findByScmIdentity("github", "charlie-gh").isEmpty());
     }
 
     // ---- findAll ----
@@ -175,17 +200,5 @@ class JdbcUserStoreIntegrationTest {
     @Test
     void findAll_emptyStore_returnsEmpty() {
         assertEquals(0, store.findAll().size());
-    }
-
-    // ---- multiple users, correct routing ----
-
-    @Test
-    void multipleUsers_pushUsernamesRoutedCorrectly() {
-        store.upsertAll(List.of(
-                user("alice", List.of(), List.of("alice-github")), user("bob", List.of(), List.of("bob-github"))));
-
-        assertEquals("alice", store.findByPushUsername("alice-github").get().getUsername());
-        assertEquals("bob", store.findByPushUsername("bob-github").get().getUsername());
-        assertTrue(store.findByPushUsername("charlie-github").isEmpty());
     }
 }

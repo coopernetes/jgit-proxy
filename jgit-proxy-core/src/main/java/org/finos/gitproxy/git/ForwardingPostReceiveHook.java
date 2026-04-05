@@ -49,6 +49,16 @@ public class ForwardingPostReceiveHook implements PostReceiveHook {
         }
 
         Repository repo = rp.getRepository();
+
+        // If BitbucketCredentialRewriteHook resolved an upstream username, use it instead of the push email.
+        String upstreamUser = repo.getConfig().getString("gitproxy", null, "upstreamUser");
+        CredentialsProvider effectiveCreds = credentials;
+        if (upstreamUser != null) {
+            String pushToken = repo.getConfig().getString("gitproxy", null, "pushToken");
+            effectiveCreds = new UsernamePasswordCredentialsProvider(upstreamUser, pushToken != null ? pushToken : "");
+            log.debug("Using Bitbucket upstream username '{}' for forwarding credentials", upstreamUser);
+        }
+
         String upstreamUrl = repo.getConfig().getString("gitproxy", null, "upstreamUrl");
 
         if (upstreamUrl == null) {
@@ -72,7 +82,7 @@ public class ForwardingPostReceiveHook implements PostReceiveHook {
 
         try {
             URIish upstream = new URIish(upstreamUrl);
-            forwardFailed = pushToUpstream(rp, repo, upstream, accepted, logs);
+            forwardFailed = pushToUpstream(rp, repo, upstream, accepted, logs, effectiveCreds);
         } catch (Exception e) {
             rp.sendMessage(color(RED, sym(CROSS_MARK) + "  ERROR forwarding to upstream: " + e.getMessage()));
             log.error("Failed to push to upstream {}", upstreamUrl, e);
@@ -91,13 +101,18 @@ public class ForwardingPostReceiveHook implements PostReceiveHook {
 
     /** Returns true if any ref failed to forward. */
     private boolean pushToUpstream(
-            ReceivePack rp, Repository repo, URIish upstream, List<ReceiveCommand> commands, List<String> logs)
+            ReceivePack rp,
+            Repository repo,
+            URIish upstream,
+            List<ReceiveCommand> commands,
+            List<String> logs,
+            CredentialsProvider creds)
             throws Exception {
 
         boolean anyFailed = false;
         try (Transport transport = Transport.open(repo, upstream)) {
-            if (credentials != null) {
-                transport.setCredentialsProvider(credentials);
+            if (creds != null) {
+                transport.setCredentialsProvider(creds);
             }
 
             List<RemoteRefUpdate> updates = buildRefUpdates(repo, commands);

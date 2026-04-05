@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
 import org.finos.gitproxy.provider.GitHubProvider;
+import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.service.PushIdentityResolver;
 import org.finos.gitproxy.service.UserAuthorizationService;
 import org.finos.gitproxy.user.UserEntry;
@@ -112,6 +113,7 @@ class CheckUserPushPermissionFilterTest {
     private GitRequestDetails pushDetails() {
         GitRequestDetails details = new GitRequestDetails();
         details.setOperation(HttpOperation.PUSH);
+        details.setProvider(new GitHubProvider("/proxy"));
         details.setRepoRef(GitRequestDetails.RepoRef.builder()
                 .owner("owner")
                 .name("repo")
@@ -124,7 +126,6 @@ class CheckUserPushPermissionFilterTest {
         return UserEntry.builder()
                 .username(username)
                 .emails(List.of())
-                .pushUsernames(List.of())
                 .scmIdentities(List.of())
                 .build();
     }
@@ -167,7 +168,8 @@ class CheckUserPushPermissionFilterTest {
     @Test
     void resolverReturnsEmpty_blocks() throws Exception {
         GitRequestDetails details = pushDetails();
-        when(resolver.resolve(anyString(), eq("ghost"), eq("tok"))).thenReturn(Optional.empty());
+        when(resolver.resolve(any(GitProxyProvider.class), eq("ghost"), eq("tok")))
+                .thenReturn(Optional.empty());
         FakeResponse resp = new FakeResponse();
 
         new CheckUserPushPermissionFilter(resolver, authService)
@@ -184,7 +186,8 @@ class CheckUserPushPermissionFilterTest {
     void resolvedButNotAuthorized_blocks() throws Exception {
         GitRequestDetails details = pushDetails();
         details.setProvider(new GitHubProvider("/proxy"));
-        when(resolver.resolve(anyString(), eq("corp"), eq("tok"))).thenReturn(Optional.of(userEntry("alice")));
+        when(resolver.resolve(any(GitProxyProvider.class), eq("corp"), eq("tok")))
+                .thenReturn(Optional.of(userEntry("alice")));
         when(authService.isUserAuthorizedToPush(eq("alice"), anyString())).thenReturn(false);
         FakeResponse resp = new FakeResponse();
 
@@ -200,7 +203,8 @@ class CheckUserPushPermissionFilterTest {
     @Test
     void resolvedAndAuthorized_passes() throws Exception {
         GitRequestDetails details = pushDetails();
-        when(resolver.resolve(anyString(), eq("corp"), eq("tok"))).thenReturn(Optional.of(userEntry("alice")));
+        when(resolver.resolve(any(GitProxyProvider.class), eq("corp"), eq("tok")))
+                .thenReturn(Optional.of(userEntry("alice")));
         when(authService.isUserAuthorizedToPush(eq("alice"), anyString())).thenReturn(true);
         FakeResponse resp = new FakeResponse();
 
@@ -216,30 +220,30 @@ class CheckUserPushPermissionFilterTest {
     @Test
     void noAuthHeader_resolverCalledWithNullUsername() throws Exception {
         GitRequestDetails details = pushDetails();
-        when(resolver.resolve(anyString(), isNull(), isNull())).thenReturn(Optional.empty());
+        when(resolver.resolve(any(GitProxyProvider.class), isNull(), isNull())).thenReturn(Optional.empty());
         FakeResponse resp = new FakeResponse();
 
         new CheckUserPushPermissionFilter(resolver, authService).doHttpFilter(mockRequest(details, null), resp.mock);
 
-        verify(resolver).resolve(anyString(), isNull(), isNull());
+        verify(resolver).resolve(any(GitProxyProvider.class), isNull(), isNull());
         assertTrue(resp.committed.get());
     }
 
-    // ---- provider name is passed to resolver ----
+    // ---- provider instance is passed to resolver ----
 
     @Test
-    void providerName_isExtractedFromRequestDetails() throws Exception {
+    void provider_isPassedToResolver() throws Exception {
         GitRequestDetails details = pushDetails();
-        details.setProvider(new GitHubProvider("/proxy"));
-        // GitHubProvider.getName() returns "github", not "github.com"
-        when(resolver.resolve(eq("github"), eq("corp"), eq("tok"))).thenReturn(Optional.of(userEntry("alice")));
+        GitProxyProvider github = new GitHubProvider("/proxy");
+        details.setProvider(github);
+        when(resolver.resolve(eq(github), eq("corp"), eq("tok"))).thenReturn(Optional.of(userEntry("alice")));
         when(authService.isUserAuthorizedToPush(eq("alice"), anyString())).thenReturn(true);
         FakeResponse resp = new FakeResponse();
 
         new CheckUserPushPermissionFilter(resolver, authService)
                 .doHttpFilter(mockRequest(details, basicAuth("corp", "tok")), resp.mock);
 
-        verify(resolver).resolve(eq("github"), eq("corp"), eq("tok"));
+        verify(resolver).resolve(eq(github), eq("corp"), eq("tok"));
         assertFalse(resp.committed.get());
     }
 
@@ -250,14 +254,15 @@ class CheckUserPushPermissionFilterTest {
         // GitHub PATs can contain colons; only the first colon is the user:pass separator
         String tokenWithColon = "ghp_abc:xyz";
         GitRequestDetails details = pushDetails();
-        when(resolver.resolve(anyString(), eq("user"), eq(tokenWithColon))).thenReturn(Optional.of(userEntry("user")));
+        when(resolver.resolve(any(GitProxyProvider.class), eq("user"), eq(tokenWithColon)))
+                .thenReturn(Optional.of(userEntry("user")));
         when(authService.isUserAuthorizedToPush(anyString(), anyString())).thenReturn(true);
         FakeResponse resp = new FakeResponse();
 
         new CheckUserPushPermissionFilter(resolver, authService)
                 .doHttpFilter(mockRequest(details, basicAuth("user", tokenWithColon)), resp.mock);
 
-        verify(resolver).resolve(anyString(), eq("user"), eq(tokenWithColon));
+        verify(resolver).resolve(any(GitProxyProvider.class), eq("user"), eq(tokenWithColon));
         assertFalse(resp.committed.get());
     }
 }

@@ -18,6 +18,7 @@ import org.finos.gitproxy.approval.ApprovalGateway;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.config.GpgConfig;
 import org.finos.gitproxy.db.PushStore;
+import org.finos.gitproxy.provider.BitbucketProvider;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.service.PushIdentityResolver;
 import org.finos.gitproxy.service.UserAuthorizationService;
@@ -198,12 +199,16 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
                         : new org.finos.gitproxy.service.DummyUserAuthorizationService(),
                 validationContext,
                 pushContext,
-                provider.getName());
+                provider);
+
+        var identityVerificationHook = new IdentityVerificationHook(
+                pushIdentityResolver, commitConfig.getIdentityVerification(), validationContext, pushContext, provider);
 
         // Build and sort the orderable validation hook list
         List<GitProxyHook> validationHooks = new ArrayList<>(List.of(
                 new RepositoryWhitelistHook(pushContext),
                 permissionHook,
+                identityVerificationHook,
                 new CheckEmptyBranchHook(pushContext),
                 new CheckHiddenCommitsHook(pushContext),
                 new AuthorEmailValidationHook(commitConfig, validationContext, pushContext),
@@ -213,6 +218,9 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
                 new DiffScanningHook(commitConfig, validationContext, pushContext),
                 new GpgSignatureHook(gpgConfig, validationContext, pushContext),
                 new SecretScanningHook(commitConfig.getSecretScanning(), validationContext, pushContext)));
+        if (provider instanceof BitbucketProvider bitbucketProvider) {
+            validationHooks.add(new BitbucketCredentialRewriteHook(bitbucketProvider));
+        }
         validationHooks.sort(Comparator.comparingInt(GitProxyHook::getOrder));
 
         PreReceiveHook[] preHooks;

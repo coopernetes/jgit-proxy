@@ -10,17 +10,11 @@ import lombok.Value;
 public class UserEntry {
     String username;
 
-    /** BCrypt password hash. */
+    /** BCrypt password hash. Null when the user authenticates exclusively via an external IdP. */
     String passwordHash;
 
     /** Email addresses associated with this user (for commit author matching). */
     List<String> emails;
-
-    /**
-     * Push usernames — the HTTP Basic-auth usernames this user may push as. Used to authorize git pushes before SCM
-     * OAuth is available. Examples: corporate username, GitHub handle, test script username.
-     */
-    List<String> pushUsernames;
 
     /** SCM identities (provider + username) for this user. */
     List<ScmIdentity> scmIdentities;

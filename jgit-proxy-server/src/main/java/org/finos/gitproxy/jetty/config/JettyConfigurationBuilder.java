@@ -21,7 +21,7 @@ import org.finos.gitproxy.service.DummyUserAuthorizationService;
 import org.finos.gitproxy.service.LinkedIdentityAuthorizationService;
 import org.finos.gitproxy.service.PushIdentityResolver;
 import org.finos.gitproxy.service.UserAuthorizationService;
-import org.finos.gitproxy.servlet.filter.RepositoryUrlFilter;
+import org.finos.gitproxy.servlet.filter.AuthorizedByUrlFilter;
 import org.finos.gitproxy.servlet.filter.WhitelistByUrlFilter;
 import org.finos.gitproxy.user.JdbcUserStore;
 import org.finos.gitproxy.user.ScmIdentity;
@@ -99,16 +99,18 @@ public class JettyConfigurationBuilder {
             int order = wl.getOrder();
 
             if (!wl.getSlugs().isEmpty()) {
-                filters.add(new WhitelistByUrlFilter(order, provider, wl.getSlugs(), RepositoryUrlFilter.Target.SLUG));
+                filters.add(
+                        new WhitelistByUrlFilter(order, provider, wl.getSlugs(), AuthorizedByUrlFilter.Target.SLUG));
                 log.debug("Added slug whitelist for provider {}: {}", provider.getName(), wl.getSlugs());
             }
             if (!wl.getOwners().isEmpty()) {
                 filters.add(
-                        new WhitelistByUrlFilter(order, provider, wl.getOwners(), RepositoryUrlFilter.Target.OWNER));
+                        new WhitelistByUrlFilter(order, provider, wl.getOwners(), AuthorizedByUrlFilter.Target.OWNER));
                 log.debug("Added owner whitelist for provider {}: {}", provider.getName(), wl.getOwners());
             }
             if (!wl.getNames().isEmpty()) {
-                filters.add(new WhitelistByUrlFilter(order, provider, wl.getNames(), RepositoryUrlFilter.Target.NAME));
+                filters.add(
+                        new WhitelistByUrlFilter(order, provider, wl.getNames(), AuthorizedByUrlFilter.Target.NAME));
                 log.debug("Added name whitelist for provider {}: {}", provider.getName(), wl.getNames());
             }
         }
@@ -157,7 +159,11 @@ public class JettyConfigurationBuilder {
                 .timeoutSeconds(ss.getTimeoutSeconds())
                 .build();
 
+        CommitConfig.IdentityVerificationMode identityVerificationMode =
+                CommitConfig.IdentityVerificationMode.fromString(cs.getIdentityVerification());
+
         CommitConfig commitConfig = CommitConfig.builder()
+                .identityVerification(identityVerificationMode)
                 .author(CommitConfig.AuthorConfig.builder()
                         .email(CommitConfig.EmailConfig.builder()
                                 .domain(domainConfig)
@@ -238,7 +244,6 @@ public class JettyConfigurationBuilder {
                         .username(uc.getUsername())
                         .passwordHash(uc.getPasswordHash())
                         .emails(uc.getEmails())
-                        .pushUsernames(uc.getPushUsernames())
                         .scmIdentities(uc.getScmIdentities().stream()
                                 .map(s -> ScmIdentity.builder()
                                         .provider(s.getProvider())
@@ -300,42 +305,36 @@ public class JettyConfigurationBuilder {
     }
 
     private GitProxyProvider createProvider(String name, ProviderConfig providerConfig) {
-        String normalized = name.toLowerCase().replace("-", "").replace("_", "");
+        // Resolve type: explicit 'type' field takes priority, then infer from the provider name.
+        String explicitType = providerConfig.getType();
+        String resolvedType = (explicitType != null && !explicitType.isBlank())
+                ? explicitType.toLowerCase().trim()
+                : name.toLowerCase().replace("-", "").replace("_", "");
+
         String uri = providerConfig.getUri();
         String path = providerConfig.getServletPath();
+        URI parsedUri = (uri != null && !uri.isBlank()) ? URI.create(uri) : null;
 
-        if (normalized.contains("github")) {
-            return (uri != null && !uri.isBlank())
-                    ? GenericProxyProvider.builder()
-                            .name(name)
-                            .uri(URI.create(uri))
-                            .basePath(path)
-                            .build()
-                    : new GitHubProvider(path);
-        } else if (normalized.contains("gitlab")) {
-            return (uri != null && !uri.isBlank())
-                    ? GenericProxyProvider.builder()
-                            .name(name)
-                            .uri(URI.create(uri))
-                            .basePath(path)
-                            .build()
-                    : new GitLabProvider(path);
-        } else if (normalized.contains("bitbucket")) {
-            return (uri != null && !uri.isBlank())
-                    ? GenericProxyProvider.builder()
-                            .name(name)
-                            .uri(URI.create(uri))
-                            .basePath(path)
-                            .build()
-                    : new BitbucketProvider(path);
-        } else if (uri != null && !uri.isBlank()) {
+        if (resolvedType.contains("github")) {
+            return parsedUri != null ? new GitHubProvider(parsedUri, path, null) : new GitHubProvider(path);
+        } else if (resolvedType.contains("gitlab")) {
+            return parsedUri != null ? new GitLabProvider(parsedUri, path, null) : new GitLabProvider(path);
+        } else if (resolvedType.contains("bitbucket")) {
+            return parsedUri != null ? new BitbucketProvider(parsedUri, path, null) : new BitbucketProvider(path);
+        } else if (resolvedType.contains("codeberg") || resolvedType.contains("forgejo")) {
+            return parsedUri != null
+                    ? ForgejoProvider.builder().uri(parsedUri).basePath(path).build()
+                    : new ForgejoProvider(path);
+        } else if (parsedUri != null) {
             return GenericProxyProvider.builder()
                     .name(name)
-                    .uri(URI.create(uri))
+                    .uri(parsedUri)
                     .basePath(path)
                     .build();
         } else {
-            log.warn("Provider '{}' has no URI and is not a known built-in type. Skipping.", name);
+            log.warn(
+                    "Provider '{}' has no URI and is not a known built-in type (github/gitlab/bitbucket/codeberg/forgejo). Skipping.",
+                    name);
             return null;
         }
     }

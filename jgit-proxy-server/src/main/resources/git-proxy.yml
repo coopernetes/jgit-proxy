@@ -71,6 +71,13 @@ commit:
       literals: []
       patterns: []
 
+  # Verify that commit author/committer emails are registered to the authenticated push user.
+  # Options:
+  #   warn   — warn the pusher but allow the push through (default; safe to enable on existing deployments)
+  #   strict — block the push entirely if any commit email is not registered to the push user
+  #   off    — disable the check
+  # identity-verification: warn
+
   # Secret scanning via gitleaks (https://github.com/gitleaks/gitleaks).
   # The JAR ships with a bundled gitleaks binary (DEFAULT_VERSION) so scanning works out of the box.
   # Binary resolution order:

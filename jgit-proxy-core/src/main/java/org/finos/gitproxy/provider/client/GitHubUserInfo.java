@@ -1,19 +1,14 @@
 package org.finos.gitproxy.provider.client;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import java.time.Instant;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
+import java.util.Optional;
 
+/** Jackson deserialization target for the GitHub {@code GET /user} response. */
 public record GitHubUserInfo(
         String login,
         Long id,
-        @JsonProperty("node_id") String nodeId,
-        String url,
-        @JsonProperty("html_url") String htmlUrl,
-        @JsonProperty("organizations_url") String organizationsUrl,
-        @JsonProperty("repos_url") String reposUrl,
-        String type,
-        String name,
-        String company,
-        String location,
-        @JsonProperty("created_at") Instant createdAt,
-        @JsonProperty("updated_at") Instant updatedAt) {}
+        // A user has to configure their profile explicitly to have a publicly visible email
+        // for the value to be returned by the API. By most cases, it is null (Optional.empty()) due
+        // to the default visibility of email being private.
+        @JsonSetter(nulls = Nulls.AS_EMPTY) Optional<String> email) {}

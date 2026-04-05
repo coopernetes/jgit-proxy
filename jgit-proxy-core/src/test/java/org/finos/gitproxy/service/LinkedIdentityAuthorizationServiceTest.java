@@ -11,8 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link LinkedIdentityAuthorizationService}. Verifies the three-stage resolution: push-username → email
- * → proxy username.
+ * Unit tests for {@link LinkedIdentityAuthorizationService}. Verifies the two-stage resolution: proxy username → email.
  */
 class LinkedIdentityAuthorizationServiceTest {
 
@@ -29,7 +28,6 @@ class LinkedIdentityAuthorizationServiceTest {
         return UserEntry.builder()
                 .username(username)
                 .emails(email != null ? List.of(email) : List.of())
-                .pushUsernames(List.of())
                 .scmIdentities(List.of())
                 .build();
     }
@@ -37,74 +35,61 @@ class LinkedIdentityAuthorizationServiceTest {
     // ---- isUserAuthorizedToPush ----
 
     @Test
-    void authorizedToPush_whenFoundByPushUsername() {
-        when(store.findByPushUsername("corp-alice")).thenReturn(Optional.of(entry("alice", null)));
+    void authorizedToPush_whenFoundByUsername() {
+        when(store.findByUsername("alice")).thenReturn(Optional.of(entry("alice", null)));
 
-        assertTrue(svc.isUserAuthorizedToPush("corp-alice", "https://github.com/org/repo"));
+        assertTrue(svc.isUserAuthorizedToPush("alice", "https://github.com/org/repo"));
     }
 
     @Test
     void authorizedToPush_whenFoundByEmail() {
-        when(store.findByPushUsername("alice@example.com")).thenReturn(Optional.empty());
+        when(store.findByUsername("alice@example.com")).thenReturn(Optional.empty());
         when(store.findByEmail("alice@example.com")).thenReturn(Optional.of(entry("alice", "alice@example.com")));
 
         assertTrue(svc.isUserAuthorizedToPush("alice@example.com", null));
-    }
-
-    @Test
-    void authorizedToPush_whenFoundByUsername() {
-        when(store.findByPushUsername("alice")).thenReturn(Optional.empty());
-        when(store.findByEmail("alice")).thenReturn(Optional.empty());
-        when(store.findByUsername("alice")).thenReturn(Optional.of(entry("alice", null)));
-
-        assertTrue(svc.isUserAuthorizedToPush("alice", null));
     }
 
     @Test
     void notAuthorizedToPush_whenNotFoundByAnyLookup() {
-        when(store.findByPushUsername("ghost")).thenReturn(Optional.empty());
-        when(store.findByEmail("ghost")).thenReturn(Optional.empty());
         when(store.findByUsername("ghost")).thenReturn(Optional.empty());
+        when(store.findByEmail("ghost")).thenReturn(Optional.empty());
 
         assertFalse(svc.isUserAuthorizedToPush("ghost", null));
     }
 
-    // ---- push-username lookup wins before email ----
+    // ---- username lookup wins before email ----
 
     @Test
-    void pushUsernameFoundFirst_emailNotQueried() {
-        when(store.findByPushUsername("corp-alice")).thenReturn(Optional.of(entry("alice", null)));
+    void usernameFoundFirst_emailNotQueried() {
+        when(store.findByUsername("alice")).thenReturn(Optional.of(entry("alice", null)));
 
-        assertTrue(svc.isUserAuthorizedToPush("corp-alice", null));
+        assertTrue(svc.isUserAuthorizedToPush("alice", null));
         verify(store, never()).findByEmail(anyString());
-        verify(store, never()).findByUsername(anyString());
     }
 
-    // ---- email lookup wins before username ----
+    // ---- email lookup is second ----
 
     @Test
-    void emailFoundSecond_usernameNotQueried() {
-        when(store.findByPushUsername("alice@example.com")).thenReturn(Optional.empty());
+    void emailFoundSecond_whenUsernameNotFound() {
+        when(store.findByUsername("alice@example.com")).thenReturn(Optional.empty());
         when(store.findByEmail("alice@example.com")).thenReturn(Optional.of(entry("alice", "alice@example.com")));
 
         assertTrue(svc.isUserAuthorizedToPush("alice@example.com", null));
-        verify(store, never()).findByUsername(anyString());
     }
 
     // ---- userExists ----
 
     @Test
-    void userExists_trueWhenFound() {
-        when(store.findByPushUsername("alice")).thenReturn(Optional.of(entry("alice", null)));
+    void userExists_trueWhenFoundByUsername() {
+        when(store.findByUsername("alice")).thenReturn(Optional.of(entry("alice", null)));
 
         assertTrue(svc.userExists("alice"));
     }
 
     @Test
     void userExists_falseWhenNotFound() {
-        when(store.findByPushUsername("nobody")).thenReturn(Optional.empty());
-        when(store.findByEmail("nobody")).thenReturn(Optional.empty());
         when(store.findByUsername("nobody")).thenReturn(Optional.empty());
+        when(store.findByEmail("nobody")).thenReturn(Optional.empty());
 
         assertFalse(svc.userExists("nobody"));
     }

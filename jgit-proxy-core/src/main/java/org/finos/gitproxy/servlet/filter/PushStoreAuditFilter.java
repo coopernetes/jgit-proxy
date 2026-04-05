@@ -7,11 +7,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.jgit.http.server.GitSmartHttpTools;
 import org.finos.gitproxy.db.PushRecordMapper;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.db.model.PushRecord;
 import org.finos.gitproxy.git.GitRequestDetails;
+import org.finos.gitproxy.git.HttpOperation;
 
 /**
  * A plain servlet {@link Filter} that persists push records to the {@link PushStore}. Unlike other GitProxyFilters,
@@ -39,11 +39,10 @@ public class PushStoreAuditFilter implements Filter {
     private void persistIfPush(ServletRequest request) {
         if (!(request instanceof HttpServletRequest httpRequest)) return;
 
-        // Only persist receive-pack (push) operations
-        if (!GitSmartHttpTools.isReceivePack(httpRequest)) return;
-
         var requestDetails = (GitRequestDetails) httpRequest.getAttribute(GIT_REQUEST_ATTR);
-        if (requestDetails == null) return;
+
+        // Only persist push operations
+        if (requestDetails == null || requestDetails.getOperation() != HttpOperation.PUSH) return;
 
         try {
             PushRecord record = PushRecordMapper.fromRequestDetails(requestDetails);

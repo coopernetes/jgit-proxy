@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.transport.PacketLineIn;
 import org.finos.gitproxy.git.GitReceivePackParser;
 import org.finos.gitproxy.git.GitRequestDetails;
@@ -28,7 +29,7 @@ import org.finos.gitproxy.servlet.RequestBodyWrapper;
  * {@link ForceGitClientFilter}.
  */
 @Slf4j
-public class ParseGitRequestFilter extends AbstractProviderAwareGitProxyFilter implements RepositoryUrlFilter {
+public class ParseGitRequestFilter extends AbstractProviderAwareGitProxyFilter {
 
     private static final int ORDER = Integer.MIN_VALUE + 1;
 
@@ -109,6 +110,22 @@ public class ParseGitRequestFilter extends AbstractProviderAwareGitProxyFilter i
             }
         }
         return gr;
+    }
+
+    private static String getOwner(String pathInfo) {
+        var parts = pathInfo.split("/");
+        return parts.length < 3 ? pathInfo : parts[1];
+    }
+
+    private static String getName(String pathInfo) {
+        var parts = pathInfo.split("/");
+        return parts.length < 3 ? pathInfo : parts[2].replace(Constants.DOT_GIT_EXT, "");
+    }
+
+    private static String getSlug(String pathInfo) {
+        var parts = pathInfo.split("/");
+        if (parts.length < 3) return pathInfo;
+        return String.join("/", parts[1], parts[2]).replace(Constants.DOT_GIT_EXT, "");
     }
 
     private byte[] readRemainingData(InputStream is) throws IOException {

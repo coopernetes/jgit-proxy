@@ -1,6 +1,7 @@
 package org.finos.gitproxy.service;
 
 import java.util.Optional;
+import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.user.UserEntry;
 
 /**
@@ -33,5 +34,5 @@ public interface PushIdentityResolver {
      * @param token the HTTP Basic-auth password/token
      * @return the resolved proxy user, or empty if no match is found
      */
-    Optional<UserEntry> resolve(String provider, String pushUsername, String token);
+    Optional<UserEntry> resolve(GitProxyProvider provider, String pushUsername, String token);
 }

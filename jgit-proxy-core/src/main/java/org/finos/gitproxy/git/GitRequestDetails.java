@@ -29,7 +29,14 @@ public class GitRequestDetails {
     private String commitFrom; // Old ref SHA from the packet line (the push range start)
     private String commitTo; // New ref SHA from the packet line (the push range end)
     private List<Commit> pushedCommits = new ArrayList<>(); // All commits received in this push
-    private GitProxyProvider provider;
+    private GitProxyProvider provider; // this should never be null
+    /**
+     * Provider-specific upstream username to use when forwarding the push. Set by {@code BitbucketIdentityFilter}
+     * (transparent proxy) or {@code BitbucketCredentialRewriteHook} (store-and-forward) when the push username needs
+     * rewriting before forwarding. {@code null} for all non-Bitbucket providers.
+     */
+    private String upstreamUsername;
+
     private List<GitProxyFilter> filters = new ArrayList<>();
     private List<PushStep> steps = new ArrayList<>(); // Filter/hook results for audit trail
     private GitResult result = GitResult.PENDING;

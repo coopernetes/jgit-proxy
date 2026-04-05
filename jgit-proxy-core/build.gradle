@@ -51,8 +51,7 @@ dependencies {
     api "org.eclipse.jgit:org.eclipse.jgit.http.server:${jgitVersion}"
     
     // HTTP Client
-    implementation "org.apache.httpcomponents:httpclient:${apacheHttpVersion}"
-    
+    implementation "org.apache.httpcomponents.client5:httpclient5-fluent:${apacheHttpClientVersion}"
 
     // Jackson for JSON — BOM pins all jackson-* modules to the same version
     api platform("tools.jackson:jackson-bom:${jacksonBomVersion}")

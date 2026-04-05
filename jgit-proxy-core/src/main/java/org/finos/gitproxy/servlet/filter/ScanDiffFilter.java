@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jgit.lib.Repository;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.db.model.PushStep;
 import org.finos.gitproxy.db.model.StepStatus;
@@ -69,7 +70,7 @@ public class ScanDiffFilter extends AbstractProviderAwareGitProxyFilter {
         }
 
         try {
-            org.eclipse.jgit.lib.Repository repository = requestDetails.getLocalRepository();
+            Repository repository = requestDetails.getLocalRepository();
             if (repository == null) {
                 log.warn(
                         "localRepository not set on request - EnrichPushCommitsFilter may not have run; skipping diff scan");

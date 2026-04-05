@@ -15,12 +15,6 @@ public class UserConfig {
     /** Email addresses linked to this user (used for commit-author matching). */
     private List<String> emails = new ArrayList<>();
 
-    /**
-     * Push usernames — HTTP Basic-auth usernames this user may push as. Allows authorization without SCM OAuth. Add
-     * your git client username(s) here (e.g. corporate username, GitHub handle).
-     */
-    private List<String> pushUsernames = new ArrayList<>();
-
     /** SCM identities: provider + username pairs (e.g. github/alice). */
     private List<ScmIdentityConfig> scmIdentities = new ArrayList<>();
 }

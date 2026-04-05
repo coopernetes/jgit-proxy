@@ -8,8 +8,8 @@ import org.finos.gitproxy.user.UserStore;
 /**
  * {@link UserAuthorizationService} backed by a {@link UserStore}.
  *
- * <p>A push is authorised when the committer email is registered to a known user. Repository-level access control is
- * left for a future issue — all registered users are currently allowed to push to any repo.
+ * <p>A push is authorised when the username can be found in the user store by proxy username or email. Repository-level
+ * access control is left for a future issue — all registered users are currently allowed to push to any repo.
  */
 @Slf4j
 public class LinkedIdentityAuthorizationService implements UserAuthorizationService {
@@ -37,12 +37,10 @@ public class LinkedIdentityAuthorizationService implements UserAuthorizationServ
         return userStore.findByEmail(userEmail).map(u -> u.getUsername()).orElse(null);
     }
 
-    /** Resolves a user by push-username, then email, then proxy username. */
+    /** Resolves a user by proxy username, then by email. */
     private Optional<UserEntry> resolve(String value) {
-        var byPush = userStore.findByPushUsername(value);
-        if (byPush.isPresent()) return byPush;
-        var byEmail = userStore.findByEmail(value);
-        if (byEmail.isPresent()) return byEmail;
-        return userStore.findByUsername(value);
+        var byUsername = userStore.findByUsername(value);
+        if (byUsername.isPresent()) return byUsername;
+        return userStore.findByEmail(value);
     }
 }

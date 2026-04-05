@@ -68,11 +68,8 @@ public class CheckUserPushPermissionFilter extends AbstractGitProxyFilter {
         String[] userPass = extractBasicAuth(request);
         String pushUsername = userPass != null ? userPass[0] : null;
         String pushToken = userPass != null ? userPass[1] : null;
-        String provider = requestDetails.getProvider() != null
-                ? requestDetails.getProvider().getName()
-                : "";
 
-        Optional<UserEntry> resolved = identityResolver.resolve(provider, pushUsername, pushToken);
+        Optional<UserEntry> resolved = identityResolver.resolve(requestDetails.getProvider(), pushUsername, pushToken);
 
         if (resolved.isEmpty()) {
             String identity = pushUsername != null ? pushUsername : "(unknown)";

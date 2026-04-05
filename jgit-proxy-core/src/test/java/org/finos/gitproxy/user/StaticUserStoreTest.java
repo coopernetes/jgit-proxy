@@ -6,10 +6,6 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/**
- * Unit tests for {@link StaticUserStore}, focusing on push-username index lookup and the three-way query surface
- * (username, email, push-username).
- */
 class StaticUserStoreTest {
 
     StaticUserStore store;
@@ -22,15 +18,24 @@ class StaticUserStoreTest {
                 .username("alice")
                 .passwordHash("{noop}pw")
                 .emails(List.of("alice@example.com", "alice@corp.com"))
-                .pushUsernames(List.of("alice", "alice-corp"))
-                .scmIdentities(List.of())
+                .scmIdentities(List.of(
+                        ScmIdentity.builder()
+                                .provider("github")
+                                .username("alice-gh")
+                                .build(),
+                        ScmIdentity.builder()
+                                .provider("gitlab")
+                                .username("alice-gl")
+                                .build()))
                 .build();
         bob = UserEntry.builder()
                 .username("bob")
                 .passwordHash("{noop}pw")
                 .emails(List.of("bob@example.com"))
-                .pushUsernames(List.of("bob-github"))
-                .scmIdentities(List.of())
+                .scmIdentities(List.of(ScmIdentity.builder()
+                        .provider("github")
+                        .username("bob-gh")
+                        .build()))
                 .build();
         store = new StaticUserStore(List.of(alice, bob));
     }
@@ -81,44 +86,45 @@ class StaticUserStoreTest {
         assertTrue(store.findByEmail(null).isEmpty());
     }
 
-    // ---- findByPushUsername ----
+    // ---- findByScmIdentity ----
 
     @Test
-    void findByPushUsername_explicitPushUsername_returnsUser() {
-        var result = store.findByPushUsername("alice-corp");
+    void findByScmIdentity_knownProviderAndLogin_returnsUser() {
+        var result = store.findByScmIdentity("github", "alice-gh");
         assertTrue(result.isPresent());
         assertEquals("alice", result.get().getUsername());
     }
 
     @Test
-    void findByPushUsername_proxyUsernameInList_returnsUser() {
-        // "alice" appears explicitly in pushUsernames
-        var result = store.findByPushUsername("alice");
+    void findByScmIdentity_differentProvider_returnsUser() {
+        var result = store.findByScmIdentity("gitlab", "alice-gl");
         assertTrue(result.isPresent());
         assertEquals("alice", result.get().getUsername());
     }
 
     @Test
-    void findByPushUsername_bobGithubHandle_returnsUser() {
-        var result = store.findByPushUsername("bob-github");
-        assertTrue(result.isPresent());
-        assertEquals("bob", result.get().getUsername());
+    void findByScmIdentity_wrongProvider_returnsEmpty() {
+        // alice-gh is registered for github, not gitlab
+        assertTrue(store.findByScmIdentity("gitlab", "alice-gh").isEmpty());
     }
 
     @Test
-    void findByPushUsername_notInList_returnsEmpty() {
-        // "bob" is not in bob's pushUsernames (only "bob-github" is)
-        assertTrue(store.findByPushUsername("bob").isEmpty());
+    void findByScmIdentity_unknownLogin_returnsEmpty() {
+        assertTrue(store.findByScmIdentity("github", "nobody").isEmpty());
     }
 
     @Test
-    void findByPushUsername_null_returnsEmpty() {
-        assertTrue(store.findByPushUsername(null).isEmpty());
+    void findByScmIdentity_null_returnsEmpty() {
+        assertTrue(store.findByScmIdentity(null, "alice-gh").isEmpty());
+        assertTrue(store.findByScmIdentity("github", null).isEmpty());
     }
 
     @Test
-    void findByPushUsername_unknownHandle_returnsEmpty() {
-        assertTrue(store.findByPushUsername("nobody").isEmpty());
+    void findByScmIdentity_routesCorrectly() {
+        assertEquals(
+                "alice", store.findByScmIdentity("github", "alice-gh").get().getUsername());
+        assertEquals("bob", store.findByScmIdentity("github", "bob-gh").get().getUsername());
+        assertTrue(store.findByScmIdentity("github", "charlie-gh").isEmpty());
     }
 
     // ---- findAll ----
@@ -129,15 +135,6 @@ class StaticUserStoreTest {
         assertEquals(2, all.size());
     }
 
-    // ---- pushUsernames preserved on returned entry ----
-
-    @Test
-    void returnedEntry_hasPushUsernames() {
-        var result = store.findByUsername("alice");
-        assertTrue(result.isPresent());
-        assertTrue(result.get().getPushUsernames().contains("alice-corp"));
-    }
-
     // ---- empty store ----
 
     @Test
@@ -145,7 +142,7 @@ class StaticUserStoreTest {
         StaticUserStore empty = new StaticUserStore(List.of());
         assertTrue(empty.findByUsername("anyone").isEmpty());
         assertTrue(empty.findByEmail("anyone@example.com").isEmpty());
-        assertTrue(empty.findByPushUsername("anyone").isEmpty());
+        assertTrue(empty.findByScmIdentity("github", "anyone").isEmpty());
         assertEquals(0, empty.findAll().size());
     }
 }

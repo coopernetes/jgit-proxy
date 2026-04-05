@@ -62,13 +62,6 @@ public class JdbcUserStore implements UserStore {
                         Map.of("u", u.getUsername(), "provider", id.getProvider(), "scmUsername", id.getUsername()));
             }
 
-            jdbc.update("DELETE FROM user_push_usernames WHERE username = :u", Map.of("u", u.getUsername()));
-            for (String pu : u.getPushUsernames()) {
-                jdbc.update(
-                        "INSERT INTO user_push_usernames (username, push_username) VALUES (:u, :pu)",
-                        Map.of("u", u.getUsername(), "pu", pu));
-            }
-
             log.debug("Seeded user '{}' (exists={})", u.getUsername(), exists);
         }
     }
@@ -83,22 +76,22 @@ public class JdbcUserStore implements UserStore {
     }
 
     @Override
-    public Optional<UserEntry> findByPushUsername(String pushUsername) {
-        if (pushUsername == null) return Optional.empty();
+    public Optional<UserEntry> findByEmail(String email) {
+        if (email == null) return Optional.empty();
         List<String> rows = jdbc.queryForList(
-                "SELECT username FROM user_push_usernames WHERE push_username = :pu",
-                Map.of("pu", pushUsername),
+                "SELECT username FROM user_emails WHERE email = :email",
+                Map.of("email", email.toLowerCase()),
                 String.class);
         if (rows.isEmpty()) return Optional.empty();
         return findByUsername(rows.get(0));
     }
 
     @Override
-    public Optional<UserEntry> findByEmail(String email) {
-        if (email == null) return Optional.empty();
+    public Optional<UserEntry> findByScmIdentity(String provider, String scmUsername) {
+        if (provider == null || scmUsername == null) return Optional.empty();
         List<String> rows = jdbc.queryForList(
-                "SELECT username FROM user_emails WHERE email = :email",
-                Map.of("email", email.toLowerCase()),
+                "SELECT username FROM user_scm_identities WHERE provider = :provider AND scm_username = :scmUsername",
+                Map.of("provider", provider, "scmUsername", scmUsername),
                 String.class);
         if (rows.isEmpty()) return Optional.empty();
         return findByUsername(rows.get(0));
@@ -116,10 +109,6 @@ public class JdbcUserStore implements UserStore {
                 "SELECT email FROM user_emails WHERE username = :u ORDER BY email",
                 Map.of("u", username),
                 String.class);
-        List<String> pushUsernames = jdbc.queryForList(
-                "SELECT push_username FROM user_push_usernames WHERE username = :u ORDER BY push_username",
-                Map.of("u", username),
-                String.class);
         List<Map<String, Object>> scmRows = jdbc.queryForList(
                 "SELECT provider, scm_username FROM user_scm_identities WHERE username = :u", Map.of("u", username));
         List<ScmIdentity> scmIdentities = scmRows.stream()
@@ -132,7 +121,6 @@ public class JdbcUserStore implements UserStore {
                 .username(username)
                 .passwordHash(passwordHash)
                 .emails(Collections.unmodifiableList(emails))
-                .pushUsernames(Collections.unmodifiableList(pushUsernames))
                 .scmIdentities(Collections.unmodifiableList(scmIdentities))
                 .build();
     }

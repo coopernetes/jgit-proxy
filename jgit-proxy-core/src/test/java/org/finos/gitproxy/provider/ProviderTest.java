@@ -33,7 +33,7 @@ class ProviderTest {
 
     @Test
     void gitHub_enterpriseUri_apiUrls() {
-        var p = new GitHubProvider.Builder()
+        var p = GitHubProvider.builder()
                 .uri(URI.create("https://github.example.com"))
                 .basePath("/proxy")
                 .build();
@@ -89,7 +89,7 @@ class ProviderTest {
     @Test
     void bitbucket_defaultUri_apiUrl() {
         var p = new BitbucketProvider("/proxy");
-        assertEquals("https://api.bitbucket.com/2.0", p.getApiUrl());
+        assertEquals("https://api.bitbucket.org/2.0", p.getApiUrl());
     }
 
     @Test

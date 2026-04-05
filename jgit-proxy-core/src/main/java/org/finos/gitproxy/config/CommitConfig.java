@@ -11,6 +11,33 @@ import lombok.Data;
 @Builder
 public class CommitConfig {
 
+    /** Controls whether commit identity is verified against the authenticated push user. */
+    public enum IdentityVerificationMode {
+        /** Block the push when any commit author/committer email is not registered to the push user. */
+        STRICT,
+        /** Warn the push user but allow the push through. Default. */
+        WARN,
+        /** Skip identity verification entirely. */
+        OFF;
+
+        public static IdentityVerificationMode fromString(String value) {
+            if (value == null) return WARN;
+            return switch (value.trim().toLowerCase()) {
+                case "strict" -> STRICT;
+                case "off" -> OFF;
+                default -> WARN;
+            };
+        }
+    }
+
+    /**
+     * Whether to verify that commit author/committer emails are registered to the authenticated push user. When users
+     * are configured, {@code WARN} is the default — mismatches produce a warning but do not block. {@code STRICT}
+     * blocks the push. {@code OFF} skips the check entirely.
+     */
+    @Builder.Default
+    private IdentityVerificationMode identityVerification = IdentityVerificationMode.WARN;
+
     /** Configuration for author email validation. */
     @Builder.Default
     private AuthorConfig author = AuthorConfig.builder().build();

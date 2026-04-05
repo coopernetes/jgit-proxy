@@ -12,6 +12,12 @@ import lombok.Data;
 @Data
 public class CommitSettings {
 
+    /**
+     * Controls whether commit author/committer emails are verified against the authenticated push user. Options:
+     * {@code warn} (default), {@code strict}, {@code off}.
+     */
+    private String identityVerification = "warn";
+
     private AuthorSettings author = new AuthorSettings();
     private MessageSettings message = new MessageSettings();
     private DiffSettings diff = new DiffSettings();
