@@ -26,6 +26,9 @@ jobs:
       - name: Build and test
         run: ./gradlew build
 
+      - name: Verify coverage thresholds
+        run: ./gradlew jacocoTestCoverageVerification
+
       - name: Submit dependency graph
         if: github.event_name == 'push'
         uses: gradle/actions/dependency-submission@48b5f213c81028ace310571dc5ec0fbbca0b2947 # ratchet:gradle/actions/dependency-submission@v4
@@ -36,6 +39,14 @@ jobs:
         with:
           name: test-reports
           path: "**/build/reports/tests/test/"
+          retention-days: 14
+
+      - name: Publish JaCoCo coverage reports
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # ratchet:actions/upload-artifact@v7
+        with:
+          name: jacoco-reports
+          path: "**/build/reports/jacoco/"
           retention-days: 14
 
   e2e-test:
