@@ -112,6 +112,87 @@ tasks.named('test') {
 
 tasks.named('check') {
     dependsOn jacocoTestReport
+    dependsOn jacocoTestCoverageVerification
+}
+
+// ---------------------------------------------------------------------------
+// JaCoCo coverage thresholds
+//
+// Strategy: enforce high coverage on packages where unit tests are the right
+// tool (pure logic — resolvers, mappers, model, config). Leave lower or no
+// threshold for JGit-heavy hooks (git.*), real-HTTP provider code, async
+// servlet plumbing, and MongoDB boilerplate — those are covered by e2e tests
+// and the Docker-Compose smoke suite instead.
+// ---------------------------------------------------------------------------
+jacocoTestCoverageVerification {
+    violationRules {
+
+        // Identity resolution chain: pure logic, fully mockable — hold the bar high.
+        rule {
+            element = 'PACKAGE'
+            includes = ['org.finos.gitproxy.service']
+            limit { counter = 'LINE';   minimum = 0.90 }
+            limit { counter = 'BRANCH'; minimum = 0.85 }
+        }
+
+        // Filter chain: servlet-container logic but highly mockable.
+        rule {
+            element = 'PACKAGE'
+            includes = ['org.finos.gitproxy.servlet.filter']
+            limit { counter = 'LINE';   minimum = 0.70 }
+            limit { counter = 'BRANCH'; minimum = 0.60 }
+        }
+
+        // User store: JDBC and static implementations, fully in-process.
+        rule {
+            element = 'PACKAGE'
+            includes = ['org.finos.gitproxy.user']
+            limit { counter = 'LINE'; minimum = 0.65 }
+        }
+
+        // Immutable model — pure data, no branching.
+        rule {
+            element = 'PACKAGE'
+            includes = ['org.finos.gitproxy.db.model']
+            limit { counter = 'LINE'; minimum = 0.95 }
+        }
+
+        // Row mappers: straightforward ResultSet → object mapping.
+        rule {
+            element = 'PACKAGE'
+            includes = ['org.finos.gitproxy.db.jdbc.mapper']
+            limit { counter = 'LINE'; minimum = 0.90 }
+        }
+
+        // Approval gateway: small, testable in isolation.
+        rule {
+            element = 'PACKAGE'
+            includes = ['org.finos.gitproxy.approval']
+            limit { counter = 'LINE';   minimum = 0.80 }
+            limit { counter = 'BRANCH'; minimum = 0.80 }
+        }
+
+        // Config loading: pure parsing logic.
+        rule {
+            element = 'PACKAGE'
+            includes = ['org.finos.gitproxy.config']
+            limit { counter = 'LINE'; minimum = 0.80 }
+        }
+
+        // Validation context: helper classes used across the pipeline.
+        rule {
+            element = 'PACKAGE'
+            includes = ['org.finos.gitproxy.validation']
+            limit { counter = 'LINE'; minimum = 0.55 }
+        }
+
+        // No threshold on:
+        //   org.finos.gitproxy.git           — JGit hook wiring, requires real repo fixtures; e2e covers
+        //   org.finos.gitproxy.provider      — real HTTP calls to SCM APIs; smoke tests cover
+        //   org.finos.gitproxy.servlet       — AsyncProxyServlet async plumbing; e2e covers
+        //   org.finos.gitproxy.db.jdbc       — JDBC DML; covered by in-memory store tests + e2e
+        //   org.finos.gitproxy.db.mongo      — MongoDB driver calls; covered by Testcontainers e2e
+    }
 }
 
 // ---------------------------------------------------------------------------
