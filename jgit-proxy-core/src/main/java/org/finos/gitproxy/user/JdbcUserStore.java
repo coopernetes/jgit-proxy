@@ -104,16 +104,18 @@ public class JdbcUserStore implements MutableUserStore {
         return usernames.stream().flatMap(u -> findByUsername(u).stream()).toList();
     }
 
-    /** Returns all email entries for a user with their verified status, ordered by email. */
+    /** Returns all email entries for a user with their verified status, locked flag, and source, ordered by email. */
     public List<Map<String, Object>> findEmailsWithVerified(String username) {
         return jdbc
                 .queryForList(
-                        "SELECT email, verified FROM user_emails WHERE username = :u ORDER BY email",
+                        "SELECT email, verified, locked, auth_source FROM user_emails WHERE username = :u ORDER BY email",
                         Map.of("u", username))
                 .stream()
                 .<Map<String, Object>>map(row -> Map.of(
                         "email", row.get("email"),
-                        "verified", Boolean.TRUE.equals(row.get("verified"))))
+                        "verified", Boolean.TRUE.equals(row.get("verified")),
+                        "locked", Boolean.TRUE.equals(row.get("locked")),
+                        "source", row.get("auth_source") != null ? row.get("auth_source") : "local"))
                 .toList();
     }
 
@@ -141,9 +143,16 @@ public class JdbcUserStore implements MutableUserStore {
 
     @Override
     public void removeEmail(String username, String email) {
+        String normalized = email.toLowerCase();
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT locked FROM user_emails WHERE username = :u AND email = :email",
+                Map.of("u", username, "email", normalized));
+        if (!rows.isEmpty() && Boolean.TRUE.equals(rows.get(0).get("locked"))) {
+            throw new LockedEmailException(email);
+        }
         jdbc.update(
                 "DELETE FROM user_emails WHERE username = :u AND email = :email",
-                Map.of("u", username, "email", email.toLowerCase()));
+                Map.of("u", username, "email", normalized));
         log.debug("Removed email '{}' for user '{}'", email, username);
     }
 
@@ -161,6 +170,40 @@ public class JdbcUserStore implements MutableUserStore {
                 "DELETE FROM user_scm_identities WHERE username = :u AND provider = :provider AND scm_username = :scmUsername",
                 Map.of("u", username, "provider", provider, "scmUsername", scmUsername));
         log.debug("Removed SCM identity '{}/{}' for user '{}'", provider, scmUsername, username);
+    }
+
+    /**
+     * Ensures a user row exists for IdP-authenticated users who are not in the YAML config. No-op if already present.
+     * The password is left NULL so the account cannot be used for form login.
+     */
+    public void upsertUser(String username) {
+        boolean exists = !jdbc.queryForList(
+                        "SELECT username FROM proxy_users WHERE username = :u", Map.of("u", username), String.class)
+                .isEmpty();
+        if (!exists) {
+            jdbc.update("INSERT INTO proxy_users (username, password_hash) VALUES (:u, NULL)", Map.of("u", username));
+            log.debug("Auto-provisioned IdP user '{}'", username);
+        }
+    }
+
+    /**
+     * Inserts or updates an email for a user as locked (owned by the identity provider). On conflict the row is updated
+     * so the source and locked flag stay in sync with the current IdP configuration.
+     */
+    public void upsertLockedEmail(String username, String email, String authSource) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT locked FROM user_emails WHERE username = :u AND email = :email",
+                Map.of("u", username, "email", email));
+        if (rows.isEmpty()) {
+            jdbc.update(
+                    "INSERT INTO user_emails (username, email, verified, auth_source, locked) VALUES (:u, :email, TRUE, :source, TRUE)",
+                    Map.of("u", username, "email", email, "source", authSource));
+        } else {
+            jdbc.update(
+                    "UPDATE user_emails SET verified = TRUE, auth_source = :source, locked = TRUE WHERE username = :u AND email = :email",
+                    Map.of("u", username, "email", email, "source", authSource));
+        }
+        log.debug("Upserted locked email '{}' ({}) for user '{}'", email, authSource, username);
     }
 
     private UserEntry buildEntry(String username, String passwordHash) {

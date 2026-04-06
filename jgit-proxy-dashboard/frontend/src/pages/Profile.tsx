@@ -4,14 +4,13 @@ import type { CurrentUser, EmailEntry, ScmIdentity } from '../types'
 
 const KNOWN_PROVIDERS = ['github', 'gitlab', 'codeberg', 'gitea', 'bitbucket']
 
-function VerifiedBadge({ verified }: { verified: boolean }) {
-  return verified ? (
-    <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-      ✓ verified
-    </span>
-  ) : (
-    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
-      unverified
+function LockedBadge({ source }: { source: string }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600"
+      title={`Email address is managed by your ${source.toUpperCase()} identity provider and cannot be removed`}
+    >
+      locked ({source})
     </span>
   )
 }
@@ -153,15 +152,17 @@ export function Profile() {
                 >
                   <span className="flex items-center gap-2">
                     <span className="text-gray-800">{entry.email}</span>
-                    <VerifiedBadge verified={entry.verified} />
+                    {entry.locked && <LockedBadge source={entry.source} />}
                   </span>
-                  <button
-                    onClick={() => handleRemoveEmail(entry)}
-                    className="text-gray-400 hover:text-red-500 transition-colors text-xs"
-                    title="Remove"
-                  >
-                    Remove
-                  </button>
+                  {!entry.locked && (
+                    <button
+                      onClick={() => handleRemoveEmail(entry)}
+                      className="text-gray-400 hover:text-red-500 transition-colors text-xs"
+                      title="Remove"
+                    >
+                      Remove
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -210,7 +211,6 @@ export function Profile() {
                       {id.provider}
                     </span>
                     <span className="text-gray-800">{id.username}</span>
-                    <VerifiedBadge verified={id.verified} />
                   </span>
                   <button
                     onClick={() => handleRemoveIdentity(id)}

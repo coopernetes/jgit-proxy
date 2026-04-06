@@ -78,9 +78,11 @@ CREATE TABLE IF NOT EXISTS proxy_users (
 );
 
 CREATE TABLE IF NOT EXISTS user_emails (
-    username VARCHAR(255) NOT NULL REFERENCES proxy_users(username) ON DELETE CASCADE,
-    email    VARCHAR(255) NOT NULL,
-    verified BOOLEAN NOT NULL DEFAULT FALSE,
+    username    VARCHAR(255) NOT NULL REFERENCES proxy_users(username) ON DELETE CASCADE,
+    email       VARCHAR(255) NOT NULL,
+    verified    BOOLEAN      NOT NULL DEFAULT FALSE,
+    auth_source VARCHAR(20)  NOT NULL DEFAULT 'local',
+    locked      BOOLEAN      NOT NULL DEFAULT FALSE,
     PRIMARY KEY (username, email)
 );
 

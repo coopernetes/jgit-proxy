@@ -2,6 +2,10 @@ package org.finos.gitproxy.dashboard;
 
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.RSAKey;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyFactory;
@@ -19,6 +23,7 @@ import org.finos.gitproxy.jetty.config.AuthConfig;
 import org.finos.gitproxy.jetty.config.GitProxyConfig;
 import org.finos.gitproxy.jetty.config.LdapAuthConfig;
 import org.finos.gitproxy.jetty.config.OidcAuthConfig;
+import org.finos.gitproxy.user.JdbcUserStore;
 import org.finos.gitproxy.user.UserStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -26,6 +31,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -44,10 +50,13 @@ import org.springframework.security.oauth2.client.web.HttpSessionOAuth2Authorize
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoderFactory;
 import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.web.cors.CorsConfiguration;
@@ -114,10 +123,11 @@ public class SecurityConfig {
                         (req, res, e) -> res.sendError(401),
                         req -> req.getServletPath().startsWith("/api/")));
 
+        var successHandler = idpProvisioningSuccessHandler();
         switch (provider) {
-            case "ldap" -> configureLdapAuth(http, authCfg.getLdap());
-            case "oidc" -> configureOidcAuth(http, authCfg.getOidc());
-            default -> configureStaticAuth(http);
+            case "ldap" -> configureLdapAuth(http, authCfg.getLdap(), successHandler);
+            case "oidc" -> configureOidcAuth(http, authCfg.getOidc(), successHandler);
+            default -> configureStaticAuth(http, successHandler);
         }
 
         return http.build();
@@ -125,14 +135,14 @@ public class SecurityConfig {
 
     // ── Static (default) ────────────────────────────────────────────────────────
 
-    private void configureStaticAuth(HttpSecurity http) throws Exception {
+    private void configureStaticAuth(HttpSecurity http, AuthenticationSuccessHandler successHandler) throws Exception {
         DaoAuthenticationProvider dao = new DaoAuthenticationProvider(staticUserDetailsService());
         dao.setPasswordEncoder(passwordEncoder());
 
         http.authenticationProvider(dao)
                 .formLogin(form -> form.loginPage("/login.html")
                         .loginProcessingUrl("/login")
-                        .defaultSuccessUrl("/", true)
+                        .successHandler(successHandler)
                         .permitAll())
                 .csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
@@ -142,7 +152,8 @@ public class SecurityConfig {
 
     // ── LDAP ────────────────────────────────────────────────────────────────────
 
-    private void configureLdapAuth(HttpSecurity http, LdapAuthConfig ldapCfg) throws Exception {
+    private void configureLdapAuth(
+            HttpSecurity http, LdapAuthConfig ldapCfg, AuthenticationSuccessHandler successHandler) throws Exception {
         if (ldapCfg.getUrl().isBlank()) {
             throw new IllegalStateException("auth.provider=ldap requires auth.ldap.url to be set in git-proxy.yml");
         }
@@ -156,12 +167,16 @@ public class SecurityConfig {
 
         var authenticator = new BindAuthenticator(contextSource);
         authenticator.setUserDnPatterns(new String[] {ldapCfg.getUserDnPatterns()});
+        authenticator.setUserAttributes(new String[] {"mail"});
         authenticator.afterPropertiesSet();
 
-        http.authenticationProvider(new LdapAuthenticationProvider(authenticator))
+        var ldapProvider = new LdapAuthenticationProvider(authenticator);
+        ldapProvider.setUserDetailsContextMapper(new LdapEmailContextMapper());
+
+        http.authenticationProvider(ldapProvider)
                 .formLogin(form -> form.loginPage("/login.html")
                         .loginProcessingUrl("/login")
-                        .defaultSuccessUrl("/", true)
+                        .successHandler(successHandler)
                         .permitAll())
                 .csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
@@ -176,7 +191,8 @@ public class SecurityConfig {
 
     // ── OIDC ────────────────────────────────────────────────────────────────────
 
-    private void configureOidcAuth(HttpSecurity http, OidcAuthConfig oidcCfg) throws Exception {
+    private void configureOidcAuth(
+            HttpSecurity http, OidcAuthConfig oidcCfg, AuthenticationSuccessHandler successHandler) throws Exception {
         if (oidcCfg.getIssuerUri().isBlank() || oidcCfg.getClientId().isBlank()) {
             throw new IllegalStateException(
                     "auth.provider=oidc requires auth.oidc.issuer-uri and auth.oidc.client-id in git-proxy.yml");
@@ -225,7 +241,7 @@ public class SecurityConfig {
         http.oauth2Login(oauth2 -> {
                     oauth2.clientRegistrationRepository(new InMemoryClientRegistrationRepository(registration))
                             .authorizedClientRepository(new HttpSessionOAuth2AuthorizedClientRepository())
-                            .defaultSuccessUrl("/", true);
+                            .successHandler(successHandler);
 
                     if (usePrivateKeyJwt) {
                         RSAKey rsaKey = loadRsaKey(oidcCfg.getPrivateKeyPath());
@@ -252,6 +268,53 @@ public class SecurityConfig {
                 oidcCfg.getClientId(),
                 oidcCfg.getJwkSetUri().isBlank() ? "(discovered)" : oidcCfg.getJwkSetUri(),
                 authMethod.getValue());
+    }
+
+    // ── IdP user provisioning ────────────────────────────────────────────────────
+
+    /**
+     * Returns a success handler that auto-provisions IdP users and locks their email address on first login, then
+     * delegates to the standard saved-request redirect. For local (static) auth the provisioning step is a no-op.
+     */
+    private AuthenticationSuccessHandler idpProvisioningSuccessHandler() {
+        var delegate = new SavedRequestAwareAuthenticationSuccessHandler();
+        delegate.setDefaultTargetUrl("/");
+        delegate.setAlwaysUseDefaultTargetUrl(true);
+        return new AuthenticationSuccessHandler() {
+            @Override
+            public void onAuthenticationSuccess(
+                    HttpServletRequest request, HttpServletResponse response, Authentication auth)
+                    throws IOException, ServletException {
+                provisionIdpUser(auth);
+                delegate.onAuthenticationSuccess(request, response, auth);
+            }
+        };
+    }
+
+    private void provisionIdpUser(Authentication auth) {
+        if (!(userStore instanceof JdbcUserStore jdbc)) return;
+
+        String username = auth.getName();
+        String email = null;
+        String authSource = null;
+
+        if (auth.getPrincipal() instanceof OidcUser oidcUser) {
+            email = oidcUser.getEmail();
+            authSource = "oidc";
+        } else if (auth.getPrincipal() instanceof LdapUserDetailsWithEmail ldapUser) {
+            email = ldapUser.getEmail();
+            authSource = "ldap";
+        }
+
+        if (authSource == null) return;
+
+        jdbc.upsertUser(username);
+        if (email != null && !email.isBlank()) {
+            jdbc.upsertLockedEmail(username, email.strip().toLowerCase(), authSource);
+            log.info("Locked {} email '{}' for user '{}'", authSource, email, username);
+        } else {
+            log.warn("IdP login for '{}' via {} returned no email address", username, authSource);
+        }
     }
 
     /**

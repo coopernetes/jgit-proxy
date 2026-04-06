@@ -12,6 +12,9 @@ GITEA_URL="http://localhost:3000"
 ADMIN_USER="gitproxyadmin"
 ADMIN_PASSWORD="Admin1234!"
 ADMIN_EMAIL="admin@example.com"
+TEST_USER="test-user"
+TEST_PASSWORD="Test1234!"
+TEST_EMAIL="testuser@example.com"
 TEST_ORG="test-owner"
 TEST_REPO="test-repo"
 
@@ -29,6 +32,25 @@ $COMPOSE exec gitea /sbin/su-exec git gitea admin user create \
     --email "${ADMIN_EMAIL}" \
     --must-change-password=false 2>&1 || echo "    (user already exists, continuing)"
 
+echo "==> Creating test user '${TEST_USER}'..."
+$COMPOSE exec gitea /sbin/su-exec git gitea admin user create \
+    --username "${TEST_USER}" \
+    --password "${TEST_PASSWORD}" \
+    --email "${TEST_EMAIL}" \
+    --must-change-password=false 2>&1 || echo "    (user already exists, continuing)"
+
+echo "==> Generating user token for '${TEST_USER}'..."
+_token_create_out=$("$COMPOSE exec gitea /sbin/su-exec git gitea admin user generate-access-token \
+  --username testuser \
+  --token-name gituse \
+  --scopes read:user,write:repository")
+
+_token=$(echo "${_token_create_out}" | grep -oP '(?<=Access token was successfully created\: )[0-9a-f-]{40}' | head -1)
+if [ -z "${_token}" ]; then
+    echo "ERROR: Could not extract token from output"
+    exit 1
+fi
+
 echo "==> Creating organisation '${TEST_ORG}'..."
 curl -sf -X POST "${GITEA_URL}/api/v1/orgs" \
     -u "${ADMIN_USER}:${ADMIN_PASSWORD}" \
@@ -45,8 +67,11 @@ echo ""
 echo "==> Setup complete!"
 echo ""
 echo "    Gitea:    ${GITEA_URL}  (${ADMIN_USER} / ${ADMIN_PASSWORD})"
+echo "    Test user: ${TEST_USER} / ${TEST_PASSWORD}"
+echo "             (token: ${_token})"
+echo ""
 echo "    jgit-proxy push path:   http://localhost:8080/push/gitea/${TEST_ORG}/${TEST_REPO}.git"
 echo "    jgit-proxy proxy path:  http://localhost:8080/proxy/gitea/${TEST_ORG}/${TEST_REPO}.git"
 echo ""
 echo "    Clone example:"
-echo "      git clone http://${ADMIN_USER}:${ADMIN_PASSWORD}@localhost:8080/push/gitea/${TEST_ORG}/${TEST_REPO}.git"
+echo "      git clone http://${TEST_USER}:${_token}@localhost:8080/push/gitea/${TEST_ORG}/${TEST_REPO}.git"

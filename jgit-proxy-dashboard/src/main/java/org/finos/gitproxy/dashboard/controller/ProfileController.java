@@ -1,6 +1,7 @@
 package org.finos.gitproxy.dashboard.controller;
 
 import java.util.Map;
+import org.finos.gitproxy.user.LockedEmailException;
 import org.finos.gitproxy.user.MutableUserStore;
 import org.finos.gitproxy.user.UserStore;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -63,7 +64,12 @@ public class ProfileController {
     @DeleteMapping("/emails/{email}")
     public ResponseEntity<?> removeEmail(@PathVariable String email) {
         if (!(userStore instanceof MutableUserStore mutable)) return NOT_MUTABLE;
-        mutable.removeEmail(currentUsername(), email.toLowerCase());
+        try {
+            mutable.removeEmail(currentUsername(), email.toLowerCase());
+        } catch (LockedEmailException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Cannot remove an email address locked by the identity provider"));
+        }
         return ResponseEntity.noContent().build();
     }
 

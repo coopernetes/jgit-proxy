@@ -1,13 +1,29 @@
-# Override file for testing with PostgreSQL.
-# Use with: docker compose --profile postgres -f docker-compose.yml -f docker-compose.postgres.yml up -d
+# Database overlay — PostgreSQL.
 #
-# Swaps the config volume to git-proxy-postgres.yml and adds a health-checked
-# dependency on the postgres service.
+# Activates the postgres service from docker-compose.yml (--profile postgres) and
+# injects database settings as environment variables so this overlay composes freely
+# with any auth overlay (ldap, oidc, or the default static auth).
+#
+# Examples:
+#   # Static auth + Postgres
+#   docker compose --profile postgres -f docker-compose.yml -f docker-compose.postgres.yml up -d
+#
+#   # LDAP auth + Postgres
+#   docker compose --profile postgres -f docker-compose.yml -f docker-compose.ldap.yml -f docker-compose.postgres.yml up -d
+#
+#   # OIDC auth + Postgres
+#   docker compose --profile postgres -f docker-compose.yml -f docker-compose.oidc.yml -f docker-compose.postgres.yml up -d
+#
+# Adminer (database UI) is available at http://localhost:8082.
 services:
   jgit-proxy:
-    volumes:
-      - ./docker/git-proxy-postgres.yml:/app/conf/git-proxy-local.yml:ro
     environment:
+      GITPROXY_DATABASE_TYPE: postgres
+      GITPROXY_DATABASE_HOST: postgres
+      GITPROXY_DATABASE_PORT: "5432"
+      GITPROXY_DATABASE_NAME: gitproxy
+      GITPROXY_DATABASE_USERNAME: gitproxy
+      GITPROXY_DATABASE_PASSWORD: gitproxy
       GITPROXY_API_KEY: test-api-key
     depends_on:
       postgres:

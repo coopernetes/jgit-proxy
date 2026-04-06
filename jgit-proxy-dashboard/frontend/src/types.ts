@@ -73,6 +73,8 @@ export interface Provider {
 export interface EmailEntry {
   email: string
   verified: boolean
+  locked: boolean
+  source: string
 }
 
 export interface ScmIdentity {

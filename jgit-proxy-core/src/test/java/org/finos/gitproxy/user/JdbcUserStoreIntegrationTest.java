@@ -1,6 +1,7 @@
 package org.finos.gitproxy.user;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
 import java.util.UUID;
@@ -200,5 +201,102 @@ class JdbcUserStoreIntegrationTest {
     @Test
     void findAll_emptyStore_returnsEmpty() {
         assertEquals(0, store.findAll().size());
+    }
+
+    // ---- findEmailsWithVerified includes locked + source ----
+
+    @Test
+    void findEmailsWithVerified_localEmail_lockedFalseSourceLocal() {
+        store.upsertAll(List.of(user("alice", List.of("alice@example.com"), List.of())));
+
+        var emails = store.findEmailsWithVerified("alice");
+        assertEquals(1, emails.size());
+        assertEquals("alice@example.com", emails.get(0).get("email"));
+        assertEquals(false, emails.get(0).get("locked"));
+        assertEquals("local", emails.get(0).get("source"));
+    }
+
+    // ---- upsertUser auto-provisioning ----
+
+    @Test
+    void upsertUser_createsUserWithNullPassword() {
+        store.upsertUser("ldapuser");
+
+        var result = store.findByUsername("ldapuser");
+        assertTrue(result.isPresent());
+        assertNull(result.get().getPasswordHash());
+    }
+
+    @Test
+    void upsertUser_idempotent_secondCallNoOp() {
+        store.upsertUser("ldapuser");
+        store.upsertUser("ldapuser"); // must not throw or duplicate
+
+        assertEquals(1, store.findAll().size());
+    }
+
+    @Test
+    void upsertUser_preservesExistingUser() {
+        store.upsertAll(List.of(user("alice", List.of(), List.of())));
+        store.upsertUser("alice"); // should not overwrite existing row
+
+        var result = store.findByUsername("alice");
+        assertTrue(result.isPresent());
+        assertEquals("{noop}pw", result.get().getPasswordHash());
+    }
+
+    // ---- upsertLockedEmail ----
+
+    @Test
+    void upsertLockedEmail_insertsLockedEmail() {
+        store.upsertUser("oidcuser");
+        store.upsertLockedEmail("oidcuser", "oidcuser@corp.com", "oidc");
+
+        var emails = store.findEmailsWithVerified("oidcuser");
+        assertEquals(1, emails.size());
+        assertEquals("oidcuser@corp.com", emails.get(0).get("email"));
+        assertEquals(true, emails.get(0).get("locked"));
+        assertEquals("oidc", emails.get(0).get("source"));
+    }
+
+    @Test
+    void upsertLockedEmail_idempotent_updatesExistingRow() {
+        store.upsertUser("ldapuser");
+        store.upsertLockedEmail("ldapuser", "ldapuser@corp.com", "ldap");
+        store.upsertLockedEmail("ldapuser", "ldapuser@corp.com", "ldap"); // second call must not throw
+
+        var emails = store.findEmailsWithVerified("ldapuser");
+        assertEquals(1, emails.size());
+        assertEquals(true, emails.get(0).get("locked"));
+    }
+
+    @Test
+    void upsertLockedEmail_locksExistingUnlockedEmail() {
+        store.upsertAll(List.of(user("alice", List.of("alice@corp.com"), List.of())));
+        // Email exists as unlocked (local); IdP login should lock it
+        store.upsertLockedEmail("alice", "alice@corp.com", "oidc");
+
+        var emails = store.findEmailsWithVerified("alice");
+        assertEquals(1, emails.size());
+        assertEquals(true, emails.get(0).get("locked"));
+        assertEquals("oidc", emails.get(0).get("source"));
+    }
+
+    // ---- removeEmail rejects locked emails ----
+
+    @Test
+    void removeEmail_lockedEmail_throwsLockedEmailException() {
+        store.upsertUser("oidcuser");
+        store.upsertLockedEmail("oidcuser", "oidcuser@corp.com", "oidc");
+
+        assertThrows(LockedEmailException.class, () -> store.removeEmail("oidcuser", "oidcuser@corp.com"));
+    }
+
+    @Test
+    void removeEmail_unlockedEmail_removesSuccessfully() {
+        store.upsertAll(List.of(user("alice", List.of("alice@example.com"), List.of())));
+        store.removeEmail("alice", "alice@example.com");
+
+        assertTrue(store.findByEmail("alice@example.com").isEmpty());
     }
 }

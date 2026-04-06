@@ -9,6 +9,13 @@ sn: testuser
 mail: testuser@example.com
 userPassword: testpass123
 
+dn: cn=otheruser,ou=users,dc=example,dc=com
+objectClass: inetOrgPerson
+cn: otheruser
+sn: otheruser
+mail: otheruser@example.com
+userPassword: testpass123
+
 dn: cn=admin,ou=users,dc=example,dc=com
 objectClass: inetOrgPerson
 cn: admin

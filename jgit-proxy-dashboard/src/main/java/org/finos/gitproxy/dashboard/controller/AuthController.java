@@ -39,7 +39,8 @@ public class AuthController {
         } else if (user != null) {
             // StaticUserStore — no verified concept, everything is unverified
             emails = user.getEmails().stream()
-                    .<Map<String, Object>>map(e -> Map.of("email", e, "verified", false))
+                    .<Map<String, Object>>map(
+                            e -> Map.of("email", e, "verified", false, "locked", false, "source", "local"))
                     .toList();
             scmIdentities = user.getScmIdentities().stream()
                     .<Map<String, Object>>map(

@@ -23,7 +23,7 @@ services:
     # --copy-service is required for osixia/openldap to pick up custom LDIF files.
     command: ["--loglevel", "warning", "--copy-service"]
     ports:
-      - "389:389"
+      - "3389:389"
     healthcheck:
       test: ["CMD", "ldapsearch", "-x", "-H", "ldap://localhost", "-b", "dc=example,dc=com",
              "-D", "cn=admin,dc=example,dc=com", "-w", "adminpassword", "-s", "base"]

@@ -1,13 +1,26 @@
-# Override file for testing with MongoDB.
-# Use with: docker compose --profile mongo -f docker-compose.yml -f docker-compose.mongo.yml up -d
+# Database overlay — MongoDB.
 #
-# Swaps the config volume to git-proxy-mongo.yml and adds a health-checked
-# dependency on the mongo service.
+# Activates the mongo service from docker-compose.yml (--profile mongo) and
+# injects database settings as environment variables so this overlay composes freely
+# with any auth overlay (ldap, oidc, or the default static auth).
+#
+# Examples:
+#   # Static auth + MongoDB
+#   docker compose --profile mongo -f docker-compose.yml -f docker-compose.mongo.yml up -d
+#
+#   # LDAP auth + MongoDB
+#   docker compose --profile mongo -f docker-compose.yml -f docker-compose.ldap.yml -f docker-compose.mongo.yml up -d
+#
+#   # OIDC auth + MongoDB
+#   docker compose --profile mongo -f docker-compose.yml -f docker-compose.oidc.yml -f docker-compose.mongo.yml up -d
+#
+# Mongo Express (database UI) is available at http://localhost:8081.
 services:
   jgit-proxy:
-    volumes:
-      - ./docker/git-proxy-mongo.yml:/app/conf/git-proxy-local.yml:ro
     environment:
+      GITPROXY_DATABASE_TYPE: mongo
+      GITPROXY_DATABASE_URL: mongodb://gitproxy:gitproxy@mongo:27017
+      GITPROXY_DATABASE_NAME: gitproxy
       GITPROXY_API_KEY: test-api-key
     depends_on:
       mongo:

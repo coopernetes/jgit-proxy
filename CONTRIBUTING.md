@@ -163,37 +163,138 @@ These build the Docker image from source, so no pre-existing server is needed.
 
 ## Docker Compose (local Gitea)
 
-The default Compose setup runs jgit-proxy against a local Gitea instance, which is the easiest way to test without touching a real GitHub repo.
+The Compose setup runs jgit-proxy against a local Gitea instance. Overlay files are independent mixins — one for the auth provider, one for the database backend. They can be combined freely.
 
-```shell
-docker compose up -d        # start jgit-proxy + Gitea
-bash docker/setup.sh        # one-time: create admin user and test repo in Gitea
+### Overlay files
+
+**Auth overlays** — each mounts a different `git-proxy-local.yml` config into the container:
+
+| File | Auth provider | Default database |
+|------|---------------|-----------------|
+| _(none)_ | Static (password hashes in config) | H2 in-memory |
+| `docker-compose.ldap.yml` | OpenLDAP | H2 in-memory |
+| `docker-compose.oidc.yml` | OIDC (mock-oauth2-server) | H2 in-memory |
+
+**Database overlays** — each sets `GITPROXY_DATABASE_*` environment variables; no config file swap needed:
+
+| File | Backend | Profile flag | UI |
+|------|---------|-------------|-----|
+| _(none)_ | H2 in-memory | — | — |
+| `docker-compose.postgres.yml` | PostgreSQL | `--profile postgres` | Adminer at :8082 |
+| `docker-compose.mongo.yml` | MongoDB | `--profile mongo` | Mongo Express at :8081 |
+
+Any auth overlay can be combined with any database overlay (or none, to keep H2). The pattern is:
+
+```
+docker compose [--profile <db>] \
+  -f docker-compose.yml \
+  [-f docker-compose.<auth>.yml] \
+  [-f docker-compose.<db>.yml] \
+  up -d
 ```
 
-After setup, the proxy URLs are:
+### First-time setup
+
+After starting any stack, run this once to create the Gitea admin user and test repository:
+
+```shell
+bash docker/setup.sh
+```
+
+### Common stacks
+
+**Static auth + H2** (simplest — no external dependencies):
+```shell
+docker compose up -d
+```
+
+**LDAP + H2**:
+```shell
+docker compose -f docker-compose.yml -f docker-compose.ldap.yml up -d
+```
+
+**LDAP + PostgreSQL** (recommended for verifying IdP email locking and auto-provisioning):
+```shell
+docker compose --profile postgres \
+  -f docker-compose.yml \
+  -f docker-compose.ldap.yml \
+  -f docker-compose.postgres.yml \
+  up -d
+```
+
+**OIDC + PostgreSQL**:
+```shell
+docker compose --profile postgres \
+  -f docker-compose.yml \
+  -f docker-compose.oidc.yml \
+  -f docker-compose.postgres.yml \
+  up -d
+```
+
+**LDAP + MongoDB**:
+```shell
+docker compose --profile mongo \
+  -f docker-compose.yml \
+  -f docker-compose.ldap.yml \
+  -f docker-compose.mongo.yml \
+  up -d
+```
+
+### Auth provider details
+
+#### Static auth
+
+Log in at `http://localhost:8080` with `admin` / `admin` (defined in `docker/git-proxy-local.yml`).
+
+#### LDAP auth
+
+Test accounts are defined in `docker/ldap-bootstrap.ldif`:
+
+| Username | Password | LDAP email |
+|----------|----------|------------|
+| `testuser` | `testpass123` | `testuser@example.com` |
+| `admin` | `admin` | `admin@example.com` |
+
+On first login the account is auto-provisioned and the LDAP `mail` attribute is stored as a locked email (not editable from the profile UI). Inspect the `user_emails` table in Adminer or Mongo Express to see the `locked=true` row.
+
+To add more users, edit `docker/ldap-bootstrap.ldif` and recreate the container:
+
+```shell
+docker compose -f docker-compose.yml -f docker-compose.ldap.yml rm -sf openldap
+docker compose -f docker-compose.yml -f docker-compose.ldap.yml up -d openldap
+```
+
+#### OIDC auth
+
+Uses [navikt/mock-oauth2-server](https://github.com/navikt/mock-oauth2-server), which accepts any username with no password required.
+
+**One-time `/etc/hosts` entry** — required so the OIDC issuer URL is the same from your browser and from jgit-proxy inside Docker:
+
+```
+127.0.0.1  mock-oauth2
+```
+
+Open `http://localhost:8080` and log in with any username.
+
+### Proxy URLs
+
+After `docker/setup.sh`, the test repository is reachable at:
 
 ```
 http://localhost:8080/push/gitea/test-owner/test-repo.git
 http://localhost:8080/proxy/gitea/test-owner/test-repo.git
 ```
 
-Clone example with credentials embedded:
+Clone example:
 
 ```shell
 git clone http://gitproxyadmin:Admin1234!@localhost:8080/push/gitea/test-owner/test-repo.git
 ```
 
-### Optional database backends
+### Teardown
 
 ```shell
-docker compose --profile postgres up -d   # PostgreSQL + Adminer (port 8082)
-docker compose --profile mongo up -d      # MongoDB + Mongo Express (port 8081)
-```
-
-Stop and remove volumes:
-
-```shell
-docker compose down -v
+docker compose [same -f flags as start] down -v
 ```
 
 ## Code style
