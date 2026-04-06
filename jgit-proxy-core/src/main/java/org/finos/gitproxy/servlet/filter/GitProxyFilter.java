@@ -157,6 +157,22 @@ public interface GitProxyFilter extends Filter {
      */
     default void sendGitError(HttpServletRequest httpRequest, HttpServletResponse httpResponse, String message)
             throws IOException {
+        if (GitSmartHttpTools.isUploadPack(httpRequest) || GitSmartHttpTools.isInfoRefs(httpRequest)) {
+            // Sideband is NOT valid for upload-pack outside of packfile transfer (e.g. ls-refs phase).
+            // Use a pkt-line ERR packet with the correct content type instead.
+            ByteArrayOutputStream buf = new ByteArrayOutputStream();
+            new PacketLineOut(buf).writeString("ERR " + message.strip());
+            if (!httpResponse.isCommitted()) {
+                httpResponse.setStatus(SC_OK);
+                httpResponse.setContentType(GitSmartHttpTools.getResponseContentType(httpRequest));
+                httpResponse.setContentLength(buf.size());
+            }
+            try (OutputStream os = httpResponse.getOutputStream()) {
+                buf.writeTo(os);
+            }
+            return;
+        }
+        // receive-pack: multi-line sideband progress messages + error channel
         ByteArrayOutputStream buf = new ByteArrayOutputStream();
         // CH_PROGRESS: each line printed by git client as "remote: <line>"
         try (OutputStream progress =
@@ -250,7 +266,8 @@ public interface GitProxyFilter extends Filter {
         recordStep(request, StepStatus.FAIL, reason, formattedMessage);
         String serviceUrl = (String) request.getAttribute(SERVICE_URL_ATTR);
         var details = (org.finos.gitproxy.git.GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
-        String link = serviceUrl != null && details != null ? serviceUrl + "/push/" + details.getId() : serviceUrl;
+        boolean isPush = details != null && details.getOperation() == org.finos.gitproxy.git.HttpOperation.PUSH;
+        String link = isPush && serviceUrl != null ? serviceUrl + "/push/" + details.getId() : null;
         String fullMessage = link != null ? formattedMessage + "\n\nView push record: " + link : formattedMessage;
         sendGitError(request, response, fullMessage);
     }
