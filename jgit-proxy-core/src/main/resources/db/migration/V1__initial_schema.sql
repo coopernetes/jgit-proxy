@@ -134,6 +134,18 @@ CREATE TABLE IF NOT EXISTS fetch_records (
 );
 
 -- ---------------------------------------------------------------------------
+-- SCM token identity cache
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS scm_token_cache (
+    token_hash      VARCHAR(128) NOT NULL,
+    provider        VARCHAR(100) NOT NULL,
+    proxy_username  VARCHAR(255) NOT NULL REFERENCES proxy_users(username) ON DELETE CASCADE,
+    cached_at       TIMESTAMP    NOT NULL,
+    PRIMARY KEY (token_hash, provider)
+);
+
+-- ---------------------------------------------------------------------------
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_push_records_status ON push_records(status);
 CREATE INDEX IF NOT EXISTS idx_push_records_project ON push_records(project);

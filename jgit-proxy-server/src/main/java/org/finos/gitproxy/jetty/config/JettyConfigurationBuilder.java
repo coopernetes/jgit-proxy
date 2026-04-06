@@ -1,8 +1,10 @@
 package org.finos.gitproxy.jetty.config;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.sql.DataSource;
@@ -24,9 +26,11 @@ import org.finos.gitproxy.db.memory.InMemoryFetchStore;
 import org.finos.gitproxy.db.memory.InMemoryRepoRegistry;
 import org.finos.gitproxy.db.model.AccessRule;
 import org.finos.gitproxy.provider.*;
+import org.finos.gitproxy.service.CachingTokenPushIdentityResolver;
 import org.finos.gitproxy.service.ChainedPushIdentityResolver;
 import org.finos.gitproxy.service.ConfigPushIdentityResolver;
 import org.finos.gitproxy.service.DummyUserAuthorizationService;
+import org.finos.gitproxy.service.JdbcScmTokenCache;
 import org.finos.gitproxy.service.LinkedIdentityAuthorizationService;
 import org.finos.gitproxy.service.PushIdentityResolver;
 import org.finos.gitproxy.service.TokenPushIdentityResolver;
@@ -377,11 +381,27 @@ public class JettyConfigurationBuilder {
      * Builds the {@link PushIdentityResolver}. When users are configured, returns a chain that tries token-based
      * identity lookup first (provider API → SCM identity match) and falls back to config push-username aliases. Returns
      * null when no users are configured (open/permissive mode).
+     *
+     * <p>For JDBC backends, the token resolver is wrapped with {@link CachingTokenPushIdentityResolver} to avoid
+     * repeated SCM API calls for the same token. The cache max age defaults to 7 days and can be overridden via the
+     * {@code GITPROXY_SCM_CACHE_MAX_AGE_DAYS} environment variable.
      */
     public PushIdentityResolver buildPushIdentityResolver(UserStore userStore) {
         if (config.getUsers().isEmpty()) return null;
-        return new ChainedPushIdentityResolver(
-                List.of(new TokenPushIdentityResolver(userStore), new ConfigPushIdentityResolver(userStore)));
+
+        PushIdentityResolver tokenResolver = new TokenPushIdentityResolver(userStore);
+
+        String dbType = config.getDatabase().getType();
+        if (!"memory".equals(dbType) && !"mongo".equals(dbType)) {
+            long maxAgeDays = Optional.ofNullable(System.getenv("GITPROXY_SCM_CACHE_MAX_AGE_DAYS"))
+                    .map(Long::parseLong)
+                    .orElse(7L);
+            JdbcScmTokenCache tokenCache = new JdbcScmTokenCache(requireJdbcDataSource(), Duration.ofDays(maxAgeDays));
+            tokenResolver = new CachingTokenPushIdentityResolver(tokenResolver, tokenCache, userStore);
+            log.info("SCM token identity cache enabled (max age {} days)", maxAgeDays);
+        }
+
+        return new ChainedPushIdentityResolver(List.of(tokenResolver, new ConfigPushIdentityResolver(userStore)));
     }
 
     /**
