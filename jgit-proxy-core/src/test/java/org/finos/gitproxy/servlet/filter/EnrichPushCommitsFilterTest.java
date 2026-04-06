@@ -19,6 +19,7 @@ import java.util.Set;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.internal.storage.pack.PackWriter;
 import org.eclipse.jgit.lib.*;
+import org.eclipse.jgit.transport.PacketLineOut;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
 import org.finos.gitproxy.git.LocalRepositoryCache;
@@ -223,5 +224,58 @@ class EnrichPushCommitsFilterTest {
 
         verifyNoInteractions(mockCache);
         assertTrue(details.getPushedCommits().isEmpty());
+    }
+
+    // ---- CVE-2025-54584: PACK signature spoofing via ref name ----
+
+    /**
+     * Verify that a request body containing "PACK" in the ref name does not confuse the pack data offset detection. The
+     * filter must walk past pkt-lines and find the real PACK data after the flush packet.
+     */
+    @Test
+    void doHttpFilter_packInRefName_stillUnpacksCorrectly() throws Exception {
+        // Build a source repo and commit a file.
+        Git sourceGit = Git.init().setDirectory(sourceDir.toFile()).call();
+        sourceGit.getRepository().getConfig().setBoolean("commit", null, "gpgsign", false);
+        sourceGit.getRepository().getConfig().save();
+        java.nio.file.Files.writeString(sourceDir.resolve("hello.txt"), "hello world");
+        sourceGit.add().addFilepattern("hello.txt").call();
+        var revCommit = sourceGit
+                .commit()
+                .setMessage("PACK spoofing test")
+                .setAuthor("Author", "author@example.com")
+                .call();
+        String toSha = revCommit.getName();
+        String fromSha = ObjectId.zeroId().name();
+
+        // Generate a valid pack
+        ByteArrayOutputStream packOut = new ByteArrayOutputStream();
+        try (PackWriter packWriter = new PackWriter(sourceGit.getRepository())) {
+            packWriter.setDeltaBaseAsOffset(false);
+            packWriter.preparePack(NullProgressMonitor.INSTANCE, Set.of(ObjectId.fromString(toSha)), Set.of());
+            packWriter.writePack(NullProgressMonitor.INSTANCE, NullProgressMonitor.INSTANCE, packOut);
+        }
+
+        // Build a full request body with "PACK" in the ref name — this is the attack vector
+        ByteArrayOutputStream bodyOut = new ByteArrayOutputStream();
+        PacketLineOut plo = new PacketLineOut(bodyOut);
+        plo.writeString(fromSha + " " + toSha + " refs/heads/PACK-evil\0 report-status side-band-64k");
+        plo.end();
+        bodyOut.write(packOut.toByteArray());
+
+        // Set up cache repo
+        Repository cacheRepo =
+                Git.init().setBare(true).setDirectory(cacheDir2.toFile()).call().getRepository();
+        LocalRepositoryCache mockCache = mock(LocalRepositoryCache.class);
+        when(mockCache.getOrClone(any())).thenReturn(cacheRepo);
+
+        GitRequestDetails details = makeDetails(fromSha, toSha);
+        RequestBodyWrapper request = wrapRequest(bodyOut.toByteArray(), details);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        new EnrichPushCommitsFilter(new GitHubProvider("/proxy"), mockCache).doHttpFilter(request, response);
+
+        assertFalse(details.getPushedCommits().isEmpty(), "Pack must be unpacked despite PACK in ref name");
+        assertEquals(toSha, details.getPushedCommits().get(0).getSha());
     }
 }

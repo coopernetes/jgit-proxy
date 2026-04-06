@@ -1,5 +1,9 @@
 package org.finos.gitproxy.servlet.filter;
 
+import static org.finos.gitproxy.git.GitClientUtils.AnsiColor.RED;
+import static org.finos.gitproxy.git.GitClientUtils.SymbolCodes.CROSS_MARK;
+import static org.finos.gitproxy.git.GitClientUtils.SymbolCodes.NO_ENTRY;
+import static org.finos.gitproxy.git.GitClientUtils.sym;
 import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 
 import jakarta.servlet.FilterChain;
@@ -17,6 +21,7 @@ import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.transport.PacketLineIn;
+import org.finos.gitproxy.git.GitClientUtils;
 import org.finos.gitproxy.git.GitReceivePackParser;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
@@ -55,6 +60,14 @@ public class ParseGitRequestFilter extends AbstractProviderAwareGitProxyFilter {
         // Add the details to the request attributes
         wrapper.setAttribute(GIT_REQUEST_ATTR, requestDetails);
 
+        // Block multi-ref pushes immediately — do not let them reach downstream filters
+        if (requestDetails.getResult() == GitRequestDetails.GitResult.REJECTED) {
+            String title = sym(NO_ENTRY) + "  Push Blocked - Multi-Branch Push";
+            String message = sym(CROSS_MARK) + "  " + requestDetails.getReason();
+            sendGitError(wrapper, (HttpServletResponse) response, GitClientUtils.format(title, message, RED, null));
+            return;
+        }
+
         // Continue with the wrapped request (important!)
         chain.doFilter(wrapper, response);
     }
@@ -90,7 +103,18 @@ public class ParseGitRequestFilter extends AbstractProviderAwareGitProxyFilter {
                 var pli = new PacketLineIn(request.getInputStream());
                 String packetLine = pli.readStringRaw();
 
-                // Read remaining data (pack file)
+                // CVE-2025-54583: Reject multi-ref pushes. Read the next pkt-line — it must
+                // be a flush packet (0000). If it's another ref update, the client is pushing
+                // multiple branches and we must reject.
+                String nextLine = pli.readString();
+                if (!PacketLineIn.isEnd(nextLine)) {
+                    log.warn("Multi-ref push detected — rejecting. First ref: {}", packetLine.trim());
+                    gr.setResult(GitRequestDetails.GitResult.REJECTED);
+                    gr.setReason("Multi-branch pushes are not allowed. Please push one branch at a time.");
+                    return gr;
+                }
+
+                // Read remaining data (pack file) — starts right after the consumed flush packet
                 byte[] packData = readRemainingData(request.getInputStream());
 
                 // parse the packet line and pack data

@@ -3,9 +3,11 @@ package org.finos.gitproxy.git;
 import static org.finos.gitproxy.git.GitClientUtils.ZERO_OID;
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import org.eclipse.jgit.transport.PacketLineOut;
 import org.junit.jupiter.api.Test;
 
 class GitReceivePackParserTest {
@@ -234,5 +236,98 @@ class GitReceivePackParserTest {
                 IOException.class,
                 () -> GitReceivePackParser.parsePackData(new byte[0]),
                 "Expected IOException for empty input");
+    }
+
+    // ---- CVE-2025-54584: PACK signature boundary parsing ----
+
+    /** Extract the raw PACK bytes from a captured body resource (skips pkt-line header + flush). */
+    private byte[] extractRawPack(byte[] fullBody) {
+        for (int i = 0; i < fullBody.length - 4; i++) {
+            if (fullBody[i] == 'P' && fullBody[i + 1] == 'A' && fullBody[i + 2] == 'C' && fullBody[i + 3] == 'K') {
+                byte[] pack = new byte[fullBody.length - i];
+                System.arraycopy(fullBody, i, pack, 0, pack.length);
+                return pack;
+            }
+        }
+        throw new IllegalArgumentException("No PACK signature found");
+    }
+
+    @Test
+    void parsePackData_packAtOffset0_parsesSuccessfully() throws Exception {
+        // After ParseGitRequestFilter consumes pkt-lines, pack data starts at offset 0
+        byte[] fullBody = loadBody("push-sample-01-body.bin");
+        byte[] rawPack = extractRawPack(fullBody);
+
+        Commit commit = GitReceivePackParser.parsePackData(rawPack);
+
+        assertNotNull(commit, "parsePackData must handle PACK at offset 0");
+    }
+
+    @Test
+    void parsePackData_packAfterPktLines_parsesSuccessfully() throws Exception {
+        // Simulate the full body with pkt-line prefix + flush + PACK (the body as sent by git)
+        byte[] fullBody = loadBody("push-sample-01-body.bin");
+
+        Commit commit = GitReceivePackParser.parsePackData(fullBody);
+
+        assertNotNull(commit, "parsePackData must walk past pkt-lines to find PACK");
+    }
+
+    @Test
+    void parsePackData_packInRefNameIgnored_findsRealPack() throws Exception {
+        // Build a body where the pkt-line ref name contains "PACK" — the parser must
+        // walk past it and find the real PACK signature after the flush.
+        byte[] fullBody = loadBody("push-sample-01-body.bin");
+        byte[] rawPack = extractRawPack(fullBody);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        PacketLineOut plo = new PacketLineOut(out);
+        plo.writeString(PUSH1_OLD + " " + PUSH1_NEW + " refs/heads/PACK-evil\0 report-status");
+        plo.end();
+        out.write(rawPack);
+        byte[] spoofedBody = out.toByteArray();
+
+        Commit commit = GitReceivePackParser.parsePackData(spoofedBody);
+
+        assertNotNull(commit, "Parser must not be confused by PACK in ref name");
+    }
+
+    @Test
+    void parsePackData_multiplePACKInRefName_findsRealPack() throws Exception {
+        // Extreme case: ref name has multiple occurrences of "PACK"
+        byte[] fullBody = loadBody("push-sample-01-body.bin");
+        byte[] rawPack = extractRawPack(fullBody);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        PacketLineOut plo = new PacketLineOut(out);
+        plo.writeString(PUSH1_OLD + " " + PUSH1_NEW + " refs/heads/PACK-PACK-PACK\0 report-status");
+        plo.end();
+        out.write(rawPack);
+        byte[] spoofedBody = out.toByteArray();
+
+        Commit commit = GitReceivePackParser.parsePackData(spoofedBody);
+
+        assertNotNull(commit, "Parser must not be confused by multiple PACK occurrences in ref name");
+    }
+
+    @Test
+    void parsePush_bodyWithPktLinePrefix_extractsCommit() throws Exception {
+        // Full body (pkt-lines + flush + PACK) passed as packData — the normal flow
+        // since readRemainingData returns the full body from RequestBodyWrapper
+        String packetLine = loadPacketLine("push-sample-01-packetline.txt");
+        byte[] body = loadBody("push-sample-01-body.bin");
+
+        GitReceivePackParser.PushInfo info = GitReceivePackParser.parsePush(packetLine, body);
+
+        assertNotNull(info.getCommit(), "parsePush must work when packData includes pkt-line prefix");
+        assertEquals(PUSH1_NEW, info.getCommit().getSha());
+    }
+
+    @Test
+    void parsePackData_garbageBeforePACK_throwsIOException() {
+        // Random bytes that aren't valid pkt-lines and don't contain PACK
+        byte[] garbage = "this is random garbage data without valid pack".getBytes(StandardCharsets.UTF_8);
+
+        assertThrows(IOException.class, () -> GitReceivePackParser.parsePackData(garbage));
     }
 }

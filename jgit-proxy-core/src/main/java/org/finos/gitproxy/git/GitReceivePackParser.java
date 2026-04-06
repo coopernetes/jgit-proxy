@@ -4,6 +4,7 @@ import static org.finos.gitproxy.git.GitClientUtils.ZERO_OID;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
@@ -95,13 +96,47 @@ public class GitReceivePackParser {
         throw new RuntimeException("No commit object found in pack data");
     }
 
+    /**
+     * Find the start of PACK data. Checks offset 0 first (normal case after ParseGitRequestFilter consumes the pkt-line
+     * section), then falls back to walking any remaining pkt-lines to find the flush boundary.
+     *
+     * <p>CVE-2025-54584: replaces the former naive byte-scan for 'P','A','C','K' which could be spoofed by a crafted
+     * ref name or commit content containing those bytes.
+     */
     private static int findPackSignature(byte[] data) {
-        for (int i = 0; i < data.length - 4; i++) {
-            if (data[i] == 'P' && data[i + 1] == 'A' && data[i + 2] == 'C' && data[i + 3] == 'K') {
-                return i;
+        // Fast path: PACK signature at the start (normal after flush was consumed upstream)
+        if (data.length >= 4 && data[0] == 'P' && data[1] == 'A' && data[2] == 'C' && data[3] == 'K') {
+            return 0;
+        }
+        // Fallback: walk past any remaining pkt-lines to find the flush boundary
+        int pos = 0;
+        while (pos + 4 <= data.length) {
+            int len = parsePacketLength(data, pos);
+            if (len < 0) break;
+            if (len == 0) {
+                pos += 4;
+                break;
             }
+            if (len < 4 || pos + len > data.length) break;
+            pos += len;
+        }
+        if (pos > 0
+                && pos + 4 <= data.length
+                && data[pos] == 'P'
+                && data[pos + 1] == 'A'
+                && data[pos + 2] == 'C'
+                && data[pos + 3] == 'K') {
+            return pos;
         }
         return -1;
+    }
+
+    private static int parsePacketLength(byte[] data, int pos) {
+        try {
+            return Integer.parseInt(new String(data, pos, 4, StandardCharsets.US_ASCII), 16);
+        } catch (NumberFormatException e) {
+            return -1;
+        }
     }
 
     private static PackEntry parseEntry(byte[] data, int pos) throws IOException {
