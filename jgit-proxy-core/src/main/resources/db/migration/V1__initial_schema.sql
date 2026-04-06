@@ -142,7 +142,7 @@ CREATE TABLE IF NOT EXISTS fetch_records (
 CREATE TABLE IF NOT EXISTS scm_token_cache (
     token_hash      VARCHAR(128) NOT NULL,
     provider        VARCHAR(100) NOT NULL,
-    proxy_username  VARCHAR(255) NOT NULL REFERENCES proxy_users(username) ON DELETE CASCADE,
+    proxy_username  VARCHAR(255) NOT NULL,
     cached_at       TIMESTAMP    NOT NULL,
     PRIMARY KEY (token_hash, provider)
 );
