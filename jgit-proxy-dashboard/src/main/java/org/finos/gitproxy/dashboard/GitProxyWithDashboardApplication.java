@@ -3,7 +3,6 @@ package org.finos.gitproxy.dashboard;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.ServletContextEvent;
 import jakarta.servlet.ServletContextListener;
-import java.nio.file.Files;
 import java.util.EnumSet;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -16,17 +15,13 @@ import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.finos.gitproxy.approval.UiApprovalGateway;
 import org.finos.gitproxy.config.InMemoryProviderConfigurationSource;
 import org.finos.gitproxy.config.ProviderConfigurationSource;
-import org.finos.gitproxy.db.FetchStore;
-import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.db.RepoRegistry;
-import org.finos.gitproxy.git.LocalRepositoryCache;
+import org.finos.gitproxy.jetty.GitProxyContext;
+import org.finos.gitproxy.jetty.GitProxyJettyApplication;
 import org.finos.gitproxy.jetty.GitProxyServletRegistrar;
 import org.finos.gitproxy.jetty.config.GitProxyConfigLoader;
 import org.finos.gitproxy.jetty.config.JettyConfigurationBuilder;
 import org.finos.gitproxy.provider.GitProxyProvider;
-import org.finos.gitproxy.service.PushIdentityResolver;
-import org.finos.gitproxy.service.UserAuthorizationService;
-import org.finos.gitproxy.user.UserStore;
 import org.springframework.security.web.context.AbstractSecurityWebApplicationInitializer;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.filter.DelegatingFilterProxy;
@@ -48,7 +43,7 @@ public class GitProxyWithDashboardApplication {
 
     public static void main(String[] args) throws Exception {
         log.info("Starting JGit Proxy with Dashboard...");
-        writePidFile();
+        GitProxyJettyApplication.writePidFile();
 
         var gitProxyConfig = GitProxyConfigLoader.load();
         var configBuilder = new JettyConfigurationBuilder(gitProxyConfig);
@@ -61,65 +56,28 @@ public class GitProxyWithDashboardApplication {
         connector.setPort(configBuilder.getServerPort());
         server.addConnector(connector);
 
-        PushStore pushStore = configBuilder.buildPushStore();
+        // buildPushStore() is called first so we can hand the same instance to UiApprovalGateway.
+        // buildProxyContext() will reuse the cached instance internally.
+        var pushStore = configBuilder.buildPushStore();
         log.info("Push store initialized: {}", pushStore.getClass().getSimpleName());
 
         RepoRegistry repoRegistry = configBuilder.buildRepoRegistry();
-        FetchStore fetchStore = configBuilder.buildFetchStore();
-
-        UserStore userStore = configBuilder.buildUserStore();
-        PushIdentityResolver pushIdentityResolver = configBuilder.buildPushIdentityResolver(userStore);
-        UserAuthorizationService userAuthService = configBuilder.buildUserAuthService(userStore);
 
         // Always use UiApprovalGateway when running with the dashboard — the REST API is what drives approval.
         // This is intentionally not derived from approval-mode config: the dashboard deployment always needs
         // UI-based review regardless of what is set in the config file.
-        var approvalGateway = new UiApprovalGateway(pushStore);
-
-        var storeForwardCache = new LocalRepositoryCache(Files.createTempDirectory("jgit-proxy-sf-"), 0, true);
-        var proxyCache = new LocalRepositoryCache();
+        GitProxyContext ctx = configBuilder.buildProxyContext(new UiApprovalGateway(pushStore));
 
         List<GitProxyProvider> providers = configBuilder.buildProviders();
         var providerConfig = new InMemoryProviderConfigurationSource(providers);
 
         var context = new ServletContextHandler("/", true, false);
-        var commitConfig = configBuilder.buildCommitConfig();
 
         // Register git proxy servlets (store-and-forward + transparent proxy) for each provider
-        String serviceUrl = configBuilder.getServiceUrl();
-        for (GitProxyProvider provider : providerConfig.getProviders()) {
-            log.info("Registering provider: {}", provider.getName());
-            GitProxyServletRegistrar.registerGitServlet(
-                    context,
-                    provider,
-                    storeForwardCache,
-                    commitConfig,
-                    pushStore,
-                    serviceUrl,
-                    approvalGateway,
-                    pushIdentityResolver,
-                    userAuthService,
-                    configBuilder.getHeartbeatIntervalSeconds(),
-                    configBuilder.isFailFast(),
-                    configBuilder.getUpstreamConnectTimeoutSeconds());
-            GitProxyServletRegistrar.registerProxyServlet(
-                    context, provider, pushStore, configBuilder.getProxyConnectTimeoutSeconds());
-            GitProxyServletRegistrar.registerFilters(
-                    context,
-                    provider,
-                    proxyCache,
-                    configBuilder,
-                    commitConfig,
-                    pushStore,
-                    serviceUrl,
-                    approvalGateway,
-                    pushIdentityResolver,
-                    userAuthService,
-                    fetchStore);
-        }
+        GitProxyServletRegistrar.registerProviders(context, ctx, configBuilder, providers);
 
         // Spring MVC DispatcherServlet at /* - git-specific paths take precedence per servlet spec
-        registerSpringServlet(context, pushStore, providerConfig, userStore, gitProxyConfig, repoRegistry, fetchStore);
+        registerSpringServlet(context, ctx, providerConfig, gitProxyConfig, repoRegistry);
 
         server.setHandler(context);
         server.start();
@@ -134,21 +92,19 @@ public class GitProxyWithDashboardApplication {
 
     private static void registerSpringServlet(
             ServletContextHandler context,
-            PushStore pushStore,
+            GitProxyContext ctx,
             ProviderConfigurationSource providers,
-            UserStore userStore,
             org.finos.gitproxy.jetty.config.GitProxyConfig gitProxyConfig,
-            RepoRegistry repoRegistry,
-            FetchStore fetchStore) {
+            RepoRegistry repoRegistry) {
         var appContext = new AnnotationConfigWebApplicationContext();
         appContext.register(SpringWebConfig.class, SecurityConfig.class);
         appContext.addBeanFactoryPostProcessor(bf -> {
-            bf.registerSingleton("pushStore", pushStore);
+            bf.registerSingleton("pushStore", ctx.pushStore());
             bf.registerSingleton("providers", providers);
-            bf.registerSingleton("userStore", userStore);
+            bf.registerSingleton("userStore", ctx.userStore());
             bf.registerSingleton("gitProxyConfig", gitProxyConfig);
             bf.registerSingleton("repoRegistry", repoRegistry);
-            bf.registerSingleton("fetchStore", fetchStore);
+            bf.registerSingleton("fetchStore", ctx.fetchStore());
         });
 
         // Refresh the Spring context inside a ServletContextListener so the ServletContext is set
@@ -186,19 +142,5 @@ public class GitProxyWithDashboardApplication {
         }
 
         log.info("Registered Spring MVC DispatcherServlet and Spring Security filter chain");
-    }
-
-    private static void writePidFile() {
-        String pidFilePath = System.getProperty("jgitproxy.pidfile");
-        if (pidFilePath == null) return;
-        try {
-            var pidFile = java.nio.file.Path.of(pidFilePath);
-            java.nio.file.Files.createDirectories(pidFile.getParent());
-            java.nio.file.Files.writeString(
-                    pidFile, String.valueOf(ProcessHandle.current().pid()));
-            log.info("Wrote PID file: {}", pidFilePath);
-        } catch (Exception e) {
-            log.warn("Could not write PID file: {}", e.getMessage());
-        }
     }
 }
