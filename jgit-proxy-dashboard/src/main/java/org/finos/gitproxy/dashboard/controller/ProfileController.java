@@ -3,6 +3,7 @@ package org.finos.gitproxy.dashboard.controller;
 import java.util.Map;
 import org.finos.gitproxy.user.LockedEmailException;
 import org.finos.gitproxy.user.MutableUserStore;
+import org.finos.gitproxy.user.ScmIdentityConflictException;
 import org.finos.gitproxy.user.UserStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -86,18 +87,13 @@ public class ProfileController {
         provider = provider.strip();
         scmUsername = scmUsername.strip();
 
-        // Prevent claiming a handle already registered to another user for the same provider
         String currentUser = currentUsername();
-        var existing = userStore.findByScmIdentity(provider, scmUsername);
-        if (existing.isPresent() && !existing.get().getUsername().equals(currentUser)) {
+        try {
+            mutable.addScmIdentity(currentUser, provider, scmUsername);
+        } catch (ScmIdentityConflictException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("error", "SCM identity is already registered to another user"));
+                    .body(Map.of("error", "SCM identity is already claimed by another user"));
         }
-        if (existing.isPresent()) {
-            return ResponseEntity.ok(Map.of("provider", provider, "username", scmUsername));
-        }
-
-        mutable.addScmIdentity(currentUser, provider, scmUsername);
         return ResponseEntity.ok(Map.of("provider", provider, "username", scmUsername));
     }
 

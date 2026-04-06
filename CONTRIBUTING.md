@@ -51,11 +51,14 @@ Opens the approval dashboard at `http://localhost:8080/`. Stop with:
 ./gradlew :jgit-proxy-dashboard:stop
 ```
 
-The dashboard module always uses UI-mode approval (pushes block until manually approved). The standalone server defaults to auto-approve.
+The dashboard module always uses UI-mode approval (pushes block until manually
+approved). The standalone server defaults to auto-approve.
 
 ### Local config override
 
-Copy `jgit-proxy-server/src/main/resources/git-proxy.yml` to `git-proxy-local.yml` in the same directory. The local file takes priority. At minimum, add a provider and an allowlisted repo slug:
+Copy `jgit-proxy-server/src/main/resources/git-proxy.yml` to `git-proxy-local.yml` in
+the same directory. The local file takes priority. At minimum, add a provider and an
+allowlisted repo slug:
 
 ```yaml
 git-proxy:
@@ -90,49 +93,53 @@ Unit tests live under each module's `src/test/`. They run without containers.
 ./gradlew e2eTest
 ```
 
-These start a containerised Gitea instance and a live Jetty proxy in-process. They are tagged `@Tag("e2e")` and live in `jgit-proxy-server/src/test/java/org/finos/gitproxy/e2e/`.
+These start a containerised Gitea instance and a live Jetty proxy in-process. They are
+tagged `@Tag("e2e")` and live in
+`jgit-proxy-server/src/test/java/org/finos/gitproxy/e2e/`.
 
 ### Manual integration test scripts (`test/`)
 
-The `test/` directory contains bash scripts for exercising both proxy modes against a running server. They are the fastest way to verify a feature end-to-end without writing Java.
+The `test/` directory contains bash scripts for exercising both proxy modes against a
+running server. They are the fastest way to verify a feature end-to-end without
+writing Java.
 
 #### Environment variables
 
 All scripts share these variables:
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `GIT_USERNAME` | `me` | Git credential username |
-| `GIT_PASSWORD` | _(required)_ | Git credential password |
-| `GIT_REPO` | `github.com/coopernetes/test-repo.git` | `<provider>/<owner>/<repo>.git` path |
-| `GITPROXY_API_KEY` | _(optional)_ | API key for approval scripts |
+| Variable              | Default                                 | Description                              |
+| -------------------- | --------------------------------------- | ---------------------------------------- |
+| `GIT_USERNAME`       | `me`                                    | Git credential username                  |
+| `GIT_PASSWORD`       | _(required)_                            | Git credential password                  |
+| `GIT_REPO`           | `github.com/coopernetes/test-repo.git` | `<provider>/<owner>/<repo>.git` path     |
+| `GITPROXY_API_KEY`   | _(optional)_                            | API key for approval scripts             |
 
 #### Store-and-forward scripts (`push-*`)
 
 These use the `/push/...` path (JGit ReceivePack + sideband).
 
-| Script | What it tests |
-|--------|--------------|
-| `push-pass.sh` | Golden-path push — should succeed and forward upstream |
-| `push-pass-tag.sh` | Pushing a tag — should succeed |
-| `push-pass-secrets.sh` | Push with a file that looks secret but passes gitleaks |
-| `push-fail-author.sh` | Blocked due to invalid author email domains |
-| `push-fail-message.sh` | Blocked due to commit message validation failures |
-| `push-fail-diff.sh` | Blocked due to diff content rule violations |
-| `push-fail-secrets.sh` | Blocked due to gitleaks detecting secrets in the diff |
+| Script               | What it tests                                                    |
+| -------------------- | ---------------------------------------------------------------- |
+| `push-pass.sh`       | Golden-path push — should succeed and forward upstream           |
+| `push-pass-tag.sh`   | Pushing a tag — should succeed                                   |
+| `push-pass-secrets.sh` | Push with a file that looks secret but passes gitleaks         |
+| `push-fail-author.sh` | Blocked due to invalid author email domains                     |
+| `push-fail-message.sh` | Blocked due to commit message validation failures              |
+| `push-fail-diff.sh`  | Blocked due to diff content rule violations                     |
+| `push-fail-secrets.sh` | Blocked due to gitleaks detecting secrets in the diff          |
 
 #### Transparent proxy scripts (`proxy-*`)
 
 These use the `/proxy/...` path (Jetty ProxyServlet + servlet filter chain).
 
-| Script | What it tests |
-|--------|--------------|
-| `proxy-pass.sh` | Golden-path push — blocks for approval, then the script approves and re-pushes |
-| `proxy-pass-tag.sh` | Pushing a tag through the proxy |
-| `proxy-fail-author.sh` | Blocked due to invalid author email domains |
-| `proxy-fail-message.sh` | Blocked due to commit message validation failures |
-| `proxy-fail-diff.sh` | Blocked due to diff content rule violations |
-| `proxy-fail-secrets.sh` | Blocked due to gitleaks detecting secrets in the diff |
+| Script               | What it tests                                                    |
+| -------------------- | ---------------------------------------------------------------- |
+| `proxy-pass.sh`      | Golden-path push — blocks for approval, then the script approves |
+| `proxy-pass-tag.sh`  | Pushing a tag through the proxy                                  |
+| `proxy-fail-author.sh` | Blocked due to invalid author email domains                     |
+| `proxy-fail-message.sh` | Blocked due to commit message validation failures              |
+| `proxy-fail-diff.sh` | Blocked due to diff content rule violations                     |
+| `proxy-fail-secrets.sh` | Blocked due to gitleaks detecting secrets in the diff          |
 
 #### Running scripts manually
 
@@ -149,7 +156,8 @@ bash test/push-fail-secrets.sh
 
 #### Full suite runners
 
-Two scripts spin up a complete Docker Compose environment (jgit-proxy + Gitea + database), run all `test/*.sh` scripts, then tear down:
+Two scripts spin up a complete Docker Compose environment (jgit-proxy + Gitea +
+database), run all `test/*.sh` scripts, then tear down:
 
 ```shell
 bash test/run-postgres.sh             # PostgreSQL backend
@@ -163,29 +171,31 @@ These build the Docker image from source, so no pre-existing server is needed.
 
 ## Docker Compose (local Gitea)
 
-The Compose setup runs jgit-proxy against a local Gitea instance. Overlay files are independent mixins — one for the auth provider, one for the database backend. They can be combined freely.
+The Compose setup runs jgit-proxy against a local Gitea instance. Overlay files are
+independent mixins — one for the auth provider, one for the database backend. They
+can be combined freely.
 
 ### Overlay files
 
 **Auth overlays** — each mounts a different `git-proxy-local.yml` config into the container:
 
-| File | Auth provider | Default database |
-|------|---------------|-----------------|
-| _(none)_ | Static (password hashes in config) | H2 in-memory |
-| `docker-compose.ldap.yml` | OpenLDAP | H2 in-memory |
-| `docker-compose.oidc.yml` | OIDC (mock-oauth2-server) | H2 in-memory |
+| File                     | Auth provider                | Default database |
+| ------------------------ | ---------------------------- | ----------------- |
+| _(none)_                 | Static (password hashes in config) | H2 in-memory  |
+| `docker-compose.ldap.yml` | OpenLDAP                    | H2 in-memory      |
+| `docker-compose.oidc.yml` | OIDC (mock-oauth2-server)   | H2 in-memory      |
 
 **Database overlays** — each sets `GITPROXY_DATABASE_*` environment variables; no config file swap needed:
 
-| File | Backend | Profile flag | UI |
-|------|---------|-------------|-----|
-| _(none)_ | H2 in-memory | — | — |
-| `docker-compose.postgres.yml` | PostgreSQL | `--profile postgres` | Adminer at :8082 |
-| `docker-compose.mongo.yml` | MongoDB | `--profile mongo` | Mongo Express at :8081 |
+| File                      | Backend         | Profile flag            | UI                     |
+| ------------------------- | --------------- | ----------------------- | ---------------------- |
+| _(none)_                  | H2 in-memory    | —                       | —                      |
+| `docker-compose.postgres.yml` | PostgreSQL   | `--profile postgres`    | Adminer at :8082       |
+| `docker-compose.mongo.yml` | MongoDB        | `--profile mongo`       | Mongo Express at :8081 |
 
 Any auth overlay can be combined with any database overlay (or none, to keep H2). The pattern is:
 
-```
+```bash
 docker compose [--profile <db>] \
   -f docker-compose.yml \
   [-f docker-compose.<auth>.yml] \
@@ -204,16 +214,19 @@ bash docker/gitea-setup.sh
 ### Common stacks
 
 **Static auth + H2** (simplest — no external dependencies):
+
 ```shell
 docker compose up -d
 ```
 
 **LDAP + H2**:
+
 ```shell
 docker compose -f docker-compose.yml -f docker-compose.ldap.yml up -d
 ```
 
 **LDAP + PostgreSQL** (recommended for verifying IdP email locking and auto-provisioning):
+
 ```shell
 docker compose --profile postgres \
   -f docker-compose.yml \
@@ -223,6 +236,7 @@ docker compose --profile postgres \
 ```
 
 **OIDC + PostgreSQL**:
+
 ```shell
 docker compose --profile postgres \
   -f docker-compose.yml \
@@ -232,6 +246,7 @@ docker compose --profile postgres \
 ```
 
 **LDAP + MongoDB**:
+
 ```shell
 docker compose --profile mongo \
   -f docker-compose.yml \
@@ -250,12 +265,14 @@ Log in at `http://localhost:8080` with `admin` / `admin` (defined in `docker/git
 
 Test accounts are defined in `docker/ldap-bootstrap.ldif`:
 
-| Username | Password | LDAP email |
-|----------|----------|------------|
+| Username  | Password      | LDAP email             |
+| --------- | ------------- | ---------------------- |
 | `testuser` | `testpass123` | `testuser@example.com` |
-| `admin` | `admin` | `admin@example.com` |
+| `admin`   | `admin`       | `admin@example.com`    |
 
-On first login the account is auto-provisioned and the LDAP `mail` attribute is stored as a locked email (not editable from the profile UI). Inspect the `user_emails` table in Adminer or Mongo Express to see the `locked=true` row.
+On first login the account is auto-provisioned and the LDAP `mail` attribute is stored
+as a locked email (not editable from the profile UI). Inspect the `user_emails` table
+in Adminer or Mongo Express to see the `locked=true` row.
 
 To add more users, edit `docker/ldap-bootstrap.ldif` and recreate the container:
 
@@ -266,11 +283,13 @@ docker compose -f docker-compose.yml -f docker-compose.ldap.yml up -d openldap
 
 #### OIDC auth
 
-Uses [navikt/mock-oauth2-server](https://github.com/navikt/mock-oauth2-server), which accepts any username with no password required.
+Uses [navikt/mock-oauth2-server](https://github.com/navikt/mock-oauth2-server), which accepts
+any username with no password required.
 
-**One-time `/etc/hosts` entry** — required so the OIDC issuer URL is the same from your browser and from jgit-proxy inside Docker:
+**One-time `/etc/hosts` entry** — required so the OIDC issuer URL is the same from your
+browser and from jgit-proxy inside Docker:
 
-```
+```text
 127.0.0.1  mock-oauth2
 ```
 
@@ -293,7 +312,7 @@ git clone http://gitproxyadmin:Admin1234!@localhost:8080/push/gitea/test-owner/t
 
 ### Teardown
 
-```shell
+```bash
 docker compose [same -f flags as start] down -v
 ```
 
@@ -309,7 +328,9 @@ Formatting is enforced by [Spotless](https://github.com/diffplug/spotless) using
 
 ### Frontend (React/TypeScript)
 
-Formatting uses [Prettier](https://prettier.io/), lint checks use [ESLint](https://eslint.org/). Both are Gradle tasks that use the same Node binary as the build:
+Formatting uses [Prettier](https://prettier.io/), lint checks use
+[ESLint](https://eslint.org/). Both are Gradle tasks that use the same Node binary
+as the build:
 
 ```shell
 ./gradlew :jgit-proxy-dashboard:npmFormat   # auto-format src/ with Prettier
@@ -325,20 +346,25 @@ Install once after cloning:
 ```
 
 This sets `core.hooksPath` to `.githooks/`. The hook runs on every `git commit`:
+
 1. `spotlessApply` — auto-formats Java and re-stages changed files
 2. `npmFormat` — auto-formats frontend source with Prettier and re-stages changed files
 3. `npmLint` — ESLint check; fails the commit if there are errors (no auto-fix)
 
 ## Project layout
 
-| Module | Purpose |
-|--------|---------|
-| `jgit-proxy-core` | Shared library: filter chain, JGit hooks, push store, provider model, approval abstraction |
-| `jgit-proxy-server` | Standalone proxy-only server — no dashboard, no Spring |
-| `jgit-proxy-dashboard` | Dashboard + REST API — Spring MVC, approval UI |
+| Module               | Purpose                                                         |
+| -------------------- | --------------------------------------------------------------- |
+| `jgit-proxy-core`    | Shared library: filter chain, JGit hooks, push store, provider model, approval abstraction |
+| `jgit-proxy-server`  | Standalone proxy-only server — no dashboard, no Spring          |
+| `jgit-proxy-dashboard` | Dashboard + REST API — Spring MVC, approval UI               |
 
-See [docs/JGIT_INFRASTRUCTURE.md](docs/JGIT_INFRASTRUCTURE.md) for the store-and-forward architecture and [docs/GIT_INTERNALS.md](docs/GIT_INTERNALS.md) for wire-protocol details.
+See [docs/JGIT_INFRASTRUCTURE.md](docs/JGIT_INFRASTRUCTURE.md) for the
+store-and-forward architecture and [docs/GIT_INTERNALS.md](docs/GIT_INTERNALS.md)
+for wire-protocol details.
 
 ## Issues and pull requests
 
-The issue tracker is at [coopernetes/jgit-proxy](https://github.com/coopernetes/jgit-proxy/issues). Reference the upstream Node.js implementation at [finos/git-proxy](https://github.com/finos/git-proxy) when porting features.
+The issue tracker is at [coopernetes/jgit-proxy](https://github.com/coopernetes/jgit-proxy/issues).
+Reference the upstream Node.js implementation at [finos/git-proxy](https://github.com/finos/git-proxy)
+when porting features.

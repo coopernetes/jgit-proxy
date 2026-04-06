@@ -92,7 +92,8 @@ CREATE TABLE IF NOT EXISTS user_scm_identities (
     provider         VARCHAR(100) NOT NULL,
     scm_username     VARCHAR(255) NOT NULL,
     verified         BOOLEAN NOT NULL DEFAULT FALSE,
-    PRIMARY KEY (username, provider, scm_username)
+    PRIMARY KEY (username, provider, scm_username),
+    UNIQUE (provider, scm_username)
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_emails_email ON user_emails(email);

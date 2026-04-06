@@ -299,4 +299,26 @@ class JdbcUserStoreIntegrationTest {
 
         assertTrue(store.findByEmail("alice@example.com").isEmpty());
     }
+
+    // ---- addScmIdentity uniqueness ----
+
+    @Test
+    void addScmIdentity_sameUser_isIdempotent() {
+        store.upsertAll(List.of(user("alice", List.of(), List.of())));
+        store.addScmIdentity("alice", "github", "alice-gh");
+        store.addScmIdentity("alice", "github", "alice-gh"); // must not throw
+
+        assertEquals(
+                "alice", store.findByScmIdentity("github", "alice-gh").get().getUsername());
+    }
+
+    @Test
+    void addScmIdentity_differentUser_throwsConflict() {
+        store.upsertAll(List.of(user("alice", List.of(), List.of()), user("bob", List.of(), List.of())));
+        store.addScmIdentity("alice", "github", "shared-handle");
+
+        var ex = assertThrows(
+                ScmIdentityConflictException.class, () -> store.addScmIdentity("bob", "github", "shared-handle"));
+        assertEquals("alice", ex.getOwner());
+    }
 }
