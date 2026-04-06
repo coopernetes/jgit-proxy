@@ -166,6 +166,15 @@ public class JdbcUserStore implements MutableUserStore {
 
     @Override
     public void addScmIdentity(String username, String provider, String scmUsername) {
+        List<String> existing = jdbc.queryForList(
+                "SELECT username FROM user_scm_identities WHERE provider = :provider AND scm_username = :scmUsername",
+                Map.of("provider", provider, "scmUsername", scmUsername),
+                String.class);
+        if (!existing.isEmpty()) {
+            String owner = existing.get(0);
+            if (owner.equals(username)) return; // already registered to this user — no-op
+            throw new ScmIdentityConflictException(provider, scmUsername, owner);
+        }
         jdbc.update(
                 "INSERT INTO user_scm_identities (username, provider, scm_username) VALUES (:u, :provider, :scmUsername)",
                 Map.of("u", username, "provider", provider, "scmUsername", scmUsername));

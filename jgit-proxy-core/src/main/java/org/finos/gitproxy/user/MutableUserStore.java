@@ -15,7 +15,10 @@ public interface MutableUserStore extends UserStore {
     /** Remove an email address claim for the given user. No-ops silently if not present. */
     void removeEmail(String username, String email);
 
-    /** Add an SCM identity (provider + SCM username) for the given user. No-ops silently if already present. */
+    /**
+     * Add an SCM identity (provider + SCM username) for the given user. No-ops silently if already registered to this
+     * user. Throws {@link ScmIdentityConflictException} if already claimed by a different user.
+     */
     void addScmIdentity(String username, String provider, String scmUsername);
 
     /** Remove an SCM identity for the given user. No-ops silently if not present. */

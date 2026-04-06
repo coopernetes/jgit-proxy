@@ -3,7 +3,9 @@
 Notes on git/JGit behaviour that inform how filters and hooks are written.
 Add a section here when you hit a non-obvious edge case so the next person doesn't have to rediscover it.
 
-For an overview of how jgit-proxy uses JGit's server-side APIs (ReceivePackFactory, hook chain, forwarding, credential flow), see [JGIT_INFRASTRUCTURE.md](JGIT_INFRASTRUCTURE.md).
+For an overview of how jgit-proxy uses JGit's server-side APIs (ReceivePackFactory,
+hook chain, forwarding, credential flow), see
+[JGIT_INFRASTRUCTURE.md](JGIT_INFRASTRUCTURE.md).
 
 ---
 
@@ -17,7 +19,7 @@ Git has two kinds of tags, and they behave very differently at the object level.
 The ref value is the SHA of the commit it points to directly.
 There is no tag object in the object store.
 
-```
+```text
 refs/tags/v1.0 → a3f9c1... (commit)
 ```
 
@@ -25,13 +27,15 @@ refs/tags/v1.0 → a3f9c1... (commit)
 The ref points to the tag object SHA, not the commit SHA.
 The tag object contains metadata (tagger, date, message) and a pointer to the tagged commit.
 
-```
+```text
 refs/tags/v1.0 → b7d2e4... (tag object)
                      └─→ a3f9c1... (commit)
 ```
 
-The key consequence: **`cmd.getNewId()` for an annotated tag push returns the tag object SHA, not a commit SHA.**
-Any code that calls `RevWalk.parseCommit(cmd.getNewId())` directly will throw `IncorrectObjectTypeException` for annotated tags.
+The key consequence: **`cmd.getNewId()` for an annotated tag push returns the tag
+object SHA, not a commit SHA.** Any code that calls
+`RevWalk.parseCommit(cmd.getNewId())` directly will throw
+`IncorrectObjectTypeException` for annotated tags.
 
 ### The `^{commit}` dereference
 
@@ -134,13 +138,13 @@ Gitleaks calls native `git log`, which peels tags natively. No special handling 
 Every `git push` sends one or more **packet lines** before the pack data.
 Each line has the format:
 
-```
+```text
 <oldOid> <newOid> <refName>\0<capabilities>
 ```
 
 | Field | Meaning |
-|-------|---------|
-| `oldOid` | The SHA the client believes the ref currently points to on the remote. All-zeros (`0000…`) for a new ref (branch or tag). |
+| --- | --- |
+| `oldOid` | The SHA the client believes the ref currently points to on the remote. All-zeros (`0000…`) for a new ref. |
 | `newOid` | The SHA the client wants the ref to point to after the push. All-zeros for a **ref deletion**. |
 | `refName` | Full ref path: `refs/heads/main`, `refs/tags/v1.0`, etc. |
 
@@ -155,16 +159,17 @@ or JGit's `ReceiveCommand` carries the same triple (S&F mode).
 The packet line SHAs encode what kind of ref update is happening:
 
 | `oldOid` | `newOid` | `refName` | Meaning |
-|----------|----------|-----------|---------|
-| `000…0` | `abc123` | `refs/heads/feature` | **New branch** — create a branch pointing at `abc123` |
-| `abc123` | `def456` | `refs/heads/feature` | **Branch update** — fast-forward (or force push) from `abc123` to `def456` |
-| `abc123` | `000…0` | `refs/heads/feature` | **Branch deletion** — remove the ref entirely |
-| `000…0` | `abc123` | `refs/tags/v1.0` | **New tag** — see the "Tag objects" section above |
+| --- | --- | --- | --- |
+| `000…0` | `abc123` | `refs/heads/feature` | **New branch** — create pointing at `abc123` |
+| `abc123` | `def456` | `refs/heads/feature` | **Branch update** — FF or force push from `abc123` |
+| `abc123` | `000…0` | `refs/heads/feature` | **Branch deletion** — remove the ref |
+| `000…0` | `abc123` | `refs/tags/v1.0` | **New tag** — see "Tag objects" section |
 
 In S&F mode, JGit's `ReceiveCommand.Type` enum maps these directly: `CREATE`, `UPDATE`,
 `UPDATE_NONFASTFORWARD`, `DELETE`.
 
 In proxy mode, `GitRequestDetails` exposes helper methods:
+
 - `isRefDeletion()` — `commitTo` is all-zeros
 - `isTagPush()` — `branch` starts with `refs/tags/`
 
@@ -194,15 +199,15 @@ branch heads. The result is only the commits that are genuinely new.
 repository, so `getCommitRange()` works against that repo directly.
 
 **Proxy mode**: `EnrichPushCommitsFilter` must first clone/fetch the upstream and
-unpack the push's pack data into the local clone (see "How proxy mode gets a repository"
-below), then `getCommitRange()` can walk the combined object store.
+unpack the push's pack data into the local clone (see "How proxy mode gets a
+repository" below), then `getCommitRange()` can walk the combined object store.
 
 ### Branch updates — the commit range
 
 For an existing branch update (`oldOid` is a real SHA), the commit range is
 straightforward:
 
-```
+```bash
 git log oldOid..newOid
 ```
 
@@ -308,9 +313,9 @@ is unusual, and the shallow clone can be deepened via configuration (`cloneDepth
 Diffs are generated in both modes but through different code paths:
 
 | Mode | Component | When | What |
-|------|-----------|------|------|
-| S&F | `DiffGenerationHook` (order 280) | Pre-receive, after validation hooks pass | Push diff + optional default-branch diff |
-| Proxy | `ScanDiffFilter` (order 300) | In the filter chain, after `EnrichPushCommitsFilter` | Push diff only |
+| --- | --- | --- | --- |
+| S&F | `DiffGenerationHook` (order 280) | Pre-receive, post-validation | Push diff + optional default-branch diff |
+| Proxy | `ScanDiffFilter` (order 300) | After `EnrichPushCommitsFilter` | Push diff only |
 
 Both ultimately call `CommitInspectionService.getFormattedDiff(repo, fromCommit, toCommit)`.
 
@@ -398,6 +403,7 @@ then parses the first object from the pack data manually:
 This is a **best-effort parse of the first object only**. It handles the common case
 (a commit push where the tip commit is the first pack entry) but intentionally does
 not handle:
+
 - Delta objects (`OBJ_OFS_DELTA`, `OBJ_REF_DELTA`) — logged as a warning
 - Tag objects (`OBJ_TAG`, type 4) — throws "No commit object found"
 - Packs where the commit is not the first entry

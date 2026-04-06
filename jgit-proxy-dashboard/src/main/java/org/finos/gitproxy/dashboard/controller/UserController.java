@@ -8,6 +8,7 @@ import org.finos.gitproxy.db.model.PushQuery;
 import org.finos.gitproxy.db.model.PushRecord;
 import org.finos.gitproxy.user.JdbcUserStore;
 import org.finos.gitproxy.user.MutableUserStore;
+import org.finos.gitproxy.user.ScmIdentityConflictException;
 import org.finos.gitproxy.user.UserEntry;
 import org.finos.gitproxy.user.UserStore;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -154,7 +155,11 @@ public class UserController {
         if (userStore.findByUsername(username).isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-        mutable.addScmIdentity(username, req.provider(), req.scmUsername());
+        try {
+            mutable.addScmIdentity(username, req.provider(), req.scmUsername());
+        } catch (ScmIdentityConflictException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
+        }
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(Map.of("provider", req.provider(), "scmUsername", req.scmUsername()));
     }
