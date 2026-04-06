@@ -17,7 +17,7 @@ done
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE="docker compose --profile postgres -f ${REPO_ROOT}/docker-compose.yml -f ${REPO_ROOT}/docker-compose.postgres.yml"
 
-# Credentials set by docker/setup.sh
+# Credentials set by docker/gitea-setup.sh
 ADMIN_USER="gitproxyadmin"
 ADMIN_PASS="Admin1234!"
 TEST_ORG="test-owner"
@@ -47,7 +47,7 @@ echo "==> Starting services..."
 $COMPOSE up -d
 
 echo "==> Running Gitea setup..."
-bash "${REPO_ROOT}/docker/setup.sh"
+bash "${REPO_ROOT}/docker/gitea-setup.sh"
 
 echo "==> Waiting for jgit-proxy to be healthy..."
 for i in $(seq 1 30); do

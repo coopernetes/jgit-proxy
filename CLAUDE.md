@@ -55,7 +55,7 @@ Unit tests live under each module's `src/test/`. E2e tests are in `jgit-proxy-se
 
 ```bash
 docker compose up -d          # jgit-proxy + Gitea (h2-mem database)
-bash docker/setup.sh          # one-time: create admin user + test repo in Gitea
+bash docker/gitea-setup.sh          # one-time: create admin user + test repo in Gitea
 
 # Optional database backends:
 docker compose --profile postgres up -d   # swap git-proxy-local.yml for git-proxy-postgres.yml

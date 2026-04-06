@@ -1,8 +1,8 @@
 # Database overlay — PostgreSQL.
 #
 # Activates the postgres service from docker-compose.yml (--profile postgres) and
-# injects database settings as environment variables so this overlay composes freely
-# with any auth overlay (ldap, oidc, or the default static auth).
+# injects database settings as environment variables.  Composes freely with any auth
+# overlay (ldap, oidc, or the default static auth) — just add both -f flags.
 #
 # Examples:
 #   # Static auth + Postgres
@@ -24,7 +24,6 @@ services:
       GITPROXY_DATABASE_NAME: gitproxy
       GITPROXY_DATABASE_USERNAME: gitproxy
       GITPROXY_DATABASE_PASSWORD: gitproxy
-      GITPROXY_API_KEY: test-api-key
     depends_on:
       postgres:
         condition: service_healthy

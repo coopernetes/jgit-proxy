@@ -1,0 +1,85 @@
+users:
+  - username: admin
+    password-hash: "{noop}admin"
+    emails:
+      - admin@example.com
+
+providers:
+  # Local gitea included in docker compose setup
+  gitea:
+    enabled: true
+    uri: http://gitea:3000
+  # Disable most public providers by default since they require additional setup (access tokens, etc.) and are not
+  # needed for automated testing. Enables github but whitelist only permits fetches from github.com/finos (no push)
+  # for demonstration purposes — adjust as needed for your own testing.
+  github:
+    enabled: true
+  gitlab:
+    enabled: false
+  codeberg:
+    enabled: false
+  bitbucket:
+    enabled: false
+
+commit:
+  author:
+    email:
+      # Domains allowed for commit authors.
+      domain:
+        allow: "(proton\\.me|gmail\\.com|outlook\\.com|yahoo\\.com|example\\.com)$"
+      # Local-parts (before @) that are always blocked regardless of domain.
+      local:
+        block: "^(noreply|no-reply|bot|nobody)$"
+  message:
+    block:
+      # Commit messages containing any of these strings (case-insensitive) are rejected.
+      literals:
+        - "WIP"
+        - "DO NOT MERGE"
+        - "fixup!"
+        - "squash!"
+      # Commit messages matching any of these patterns are rejected.
+      patterns:
+        - '(?i)(password|secret|token)\s*[=:]\s*\S+'
+  diff:
+    block:
+      # Example: block internal hostnames/URLs from leaking into public repos.
+      # This is the intended use case for diff scanning — org-specific patterns.
+      # Secret detection should be handled by gitleaks (secret-scanning below).
+      literals:
+        - "internal.corp.example.com"
+      patterns:
+        - '(?i)https?://[a-z0-9.-]*\.corp\.example\.com\b'
+  # Enables Gitleaks secret scanning. Full configuration reference can be found in the docs:
+  #  docs/CONFIGURATION.md#commit-validation
+  secret-scanning:
+    enabled: true
+
+filters:
+  whitelists:
+    - enabled: true
+      order: 110
+      operations:
+        - FETCH
+        - PUSH
+      providers:
+        - gitea
+      slugs:
+        - test-owner/test-repo
+    - enabled: true
+      order: 111
+      operations:
+        - FETCH
+        - PUSH
+      providers:
+        - gitea
+      owners:
+        - otherorg
+    - enabled: true
+      order: 120
+      operations:
+        - FETCH
+      providers:
+        - github
+      owners:
+        - finos

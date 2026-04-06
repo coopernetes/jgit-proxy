@@ -13,7 +13,7 @@ import lombok.Data;
 public class CommitSettings {
 
     /**
-     * Controls whether commit author/committer emails are verified against the authenticated push user. Options:
+     * Controls whether SCM usernames & author/committer emails are verified against an authenticated user. Options:
      * {@code warn} (default), {@code strict}, {@code off}.
      */
     private String identityVerification = "warn";

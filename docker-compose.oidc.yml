@@ -14,7 +14,7 @@
 #
 # Start the full stack with OIDC auth:
 #   docker compose -f docker-compose.yml -f docker-compose.oidc.yml up -d
-#   bash docker/setup.sh    # (first time only — creates Gitea admin + test repo)
+#   bash docker/gitea-setup.sh    # (first time only — creates Gitea admin + test repo)
 #
 # Open http://localhost:8080 — log in with any username (no password).
 
@@ -39,7 +39,9 @@ services:
 
   jgit-proxy:
     volumes:
-      - ./docker/git-proxy-oidc.yml:/app/conf/git-proxy-local.yml:ro
+      - ./docker/git-proxy-oidc.yml:/app/conf/git-proxy-oidc.yml:ro
+    environment:
+      GITPROXY_CONFIG_PROFILES: docker-default,oidc
     depends_on:
       mock-oauth2:
         condition: service_healthy

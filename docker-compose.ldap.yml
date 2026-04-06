@@ -2,7 +2,7 @@
 #
 # Start the full stack with LDAP auth:
 #   docker compose -f docker-compose.yml -f docker-compose.ldap.yml up -d
-#   bash docker/setup.sh    # (first time only — creates Gitea admin + test repo)
+#   bash docker/gitea-setup.sh    # (first time only — creates Gitea admin + test repo)
 #
 # Log in at http://localhost:8080 with:
 #   username: testuser      password: testpass123
@@ -34,7 +34,9 @@ services:
 
   jgit-proxy:
     volumes:
-      - ./docker/git-proxy-ldap.yml:/app/conf/git-proxy-local.yml:ro
+      - ./docker/git-proxy-ldap.yml:/app/conf/git-proxy-ldap.yml:ro
+    environment:
+      GITPROXY_CONFIG_PROFILES: docker-default,ldap
     depends_on:
       openldap:
         condition: service_healthy

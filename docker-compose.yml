@@ -6,15 +6,13 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      # Mount the provider + database config for this Compose setup.
-      # Swap for docker/git-proxy-postgres.yml or docker/git-proxy-mongo.yml
-      # when starting with the postgres or mongo profiles (see below).
-      - ./docker/git-proxy-local.yml:/app/conf/git-proxy-local.yml:ro
+      - ./docker/git-proxy-docker-default.yml:/app/conf/git-proxy-docker-default.yml:ro
     depends_on:
       gitea:
         condition: service_healthy
     environment:
       GITPROXY_API_KEY: "change-me-in-production"
+      GITPROXY_CONFIG_PROFILES: docker-default
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/login.html || exit 1"]
       interval: 10s

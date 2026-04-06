@@ -3,8 +3,8 @@
 # Run this ONCE after: docker compose up -d
 #
 # Usage:
-#   bash docker/setup.sh                     # Docker Compose v2
-#   COMPOSE="podman-compose" bash docker/setup.sh
+#   bash docker/gitea-setup.sh                     # Docker Compose v2
+#   COMPOSE="podman-compose" bash docker/gitea-setup.sh
 set -euo pipefail
 
 COMPOSE="${COMPOSE:-docker compose}"
@@ -17,6 +17,9 @@ TEST_PASSWORD="Test1234!"
 TEST_EMAIL="testuser@example.com"
 TEST_ORG="test-owner"
 TEST_REPO="test-repo"
+TEST_ORG2="otherorg"
+TEST_REPO2="other-foo"
+TEST_REPO3="other-bar"
 
 echo "==> Waiting for Gitea to be ready..."
 until curl -sf "${GITEA_URL}/api/healthz" -o /dev/null 2>&1; do
@@ -51,17 +54,35 @@ if [ -z "${_token}" ]; then
     exit 1
 fi
 
-echo "==> Creating organisation '${TEST_ORG}'..."
+echo "==> Creating organisations ('${TEST_ORG}')..."
 curl -sf -X POST "${GITEA_URL}/api/v1/orgs" \
     -u "${ADMIN_USER}:${ADMIN_PASSWORD}" \
     -H "Content-Type: application/json" \
     -d "{\"username\":\"${TEST_ORG}\",\"visibility\":\"public\"}" > /dev/null || true
 
-echo "==> Creating repository '${TEST_ORG}/${TEST_REPO}'..."
+echo "==>                        ('${TEST_ORG2}')..."
+curl -sf -X POST "${GITEA_URL}/api/v1/orgs" \
+    -u "${ADMIN_USER}:${ADMIN_PASSWORD}" \
+    -H "Content-Type: application/json" \
+    -d "{\"username\":\"${TEST_ORG2}\",\"visibility\":\"public\"}" > /dev/null || true
+
+echo "==> Creating repositories ('${TEST_ORG}/${TEST_REPO}')..."
 curl -sf -X POST "${GITEA_URL}/api/v1/orgs/${TEST_ORG}/repos" \
     -u "${ADMIN_USER}:${ADMIN_PASSWORD}" \
     -H "Content-Type: application/json" \
     -d "{\"name\":\"${TEST_REPO}\",\"private\":false,\"auto_init\":true,\"default_branch\":\"main\"}" > /dev/null || true
+
+echo "==>                       ('${TEST_ORG2}/${TEST_REPO2}')..."
+curl -sf -X POST "${GITEA_URL}/api/v1/orgs/${TEST_ORG2}/repos" \
+    -u "${ADMIN_USER}:${ADMIN_PASSWORD}" \
+    -H "Content-Type: application/json" \
+    -d "{\"name\":\"${TEST_REPO2}\",\"private\":false,\"auto_init\":true,\"default_branch\":\"main\"}" > /dev/null || true
+
+echo "==>                       ('${TEST_ORG2}/${TEST_REPO3}')..."
+curl -sf -X POST "${GITEA_URL}/api/v1/orgs/${TEST_ORG2}/repos" \
+    -u "${ADMIN_USER}:${ADMIN_PASSWORD}" \
+    -H "Content-Type: application/json" \
+    -d "{\"name\":\"${TEST_REPO3}\",\"private\":false,\"auto_init\":true,\"default_branch\":\"main\"}" > /dev/null || true
 
 echo ""
 echo "==> Setup complete!"

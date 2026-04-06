@@ -1,15 +1,61 @@
 # Configuration Reference
 
-jgit-proxy uses YAML configuration with optional local overrides and environment variable support.
+jgit-proxy uses layered YAML configuration merged at startup. A base file ships with the jar; additional profile files and environment variable overrides are applied on top in a defined order.
 
-## Configuration files
+## Configuration files and profiles
 
-| File | Purpose | Loaded from |
-|------|---------|-------------|
-| `git-proxy.yml` | Base defaults shipped with the jar | classpath |
-| `git-proxy-local.yml` | Local/deployment overrides | classpath (optional) |
+### Load order (lowest → highest priority)
 
-Files are merged in order — `git-proxy-local.yml` values take priority over `git-proxy.yml`. Missing keys fall back to defaults. A select set of values can also be overridden via environment variables (highest priority of all).
+| Layer | Source | When loaded |
+|-------|--------|-------------|
+| 1 | `git-proxy.yml` | Always — base defaults bundled in the jar |
+| 2 | `git-proxy-{profile}.yml` | For each profile listed in `GITPROXY_CONFIG_PROFILES` |
+| 3 | Environment variables (`GITPROXY_*`) | Always — highest priority |
+
+### `GITPROXY_CONFIG_PROFILES`
+
+Set this environment variable to a comma-separated list of profile names. For each name, jgit-proxy looks for `git-proxy-{name}.yml` on the classpath (including any files mounted into `/app/conf/` in Docker). Unknown or missing profile files are silently skipped.
+
+```bash
+# Local development — loads git-proxy-local.yml
+GITPROXY_CONFIG_PROFILES=local
+
+# Docker with LDAP auth — loads git-proxy-docker-default.yml then git-proxy-ldap.yml
+GITPROXY_CONFIG_PROFILES=docker-default,ldap
+
+# Docker with OIDC auth and PostgreSQL
+GITPROXY_CONFIG_PROFILES=docker-default,oidc
+# (postgres settings come from GITPROXY_DATABASE_* env vars, no profile file needed)
+```
+
+Later profiles take priority over earlier ones. All profiles take priority over `git-proxy.yml`. Environment variables override everything.
+
+### Bundled profiles
+
+| Profile name | File | Purpose |
+|---|---|---|
+| `local` | `git-proxy-local.yml` | Local development: dev users, Vite CORS, test whitelists |
+| `docker-default` | `git-proxy-docker-default.yml` | Docker base: admin user, Gitea provider, validation rules |
+| `ldap` | `git-proxy-ldap.yml` | LDAP authentication config (used with `docker-default`) |
+| `oidc` | `git-proxy-oidc.yml` | OIDC authentication config (used with `docker-default`) |
+
+> When running via `./gradlew run`, `GITPROXY_CONFIG_PROFILES=local` is set automatically. In Docker, set it explicitly via the Compose file or your deployment config.
+
+### Docker Compose
+
+The Docker Compose setup uses overlay files to compose the stack. See [docker-compose.ldap.yml](../docker-compose.ldap.yml) and [docker-compose.oidc.yml](../docker-compose.oidc.yml) for examples of how profiles are combined.
+
+```bash
+# Default (static auth, h2 database)
+docker compose up -d
+
+# LDAP auth
+docker compose -f docker-compose.yml -f docker-compose.ldap.yml up -d
+
+# OIDC auth + PostgreSQL
+docker compose --profile postgres \
+  -f docker-compose.yml -f docker-compose.oidc.yml -f docker-compose.postgres.yml up -d
+```
 
 ## Environment variable overrides
 
@@ -17,6 +63,7 @@ Strip the `GITPROXY_` prefix, lowercase, and replace `_` with `.` to get the con
 
 | Environment Variable | Config path | Example |
 |---|---|---|
+| `GITPROXY_CONFIG_PROFILES` | _(meta — not a config key)_ | `docker-default,ldap` |
 | `GITPROXY_SERVER_PORT` | `server.port` | `9090` |
 | `GITPROXY_SERVER_APPROVAL_MODE` | `server.approvalMode` | `ui` |
 | `GITPROXY_DATABASE_TYPE` | `database.type` | `postgres` |
@@ -24,7 +71,7 @@ Strip the `GITPROXY_` prefix, lowercase, and replace `_` with `.` to get the con
 | `GITPROXY_PROVIDERS_GITHUB_ENABLED` | `providers.github.enabled` | `false` |
 | `GITPROXY_PROVIDERS_<NAME>_URI` | `providers.<name>.uri` | `https://gitlab.corp.com` |
 
-> Complex nested structures (whitelists, full commit validation blocks) are not overridable via env vars. Use YAML files instead.
+> Complex nested structures (whitelists, full commit validation blocks) are not overridable via env vars. Use YAML profile files instead.
 
 ## Server settings
 
@@ -192,6 +239,63 @@ commit:
       # scanner-path: /usr/local/bin/gitleaks
       # config-file: /app/conf/.gitleaks.toml
       # timeout-seconds: 30
+```
+
+## Identity verification
+
+```yaml
+commit:
+  identity-verification: warn  # warn | strict | off
+```
+
+For every push, the proxy runs two independent checks:
+
+1. **SCM login check** — calls the upstream provider's user API with the token supplied in the git credentials (the HTTP Basic-auth password). The returned login (e.g. GitHub `login`, GitLab `username`) is matched against the authenticated jgit-proxy user's `scm-identities`. This is the only identity signal the SCM can reliably provide — email is not used here (GitHub omits it when private email visibility is enabled; other providers vary).
+
+2. **Commit email check** — every author and committer email in the pushed commits is checked against the authenticated jgit-proxy user's `emails` list. These emails are populated independently of the SCM: they come from the IdP on LDAP/OIDC login, or from additional associations added via the dashboard. This is what ties commit attribution back to a verified real person.
+
+Both checks must pass in `strict` mode. This catches a developer whose git client is misconfigured (`user.email` doesn't match their registered address) and — more critically — commits attributed to someone other than the person who actually pushed.
+
+> **The HTTP Basic-auth username in the remote URL is not used for identity resolution.** It is ignored by all providers (except Bitbucket). Configure your remote URL with any username — `git`, `me`, your actual name — it makes no difference.
+
+### Modes
+
+| Mode | Behaviour | Use when |
+|------|-----------|----------|
+| `strict` | Blocks the push if the SCM username or any commit email cannot be matched to the authenticated jgit-proxy user | Production — this is the only mode that actually enforces identity |
+| `warn` | Allows the push through but emits a sideband warning to the git client and records the mismatch | Rolling out to an existing team — lets you observe mismatches before enforcing |
+| `off` | Check is disabled entirely | Migrations or environments where SCM identity data is not yet populated |
+
+> **`warn` is not a security control.** Pushes succeed regardless of the outcome. Only `strict` blocks unverified pushes. The default is `warn` to avoid breaking existing deployments on first install — but `strict` should be the target for any production deployment once users have registered their SCM identities.
+
+### Token scope requirements
+
+Identity resolution calls `GET /user` (or equivalent) on the upstream SCM using the pusher's token. The token must carry at least the following scope:
+
+| Provider | API endpoint | Required scope | Notes |
+|----------|-------------|----------------|-------|
+| GitHub | `GET https://api.github.com/user` | `read:user` (classic PAT) | Fine-grained PATs are not supported — they lack cross-owner permissions needed for fork-based workflows. GitHub may return an empty email if the user has enabled private email visibility. |
+| GitLab | `GET {uri}/api/v4/user` | `read_user` or `api` | Returns the primary email regardless of profile visibility settings. |
+| Codeberg | `GET https://codeberg.org/api/v1/user` | `read:user` | Forgejo-compatible API. |
+| Gitea | `GET https://gitea.com/api/v1/user` | `read:user` | Forgejo-compatible API. Same applies to self-hosted Gitea/Forgejo instances. |
+
+If the token is missing the required scope, `fetchScmIdentity` returns empty and the push is treated as unresolved — which is a warning in `warn` mode and a block in `strict` mode.
+
+### Prerequisites
+
+Identity verification requires user records with populated `scm-identities` and `emails`. A push from a user with no registered SCM identity always fails in `strict` mode. Use `warn` during rollout to give users time to register before enforcement begins.
+
+```yaml
+users:
+  - username: alice
+    password-hash: "{bcrypt}$2a$12$..."
+    emails:
+      - alice@example.com
+    scm-identities:
+      - provider: github
+        username: alice-gh
+      - provider: gitlab
+        username: alice
 ```
 
 ## Whitelist filters

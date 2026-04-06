@@ -21,7 +21,6 @@ services:
       GITPROXY_DATABASE_TYPE: mongo
       GITPROXY_DATABASE_URL: mongodb://gitproxy:gitproxy@mongo:27017
       GITPROXY_DATABASE_NAME: gitproxy
-      GITPROXY_API_KEY: test-api-key
     depends_on:
       mongo:
         condition: service_healthy

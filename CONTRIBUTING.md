@@ -198,7 +198,7 @@ docker compose [--profile <db>] \
 After starting any stack, run this once to create the Gitea admin user and test repository:
 
 ```shell
-bash docker/setup.sh
+bash docker/gitea-setup.sh
 ```
 
 ### Common stacks
@@ -278,7 +278,7 @@ Open `http://localhost:8080` and log in with any username.
 
 ### Proxy URLs
 
-After `docker/setup.sh`, the test repository is reachable at:
+After `docker/gitea-setup.sh`, the test repository is reachable at:
 
 ```
 http://localhost:8080/push/gitea/test-owner/test-repo.git

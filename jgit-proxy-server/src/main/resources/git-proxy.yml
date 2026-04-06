@@ -26,8 +26,7 @@ database:
   type: h2-file
 
 # The below is a minimal configuration needed for the app to start and is the default shipped with the jar.
-# By default, the app supports proxying to GitHub, GitLab, and Bitbucket. Users should override this configuration
-# to suit their needs.
+# By default, the app supports proxying to GitHub, GitLab, Codeberg & Gitea.
 providers:
   github:
     enabled: true
@@ -41,7 +40,7 @@ providers:
 #    enabled: true
 #  internal-gitlab:
 #    enabled: true
-#    type: github
+#    type: gitlab
 #    servlet-path: /enterprise
 #    uri: https://gitlab.internal.example.com
 #  debian-gitlab:
@@ -62,25 +61,29 @@ commit:
         block: "^(noreply|no-reply|bot|nobody)$"
   message:
     block:
-      literals:
-        - "WIP"
-        - "DO NOT MERGE"
-        - "fixup!"
-        - "squash!"
-      patterns:
-        - '(?i)(password|secret|token)\s*[=:]\s*\S+'
+      # Block commit messages containing any of these strings (case-insensitive).
+      literals: []
+#        - "WIP"
+      # Block commit messages matching any of these regex patterns.
+      patterns: []
+#        - '(?i)(password|secret|token)\s*[=:]\s*\S+'
   diff:
     block:
       # Literals and patterns scanned against added lines (+) in the push diff.
       # Add entries here to block secrets, internal hostnames, etc. from being pushed.
       literals: []
+#        - "internal.corp.example.com"
       patterns: []
+#        - '(?i)https?://[a-z0-9.-]*\.corp\.example\.com\b'
 
-  # Verify that commit author/committer emails are registered to the authenticated push user.
-  # Options:
-  #   warn   — warn the pusher but allow the push through (default; safe to enable on existing deployments)
-  #   strict — block the push entirely if any commit email is not registered to the push user
-  #   off    — disable the check
+  # Resolves the pusher's real SCM identity by calling the upstream provider's user API with the
+  # supplied token, then cross-checks the returned username and all commit author/committer emails
+  # against the authenticated jgit-proxy user's scm-identities and emails.
+  #   warn   — allow the push but emit a sideband warning (default; safe starting point)
+  #   strict — block the push if identity cannot be verified (use this in production)
+  #   off    — disable the check entirely
+  # NOTE: 'warn' is not a security control — pushes succeed regardless of outcome.
+  # See docs/CONFIGURATION.md#identity-verification for token scope requirements and rollout guidance.
   # identity-verification: warn
 
   # Secret scanning via gitleaks (https://github.com/gitleaks/gitleaks).
