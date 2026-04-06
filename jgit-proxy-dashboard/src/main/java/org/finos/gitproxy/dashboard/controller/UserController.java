@@ -6,7 +6,6 @@ import java.util.stream.Collectors;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.db.model.PushQuery;
 import org.finos.gitproxy.db.model.PushRecord;
-import org.finos.gitproxy.user.JdbcUserStore;
 import org.finos.gitproxy.user.MutableUserStore;
 import org.finos.gitproxy.user.ScmIdentityConflictException;
 import org.finos.gitproxy.user.UserEntry;
@@ -48,7 +47,7 @@ public class UserController {
     /** Create a new local user. Requires ROLE_ADMIN. */
     @PostMapping
     public ResponseEntity<?> create(@RequestBody CreateUserRequest req) {
-        if (!(userStore instanceof JdbcUserStore jdbc)) {
+        if (!(userStore instanceof MutableUserStore jdbc)) {
             return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED)
                     .body(Map.of("error", "User creation requires a JDBC user store"));
         }
@@ -74,7 +73,7 @@ public class UserController {
     /** Delete a user. Requires ROLE_ADMIN. */
     @DeleteMapping("/{username}")
     public ResponseEntity<?> delete(@PathVariable String username) {
-        if (!(userStore instanceof JdbcUserStore jdbc)) {
+        if (!(userStore instanceof MutableUserStore jdbc)) {
             return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED)
                     .body(Map.of("error", "User deletion requires a JDBC user store"));
         }
@@ -89,7 +88,7 @@ public class UserController {
     /** Reset a user's password. Requires ROLE_ADMIN. */
     @PostMapping("/{username}/reset-password")
     public ResponseEntity<?> resetPassword(@PathVariable String username, @RequestBody ResetPasswordRequest req) {
-        if (!(userStore instanceof JdbcUserStore jdbc)) {
+        if (!(userStore instanceof MutableUserStore jdbc)) {
             return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED)
                     .body(Map.of("error", "Password reset requires a JDBC user store"));
         }
@@ -194,7 +193,7 @@ public class UserController {
         List<Map<String, Object>> emails;
         List<Map<String, Object>> scmIdentities;
 
-        if (userStore instanceof JdbcUserStore jdbc) {
+        if (userStore instanceof MutableUserStore jdbc) {
             emails = jdbc.findEmailsWithVerified(u.getUsername());
             scmIdentities = jdbc.findScmIdentitiesWithVerified(u.getUsername()).stream()
                     .filter(id -> !"proxy".equals(id.get("provider")))

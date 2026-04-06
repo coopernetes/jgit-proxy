@@ -37,6 +37,7 @@ import org.finos.gitproxy.service.TokenPushIdentityResolver;
 import org.finos.gitproxy.service.UserAuthorizationService;
 import org.finos.gitproxy.servlet.filter.AuthorizedByUrlFilter;
 import org.finos.gitproxy.servlet.filter.WhitelistByUrlFilter;
+import org.finos.gitproxy.user.CompositeUserStore;
 import org.finos.gitproxy.user.JdbcUserStore;
 import org.finos.gitproxy.user.ScmIdentity;
 import org.finos.gitproxy.user.StaticUserStore;
@@ -373,10 +374,10 @@ public class JettyConfigurationBuilder {
             log.info("Using in-memory user store ({} users)", staticUsers.size());
             return new StaticUserStore(staticUsers);
         }
-        JdbcUserStore store = new JdbcUserStore(requireJdbcDataSource());
-        store.upsertAll(staticUsers);
-        log.info("Using JDBC user store ({} users seeded)", staticUsers.size());
-        return store;
+        var jdbcStore = new JdbcUserStore(requireJdbcDataSource());
+        var configStore = new StaticUserStore(staticUsers);
+        log.info("Using composite user store ({} config users + JDBC)", staticUsers.size());
+        return new CompositeUserStore(configStore, jdbcStore);
     }
 
     /**

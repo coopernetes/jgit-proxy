@@ -27,7 +27,7 @@ import org.finos.gitproxy.jetty.config.AuthConfig;
 import org.finos.gitproxy.jetty.config.GitProxyConfig;
 import org.finos.gitproxy.jetty.config.LdapAuthConfig;
 import org.finos.gitproxy.jetty.config.OidcAuthConfig;
-import org.finos.gitproxy.user.JdbcUserStore;
+import org.finos.gitproxy.user.MutableUserStore;
 import org.finos.gitproxy.user.UserStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -345,7 +345,7 @@ public class SecurityConfig {
     }
 
     private void provisionIdpUser(Authentication auth) {
-        if (!(userStore instanceof JdbcUserStore jdbc)) return;
+        if (!(userStore instanceof MutableUserStore jdbc)) return;
 
         String username = auth.getName();
         String email = null;

@@ -60,6 +60,18 @@ tasks.register('npmFormat', NpmTask) {
     inputs.file('frontend/package.json')
 }
 
+tasks.register('prettierDocs', NpxTask) {
+    group = 'formatting'
+    description = 'Runs Prettier on all Markdown files in the repository'
+    dependsOn tasks.named('npmCi')
+    command = 'prettier'
+    args = ['--write', '**/*.md']
+    workingDir = rootProject.projectDir
+    inputs.files(rootProject.fileTree('.') { include '**/*.md'; exclude '**/node_modules/**', '**/.gradle/**', '**/build/**' })
+    inputs.file(rootProject.file('.prettierrc'))
+    inputs.file(rootProject.file('.prettierignore'))
+}
+
 tasks.register('npmBuild', NpmTask) {
     group = 'build'
     description = 'Builds the React frontend with Vite'

@@ -1,0 +1,8 @@
+default: true
+
+MD013:
+  line_length: 120
+  tables: false
+
+# Badge/shield images before the heading is standard for READMEs
+MD041: false
