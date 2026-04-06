@@ -119,6 +119,8 @@ public class PushController {
                         return ResponseEntity.badRequest()
                                 .body(Map.of("error", "Push is not in BLOCKED status: " + record.getStatus()));
                     }
+                    ResponseEntity<?> identityError = checkReviewerIdentity(record);
+                    if (identityError != null) return identityError;
                     var attestation = Attestation.builder()
                             .pushId(id)
                             .type(Attestation.Type.APPROVAL)
@@ -146,6 +148,8 @@ public class PushController {
                         return ResponseEntity.badRequest()
                                 .body(Map.of("error", "Push is not in BLOCKED status: " + record.getStatus()));
                     }
+                    ResponseEntity<?> identityError = checkReviewerIdentity(record);
+                    if (identityError != null) return identityError;
                     var attestation = Attestation.builder()
                             .pushId(id)
                             .type(Attestation.Type.REJECTION)
@@ -157,6 +161,33 @@ public class PushController {
                     return ResponseEntity.ok(updated);
                 })
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Validates that the current session user may review the given push record:
+     *
+     * <ol>
+     *   <li>The pusher must have been resolved to a proxy user — if not, we cannot guarantee no self-approval.
+     *   <li>The reviewer must not be the same proxy user as the pusher.
+     * </ol>
+     *
+     * @return a 403 response if the check fails, {@code null} if the reviewer is permitted to proceed
+     */
+    private ResponseEntity<?> checkReviewerIdentity(PushRecord record) {
+        String pusherProxyUser = record.getResolvedUser();
+        if (pusherProxyUser == null) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(
+                            Map.of(
+                                    "error",
+                                    "Pusher identity has not been resolved to a proxy user; approval requires verified identity"));
+        }
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String reviewer = auth != null ? auth.getName() : null;
+        if (pusherProxyUser.equals(reviewer)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Self-approval is not permitted"));
+        }
+        return null;
     }
 
     /** Cancel a push. Body: { "reviewerUsername": "..." } */

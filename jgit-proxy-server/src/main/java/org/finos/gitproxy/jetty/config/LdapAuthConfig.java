@@ -26,4 +26,16 @@ public class LdapAuthConfig {
 
     /** Password for the manager DN. Ignored when {@code managerDn} is blank. */
     private String managerPassword = "";
+
+    /**
+     * Base DN for group search, relative to the base DN in {@code url}. When set, group membership is used to derive
+     * roles via {@code auth.role-mappings}. Example: {@code ou=groups}.
+     */
+    private String groupSearchBase = "";
+
+    /**
+     * LDAP filter for group membership. {@code {0}} is substituted with the user's full DN. Defaults to the standard
+     * member-attribute filter.
+     */
+    private String groupSearchFilter = "(member={0})";
 }
