@@ -11,7 +11,8 @@
 set -euo pipefail
 
 GIT_USERNAME=${GIT_USERNAME:-"me"}
-GIT_PASSWORD=${GIT_PASSWORD:-"$(cat ~/.codeberg-pat)"}
+source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
+resolve_pat ~/.codeberg-pat
 GIT_REPO=${GIT_REPO:-"codeberg.org/coopernetes/test-repo-codeberg.git"}
 GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-"Thomas Cooper"}
 GIT_EMAIL=${GIT_EMAIL:-"unregistered@example.com"}

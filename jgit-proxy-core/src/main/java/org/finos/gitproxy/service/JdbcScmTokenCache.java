@@ -58,6 +58,22 @@ public class JdbcScmTokenCache {
      * @param tokenHash SHA-512 hex digest of {@code provider:token}
      * @param proxyUsername the resolved proxy username to cache
      */
+    /**
+     * Evicts all cache entries for the given proxy username and provider. Call this whenever an SCM identity is added
+     * or removed so that stale token→user mappings are not served from cache.
+     *
+     * @param provider the provider name
+     * @param proxyUsername the proxy username whose cache entries should be removed
+     */
+    public void evictByUsername(String provider, String proxyUsername) {
+        int deleted = jdbc.update(
+                "DELETE FROM scm_token_cache WHERE provider = :provider AND proxy_username = :username",
+                Map.of("provider", provider, "username", proxyUsername));
+        if (deleted > 0) {
+            log.debug("SCM token cache evicted: provider={}, user={}, entries={}", provider, proxyUsername, deleted);
+        }
+    }
+
     public void store(String provider, String tokenHash, String proxyUsername) {
         jdbc.update(
                 "DELETE FROM scm_token_cache WHERE token_hash = :hash AND provider = :provider",

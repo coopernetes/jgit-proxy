@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import javax.sql.DataSource;
+import org.finos.gitproxy.service.JdbcScmTokenCache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -21,9 +22,11 @@ public class JdbcUserStore implements MutableUserStore {
     private static final Logger log = LoggerFactory.getLogger(JdbcUserStore.class);
 
     private final NamedParameterJdbcTemplate jdbc;
+    private final JdbcScmTokenCache tokenCache;
 
-    public JdbcUserStore(DataSource dataSource) {
+    public JdbcUserStore(DataSource dataSource, JdbcScmTokenCache tokenCache) {
         this.jdbc = new NamedParameterJdbcTemplate(dataSource);
+        this.tokenCache = tokenCache;
     }
 
     /**
@@ -137,7 +140,8 @@ public class JdbcUserStore implements MutableUserStore {
                 .<Map<String, Object>>map(row -> Map.of(
                         "provider", row.get("provider"),
                         "username", row.get("scm_username"),
-                        "verified", Boolean.TRUE.equals(row.get("verified"))))
+                        "verified", Boolean.TRUE.equals(row.get("verified")),
+                        "source", "local"))
                 .toList();
     }
 
@@ -179,6 +183,7 @@ public class JdbcUserStore implements MutableUserStore {
                 "INSERT INTO user_scm_identities (username, provider, scm_username) VALUES (:u, :provider, :scmUsername)",
                 Map.of("u", username, "provider", provider, "scmUsername", scmUsername));
         log.debug("Added SCM identity '{}/{}' for user '{}'", provider, scmUsername, username);
+        tokenCache.evictByUsername(provider, username);
     }
 
     @Override
@@ -187,6 +192,7 @@ public class JdbcUserStore implements MutableUserStore {
                 "DELETE FROM user_scm_identities WHERE username = :u AND provider = :provider AND scm_username = :scmUsername",
                 Map.of("u", username, "provider", provider, "scmUsername", scmUsername));
         log.debug("Removed SCM identity '{}/{}' for user '{}'", provider, scmUsername, username);
+        tokenCache.evictByUsername(provider, username);
     }
 
     /**

@@ -84,7 +84,7 @@ for script in "${REPO_ROOT}"/test/*.sh; do
     if [[ "$name" == *${SKIP_PATTERN}* ]]; then
         echo ""
         echo "  SKIP: $name  (S&F pass scripts require non-dashboard server)"
-        ((SKIPPED++))
+        ((++SKIPPED))
         continue
     fi
 
@@ -94,10 +94,10 @@ for script in "${REPO_ROOT}"/test/*.sh; do
     echo "--------------------------------------------------------"
     if bash "$script"; then
         echo ">>> PASSED: $name"
-        ((PASS++))
+        ((++PASS))
     else
         echo ">>> FAILED: $name"
-        ((FAIL++))
+        ((++FAIL))
     fi
 done
 

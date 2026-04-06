@@ -7,9 +7,13 @@
 #      error, NOT "fatal: invalid ls-refs response"
 #
 # Configure WHITELISTED_GIT_REPO and BLOCKED_GIT_REPO to match your whitelist config.
-set -uo pipefail
+set -euo pipefail
 
 GIT_USERNAME=${GIT_USERNAME:-"me"}
+source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
+resolve_pat ~/.github-pat
+
+
 # Must be present in filters.whitelists with operation FETCH
 WHITELISTED_GIT_REPO=${WHITELISTED_GIT_REPO:-"github.com/finos/git-proxy.git"}
 # Must NOT be in any whitelist entry
@@ -42,10 +46,10 @@ clone_exit=0
 git clone --depth 1 "${WHITELISTED_URL}" "${CURRENT_REPO}" 2>&1 || clone_exit=$?
 if [[ ${clone_exit} -eq 0 ]]; then
     echo ">>> PASS: fetch from whitelisted repo: PASSED"
-    ((PASS++))
+    ((++PASS))
 else
     echo ">>> PASS: fetch from whitelisted repo: FAILED (clone should have succeeded, exit=${clone_exit})"
-    ((FAIL++))
+    ((++FAIL))
 fi
 rm -rf "${CURRENT_REPO}"
 CURRENT_REPO=""
@@ -63,13 +67,13 @@ clone_output=$(git clone --depth 1 "${BLOCKED_URL}" "${CURRENT_REPO}" 2>&1) || c
 echo "${clone_output}"
 if [[ ${clone_exit} -eq 0 ]]; then
     echo ">>> FAIL: fetch from non-whitelisted repo: FAILED (clone should have been rejected)"
-    ((FAIL++))
+    ((++FAIL))
 elif echo "${clone_output}" | grep -q "invalid ls-refs\|invalid.*response"; then
     echo ">>> FAIL: fetch from non-whitelisted repo: FAILED (rejected but with malformed error — sideband/content-type bug)"
-    ((FAIL++))
+    ((++FAIL))
 else
     echo ">>> FAIL: fetch from non-whitelisted repo: PASSED (correctly rejected with clean error)"
-    ((PASS++))
+    ((++PASS))
 fi
 rm -rf "${CURRENT_REPO}"
 CURRENT_REPO=""

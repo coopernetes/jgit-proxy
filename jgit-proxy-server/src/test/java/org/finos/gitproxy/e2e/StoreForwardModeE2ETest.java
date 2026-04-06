@@ -226,8 +226,8 @@ class StoreForwardModeE2ETest {
     void resolvedUser_isPopulatedOnPushRecord() throws Exception {
         // This test validates that when a push is made by a user with a registered SCM identity
         // (configured in git-proxy-local.yml), the push record's resolvedUser field is populated.
-        // Requires: dev-full user with dev-full-gh SCM identity for the test provider.
-        // Expected: resolvedUser == "dev-full" on the persisted push record.
+        // Requires: dev1 user with dev1-gh SCM identity for the test provider.
+        // Expected: resolvedUser == "dev1" on the persisted push record.
         assertTrue(
                 cloneCommitPush(
                         "sf-identity-resolved", GiteaContainer.VALID_AUTHOR_EMAIL, "feat: test identity resolution"),

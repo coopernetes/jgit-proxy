@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run all transparent-proxy tests that should succeed (require manual approval)
 # Each script is independent — failure of one does not stop the others
-set -uo pipefail
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PASS=0
@@ -14,10 +14,10 @@ run() {
     echo "━━━ ${name} ━━━"
     if bash "${script}"; then
         echo "✓ ${name}"
-        ((PASS++))
+        ((++PASS))
     else
         echo "✗ ${name}"
-        ((FAIL++))
+        ((++FAIL))
     fi
 }
 

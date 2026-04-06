@@ -18,36 +18,34 @@ users:
     emails:
       - developer@example.com
     scm-identities:
-      - provider: github
-        username: coopernetes
       - provider: gitlab
         username: coopernetes
       # codeberg intentionally omitted — used to test unresolved identity scenario
 
-  - username: dev-full
+  - username: dev1
     password-hash: "{noop}password"
     emails:
-      - dev-full@example.com
+      - dev1@example.com
     push-usernames:
-      - dev-full
+      - dev1
     scm-identities:
       - provider: github
-        username: dev-full-gh
+        username: coopernetes
 
-  - username: dev-no-scm
+  - username: dev2
     password-hash: "{noop}password"
     emails:
-      - dev-no-scm@example.com
+      - dev2@example.com
     push-usernames:
-      - dev-no-scm
+      - dev2
 
-  - username: dev-no-email
+  - username: dev3
     password-hash: "{noop}password"
     push-usernames:
-      - dev-no-email
+      - dev3
     scm-identities:
       - provider: github
-        username: dev-no-email-gh
+        username: dev3-gh
 commit:
   author:
     email:

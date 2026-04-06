@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Test script: author email validation failures via transparent proxy
 # Uses the proxy path (/proxy/...) which runs the servlet filter chain
-set -uo pipefail
+set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
@@ -41,7 +41,7 @@ print_header "PROXY: AUTHOR EMAIL VALIDATION FAILURES" "${PROXY_URL}"
 run_test() {
     local test_name="$1"
     shift
-    branch=$(setup_repo "${PROXY_URL}" "author")
+    setup_repo "${PROXY_URL}" "author"
     "$@"
     run_test_expect_failure "${test_name}"
 }

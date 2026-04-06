@@ -448,8 +448,9 @@ function OverviewTab({
                   </span>
                   <span className="text-gray-800">{id.username}</span>
                   {id.verified && <VerifiedBadge />}
+                  {id.source === 'config' && <LockedBadge source="config" />}
                 </span>
-                {isLocalAuth && (
+                {isLocalAuth && id.source !== 'config' && (
                   <button
                     onClick={() => handleRemoveScm(id.provider, id.username)}
                     disabled={deletingScm === `${id.provider}/${id.username}`}

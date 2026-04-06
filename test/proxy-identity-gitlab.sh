@@ -10,7 +10,8 @@
 set -euo pipefail
 
 GIT_USERNAME=${GIT_USERNAME:-"me"}
-GIT_PASSWORD=${GIT_PASSWORD:-"$(cat ~/.gitlab-pat)"}
+source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
+resolve_pat ~/.gitlab-pat
 GIT_REPO=${GIT_REPO:-"gitlab.com/coopernetes/test-repo-gitlab.git"}
 GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-"Thomas Cooper"}
 GIT_EMAIL=${GIT_EMAIL:-"unregistered@example.com"}

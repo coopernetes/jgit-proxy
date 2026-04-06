@@ -86,33 +86,49 @@ public class CompositeUserStore implements MutableUserStore {
                 .map(u -> u.getScmIdentities().stream()
                         .filter(id -> !"proxy".equals(id.getProvider()))
                         .<Map<String, Object>>map(id -> Map.of(
-                                "provider", id.getProvider(),
-                                "username", id.getUsername(),
-                                "verified", false))
+                                "provider",
+                                id.getProvider(),
+                                "username",
+                                id.getUsername(),
+                                "verified",
+                                false,
+                                "source",
+                                "config"))
                         .toList())
                 .orElse(List.of());
     }
 
-    // ── writes — JDBC only ───────────────────────────────────────────────────────
+    // ── writes — JDBC only (config users are immutable at runtime) ──────────────
 
     @Override
     public void addEmail(String username, String email) {
+        requireMutable(username);
         jdbcStore.addEmail(username, email);
     }
 
     @Override
     public void removeEmail(String username, String email) {
+        requireMutable(username);
         jdbcStore.removeEmail(username, email);
     }
 
     @Override
     public void addScmIdentity(String username, String provider, String scmUsername) {
+        requireMutable(username);
         jdbcStore.addScmIdentity(username, provider, scmUsername);
     }
 
     @Override
     public void removeScmIdentity(String username, String provider, String scmUsername) {
+        requireMutable(username);
         jdbcStore.removeScmIdentity(username, provider, scmUsername);
+    }
+
+    private void requireMutable(String username) {
+        if (configStore.findByUsername(username).isPresent()) {
+            throw new IllegalArgumentException(
+                    "User '" + username + "' is defined in configuration and cannot be modified at runtime");
+        }
     }
 
     @Override

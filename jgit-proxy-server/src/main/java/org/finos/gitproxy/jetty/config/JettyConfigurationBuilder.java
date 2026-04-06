@@ -31,8 +31,6 @@ import org.finos.gitproxy.git.LocalRepositoryCache;
 import org.finos.gitproxy.jetty.GitProxyContext;
 import org.finos.gitproxy.provider.*;
 import org.finos.gitproxy.service.CachingTokenPushIdentityResolver;
-import org.finos.gitproxy.service.ChainedPushIdentityResolver;
-import org.finos.gitproxy.service.ConfigPushIdentityResolver;
 import org.finos.gitproxy.service.DummyUserAuthorizationService;
 import org.finos.gitproxy.service.JdbcScmTokenCache;
 import org.finos.gitproxy.service.LinkedIdentityAuthorizationService;
@@ -61,6 +59,7 @@ public class JettyConfigurationBuilder {
     private PushStore cachedPushStore;
     private FetchStore cachedFetchStore;
     private UserStore cachedUserStore;
+    private JdbcScmTokenCache cachedTokenCache;
 
     public JettyConfigurationBuilder(GitProxyConfig config) {
         this.config = config;
@@ -418,8 +417,8 @@ public class JettyConfigurationBuilder {
                                     .username(s.getUsername())
                                     .build())
                             .forEach(scmIdentities::add);
-                    // push-usernames are stored as SCM identities under the synthetic "proxy" provider
-                    // so that ConfigPushIdentityResolver and JdbcUserStore can look them up uniformly.
+                    // push-usernames are stored as SCM identities under the synthetic "proxy" provider.
+                    // Reserved for SCM providers (e.g. Bitbucket) that cannot return a login from a token alone.
                     uc.getPushUsernames().stream()
                             .map(pushName -> ScmIdentity.builder()
                                     .provider("proxy")
@@ -442,7 +441,8 @@ public class JettyConfigurationBuilder {
             log.info("Using in-memory user store ({} users)", staticUsers.size());
             cachedUserStore = new StaticUserStore(staticUsers);
         } else {
-            var jdbcStore = new JdbcUserStore(requireJdbcDataSource());
+            cachedTokenCache = buildTokenCache();
+            var jdbcStore = new JdbcUserStore(requireJdbcDataSource(), cachedTokenCache);
             var configStore = new StaticUserStore(staticUsers);
             log.info("Using composite user store ({} config users + JDBC)", staticUsers.size());
             cachedUserStore = new CompositeUserStore(configStore, jdbcStore);
@@ -451,9 +451,13 @@ public class JettyConfigurationBuilder {
     }
 
     /**
-     * Builds the {@link PushIdentityResolver}. When users are configured, returns a chain that tries token-based
-     * identity lookup first (provider API → SCM identity match) and falls back to config push-username aliases. Returns
-     * null when no users are configured (open/permissive mode).
+     * Builds the {@link PushIdentityResolver}. When users are configured, returns a token-based resolver that calls the
+     * SCM provider API to map a PAT to an SCM login, then looks up the proxy user via SCM identity. Returns null when
+     * no users are configured (open/permissive mode).
+     *
+     * <p>HTTP Basic-auth username is intentionally NOT used for identity resolution — it is an unverifiable claim and
+     * would violate compliance guarantees. Bitbucket is a known exception (the Bitbucket API does not return a login
+     * from a token alone) and must be handled separately if/when Bitbucket support is added.
      *
      * <p>For JDBC backends, the token resolver is wrapped with {@link CachingTokenPushIdentityResolver} to avoid
      * repeated SCM API calls for the same token. The cache max age defaults to 7 days and can be overridden via the
@@ -466,15 +470,19 @@ public class JettyConfigurationBuilder {
 
         String dbType = config.getDatabase().getType();
         if (!"memory".equals(dbType) && !"mongo".equals(dbType)) {
-            long maxAgeDays = Optional.ofNullable(System.getenv("GITPROXY_SCM_CACHE_MAX_AGE_DAYS"))
-                    .map(Long::parseLong)
-                    .orElse(7L);
-            JdbcScmTokenCache tokenCache = new JdbcScmTokenCache(requireJdbcDataSource(), Duration.ofDays(maxAgeDays));
+            JdbcScmTokenCache tokenCache = cachedTokenCache != null ? cachedTokenCache : buildTokenCache();
             tokenResolver = new CachingTokenPushIdentityResolver(tokenResolver, tokenCache, userStore);
-            log.info("SCM token identity cache enabled (max age {} days)", maxAgeDays);
         }
 
-        return new ChainedPushIdentityResolver(List.of(tokenResolver, new ConfigPushIdentityResolver(userStore)));
+        return tokenResolver;
+    }
+
+    private JdbcScmTokenCache buildTokenCache() {
+        long maxAgeDays = Optional.ofNullable(System.getenv("GITPROXY_SCM_CACHE_MAX_AGE_DAYS"))
+                .map(Long::parseLong)
+                .orElse(7L);
+        log.info("SCM token identity cache enabled (max age {} days)", maxAgeDays);
+        return new JdbcScmTokenCache(requireJdbcDataSource(), Duration.ofDays(maxAgeDays));
     }
 
     /**

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Test script: author email validation failures via store-and-forward
 # Uses the push path (/push/...) which runs JGit ReceivePack with sideband
-set -uo pipefail
+set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
@@ -41,7 +41,7 @@ print_header "STORE-AND-FORWARD: AUTHOR EMAIL VALIDATION FAILURES" "${PUSH_URL}"
 run_test() {
     local test_name="$1"
     shift
-    branch=$(setup_repo "${PUSH_URL}" "author")
+    setup_repo "${PUSH_URL}" "author"
     "$@"
     run_test_expect_failure "${test_name}"
 }

@@ -2,10 +2,9 @@
 # Shared library for test scripts
 # Source this file in test scripts to get common functions and setup
 
-# Environment defaults
-export GIT_USERNAME=${GIT_USERNAME:-"me"}
+source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
+resolve_pat ~/.github-pat
 export GIT_REPO=${GIT_REPO:-"github.com/coopernetes/test-repo.git"}
-export GITPROXY_API_KEY=${GITPROXY_API_KEY:-"change-me-in-production"}
 
 # Test counters (exported so they survive subshells)
 export PASS=0
@@ -51,22 +50,20 @@ print_results() {
 
 # setup_repo() — clone repo, create branch, set git config
 # Args: $1 = URL, $2 = branch prefix (used for mktemp dir too)
-# Sets CURRENT_REPO global; returns branch name via echo
+# Sets CURRENT_REPO and BRANCH globals; cd's into the cloned repo
 setup_repo() {
     local url="$1"
     local prefix="$2"
 
     CURRENT_REPO=$(mktemp -d /tmp/test-${prefix}-XXXX)
     cd /tmp
-    git clone "${url}" "${CURRENT_REPO}" 2>&1
+    git clone "${url}" "${CURRENT_REPO}"
     cd "${CURRENT_REPO}"
 
-    local branch="test/${prefix}-$(date +%s%N | tail -c 8)"
-    git checkout -b "${branch}"
+    BRANCH="test/${prefix}-$(date +%s%N | tail -c 8)"
+    git checkout -b "${BRANCH}"
     git config user.name "Test Developer"
     git config user.email "developer@example.com"
-
-    echo "${branch}"
 }
 
 # run_test_expect_failure() — run a test and expect it to fail (for failure test suites)
@@ -80,14 +77,14 @@ run_test_expect_failure() {
     "$@"
 
     local push_exit=0
-    git push origin "${branch}" 2>&1 || push_exit=$?
+    git push origin "${BRANCH}" 2>&1 || push_exit=$?
 
     if [[ ${push_exit} -ne 0 ]]; then
         echo ">>> ${test_name}: PASSED (push correctly rejected)"
-        ((PASS++))
+        ((++PASS))
     else
         echo ">>> ${test_name}: UNEXPECTED (push should have been rejected)"
-        ((FAIL++))
+        ((++FAIL))
     fi
 
     rm -rf "${CURRENT_REPO}"
@@ -105,14 +102,14 @@ run_test_expect_success() {
     "$@"
 
     local push_exit=0
-    git push origin "${branch}" 2>&1 || push_exit=$?
+    git push origin "${BRANCH}" 2>&1 || push_exit=$?
 
     if [[ ${push_exit} -eq 0 ]]; then
         echo ">>> ${test_name}: PASSED (push succeeded as expected)"
-        ((PASS++))
+        ((++PASS))
     else
         echo ">>> ${test_name}: UNEXPECTED (push should have succeeded)"
-        ((FAIL++))
+        ((++FAIL))
     fi
 
     rm -rf "${CURRENT_REPO}"
@@ -129,9 +126,9 @@ run_orchestrated() {
     echo "━━━ ${name} ━━━"
     if bash "${script}"; then
         echo "✓ ${name}"
-        ((PASS++))
+        ((++PASS))
     else
         echo "✗ ${name}"
-        ((FAIL++))
+        ((++FAIL))
     fi
 }

@@ -30,8 +30,8 @@ class JdbcScmTokenCacheTest {
         DataSource ds = DataSourceFactory.h2InMemory("cache-test-" + UUID.randomUUID());
         JdbcPushStore pushStore = new JdbcPushStore(ds);
         pushStore.initialize();
-        userStore = new JdbcUserStore(ds);
         cache = new JdbcScmTokenCache(ds, Duration.ofMinutes(30));
+        userStore = new JdbcUserStore(ds, cache);
 
         userStore.upsertAll(List.of(UserEntry.builder()
                 .username("alice")
@@ -77,15 +77,14 @@ class JdbcScmTokenCacheTest {
         // Cache with zero max-age so all entries are immediately expired
         DataSource ds = DataSourceFactory.h2InMemory("cache-expired-" + UUID.randomUUID());
         new JdbcPushStore(ds).initialize();
-        new JdbcUserStore(ds)
+        JdbcScmTokenCache expiredCache = new JdbcScmTokenCache(ds, Duration.ZERO);
+        new JdbcUserStore(ds, expiredCache)
                 .upsertAll(List.of(UserEntry.builder()
                         .username("alice")
                         .passwordHash("{noop}pw")
                         .emails(List.of())
                         .scmIdentities(List.of())
                         .build()));
-
-        JdbcScmTokenCache expiredCache = new JdbcScmTokenCache(ds, Duration.ZERO);
         expiredCache.store("github", "hash-abc", "alice");
 
         Optional<String> result = expiredCache.lookup("github", "hash-abc");

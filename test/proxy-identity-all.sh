@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run all three proxy-mode identity verification scenarios back to back.
-set -uo pipefail
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PASS=0
@@ -13,10 +13,10 @@ run() {
     echo "━━━ ${name} ━━━"
     if bash "${script}"; then
         echo "✓ ${name}"
-        ((PASS++))
+        ((++PASS))
     else
         echo "✗ ${name}"
-        ((FAIL++))
+        ((++FAIL))
     fi
 }
 

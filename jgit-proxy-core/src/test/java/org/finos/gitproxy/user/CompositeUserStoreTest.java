@@ -2,11 +2,13 @@ package org.finos.gitproxy.user;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.finos.gitproxy.db.jdbc.DataSourceFactory;
 import org.finos.gitproxy.db.jdbc.JdbcPushStore;
+import org.finos.gitproxy.service.JdbcScmTokenCache;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -36,7 +38,7 @@ class CompositeUserStoreTest {
         DataSource ds = DataSourceFactory.h2InMemory("composite-test-" + UUID.randomUUID());
         JdbcPushStore pushStore = new JdbcPushStore(ds);
         pushStore.initialize();
-        jdbcStore = new JdbcUserStore(ds);
+        jdbcStore = new JdbcUserStore(ds, new JdbcScmTokenCache(ds, Duration.ofDays(1)));
         StaticUserStore configStore = new StaticUserStore(List.of(CONFIG_ALICE));
         store = new CompositeUserStore(configStore, jdbcStore);
     }

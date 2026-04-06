@@ -10,7 +10,7 @@
 # Optional:
 #   GITPROXY_API_KEY  (default: foobarbaz)
 #   PROXY_HOST        (default: localhost:8080)
-set -uo pipefail
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GITPROXY_API_KEY="${GITPROXY_API_KEY:-change-me-in-production}"
@@ -46,10 +46,10 @@ run() {
     echo "━━━ ${name} ━━━"
     if "$@"; then
         echo "✓  ${name}"
-        ((PASS++)) || true
+        ((++PASS))
     else
         echo "✗  ${name}"
-        ((FAIL++)) || true
+        ((++FAIL))
     fi
 }
 

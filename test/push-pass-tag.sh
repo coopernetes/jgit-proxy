@@ -3,7 +3,11 @@
 set -euo pipefail
 
 GIT_USERNAME=${GIT_USERNAME:-"me"}
+source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
+resolve_pat ~/.github-pat
 GIT_REPO=${GIT_REPO:-"github.com/coopernetes/test-repo.git"}
+
+
 PUSH_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/push/${GIT_REPO}"
 TEST_BRANCH="test/push-pass-tag-$(date +%s)"
 LIGHTWEIGHT_TAG="test/lw-tag-$(date +%s)"

@@ -167,6 +167,8 @@ public class UserController {
             mutable.addScmIdentity(username, req.provider(), req.scmUsername());
         } catch (ScmIdentityConflictException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
         }
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(Map.of("provider", req.provider(), "scmUsername", req.scmUsername()));
@@ -183,7 +185,11 @@ public class UserController {
         if (userStore.findByUsername(username).isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-        mutable.removeScmIdentity(username, provider, scmUsername);
+        try {
+            mutable.removeScmIdentity(username, provider, scmUsername);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
+        }
         return ResponseEntity.noContent().build();
     }
 

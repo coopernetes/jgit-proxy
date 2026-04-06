@@ -2,7 +2,7 @@
 # Test script: diff content scanning failures (internal URL patterns) via transparent proxy
 # Uses the proxy path (/proxy/...) which runs the servlet filter chain
 # Tests the diff.block.literals and diff.block.patterns config
-set -uo pipefail
+set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
@@ -40,7 +40,7 @@ print_header "PROXY: DIFF CONTENT SCANNING FAILURES" "${PROXY_URL}"
 run_test() {
     local test_name="$1"
     shift
-    branch=$(setup_repo "${PROXY_URL}" "diff")
+    setup_repo "${PROXY_URL}" "diff"
     "$@"
     run_test_expect_failure "${test_name}"
 }

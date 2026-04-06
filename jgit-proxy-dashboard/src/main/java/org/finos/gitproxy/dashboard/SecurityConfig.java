@@ -136,7 +136,7 @@ public class SecurityConfig {
                         .hasRole("ADMIN")
                         .requestMatchers(
                                 org.springframework.http.HttpMethod.POST, "/api/push/*/authorise", "/api/push/*/reject")
-                        .hasAnyRole("APPROVER", "ADMIN")
+                        .authenticated()
                         .anyRequest()
                         .authenticated())
                 .logout(logout -> logout.logoutSuccessUrl("/login.html?logout").permitAll())

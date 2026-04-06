@@ -3,11 +3,13 @@ package org.finos.gitproxy.user;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.finos.gitproxy.db.jdbc.DataSourceFactory;
 import org.finos.gitproxy.db.jdbc.JdbcPushStore;
+import org.finos.gitproxy.service.JdbcScmTokenCache;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -26,7 +28,7 @@ class JdbcUserStoreIntegrationTest {
         DataSource ds = DataSourceFactory.h2InMemory("user-test-" + UUID.randomUUID());
         JdbcPushStore pushStore = new JdbcPushStore(ds);
         pushStore.initialize();
-        store = new JdbcUserStore(ds);
+        store = new JdbcUserStore(ds, new JdbcScmTokenCache(ds, Duration.ofDays(1)));
     }
 
     private static UserEntry user(String username, List<String> emails, List<ScmIdentity> scmIdentities) {

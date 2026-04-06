@@ -2,7 +2,7 @@
 # Test script: gitleaks secret scanning failures via store-and-forward
 # Uses the push path (/push/...) which runs JGit ReceivePack with sideband
 # Requires secret-scanning.enabled: true in git-proxy.yml / git-proxy-local.yml
-set -uo pipefail
+set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
@@ -75,7 +75,7 @@ print_header "STORE-AND-FORWARD: GITLEAKS SECRET SCANNING FAILURES" "${PUSH_URL}
 run_test() {
     local test_name="$1"
     shift
-    branch=$(setup_repo "${PUSH_URL}" "secrets")
+    setup_repo "${PUSH_URL}" "secrets"
     "$@"
     run_test_expect_failure "${test_name}"
 }

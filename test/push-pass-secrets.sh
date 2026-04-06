@@ -2,7 +2,7 @@
 # Test script: pushes that must NOT be blocked by secret scanning (false-positive regression)
 # Validates gitleaks git mode correctly applies path-based allowlists.
 # Requires secret-scanning.enabled: true in git-proxy.yml / git-proxy-local.yml
-set -uo pipefail
+set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
@@ -69,7 +69,7 @@ print_header "STORE-AND-FORWARD: SECRET SCANNING FALSE-POSITIVE CHECK" "${PUSH_U
 run_test() {
     local test_name="$1"
     shift
-    branch=$(setup_repo "${PUSH_URL}" "pass-secrets")
+    setup_repo "${PUSH_URL}" "pass-secrets"
     "$@"
     run_test_expect_success "${test_name}"
 

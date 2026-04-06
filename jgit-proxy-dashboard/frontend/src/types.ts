@@ -82,6 +82,7 @@ export interface ScmIdentity {
   provider: string
   username: string
   verified: boolean
+  source?: string
 }
 
 export interface CurrentUser {

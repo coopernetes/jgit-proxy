@@ -3,8 +3,12 @@
 set -euo pipefail
 
 GIT_USERNAME=${GIT_USERNAME:-"me"}
+source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
+resolve_pat ~/.github-pat
 GIT_REPO=${GIT_REPO:-"github.com/coopernetes/test-repo.git"}
 GITPROXY_API_KEY=${GITPROXY_API_KEY:-"change-me-in-production"}
+
+
 PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${GIT_REPO}"
 TEST_BRANCH="test/proxy-pass-$(date +%s)"
 REPO_DIR=$(mktemp -d /tmp/proxy-test-pass-XXXX)
