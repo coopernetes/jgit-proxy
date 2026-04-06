@@ -28,7 +28,7 @@ teardown() {
         echo ""
         echo "==> --no-teardown: environment left running."
         echo "    GIT_USERNAME=${ADMIN_USER}  GIT_PASSWORD=${ADMIN_PASS}"
-        echo "    GIT_REPO=gitea/${TEST_ORG}/${TEST_REPO}.git  GITPROXY_API_KEY=test-api-key"
+        echo "    GIT_REPO=gitea/${TEST_ORG}/${TEST_REPO}.git  GITPROXY_API_KEY=change-me-in-production"
         echo "    Stop with: $COMPOSE down -v"
     else
         echo "==> Tearing down..."
@@ -63,7 +63,7 @@ done
 export GIT_USERNAME="$ADMIN_USER"
 export GIT_PASSWORD="$ADMIN_PASS"
 export GIT_REPO="gitea/${TEST_ORG}/${TEST_REPO}.git"
-export GITPROXY_API_KEY="test-api-key"
+export GITPROXY_API_KEY="change-me-in-production"
 
 # push-pass* scripts expect store-and-forward to forward immediately, but the dashboard
 # always uses UiApprovalGateway so they would hang waiting for approval. Skip them here.
@@ -108,7 +108,7 @@ echo "========================================================"
 
 echo ""
 echo "==> Verifying push records exist in MongoDB..."
-PUSHES=$(curl -sf -H "x-api-key: test-api-key" "http://localhost:8080/api/push")
+PUSHES=$(curl -sf -H "x-api-key: change-me-in-production" "http://localhost:8080/api/push")
 COUNT=$(echo "$PUSHES" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
 echo "    Push records in DB: $COUNT"
 if [ "$COUNT" -eq 0 ]; then

@@ -2,7 +2,7 @@ package org.finos.gitproxy.dashboard.controller;
 
 import java.util.List;
 import java.util.Map;
-import org.finos.gitproxy.user.JdbcUserStore;
+import org.finos.gitproxy.user.MutableUserStore;
 import org.finos.gitproxy.user.UserEntry;
 import org.finos.gitproxy.user.UserStore;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,7 +33,7 @@ public class AuthController {
         List<Map<String, Object>> emails;
         List<Map<String, Object>> scmIdentities;
 
-        if (userStore instanceof JdbcUserStore jdbc && user != null) {
+        if (userStore instanceof MutableUserStore jdbc && user != null) {
             emails = jdbc.findEmailsWithVerified(username);
             scmIdentities = jdbc.findScmIdentitiesWithVerified(username);
         } else if (user != null) {

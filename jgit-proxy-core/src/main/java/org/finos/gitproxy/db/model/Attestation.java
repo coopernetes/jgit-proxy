@@ -34,6 +34,10 @@ public class Attestation {
     @Builder.Default
     private boolean automated = false;
 
+    /** Whether an admin approved/rejected their own push, bypassing the normal self-approval block. */
+    @Builder.Default
+    private boolean selfApproval = false;
+
     /** When the attestation was made. */
     @Builder.Default
     private Instant timestamp = Instant.now();

@@ -274,8 +274,8 @@ public class JdbcPushStore implements PushStore {
         jdbc.update(
                 """
                 INSERT INTO push_attestations (push_id, type, reviewer_username, reviewer_email,
-                    reason, automated, timestamp)
-                VALUES (:pushId, :type, :reviewerUsername, :reviewerEmail, :reason, :automated, :timestamp)
+                    reason, automated, self_approval, timestamp)
+                VALUES (:pushId, :type, :reviewerUsername, :reviewerEmail, :reason, :automated, :selfApproval, :timestamp)
                 """,
                 new MapSqlParameterSource()
                         .addValue("pushId", pushId)
@@ -284,6 +284,7 @@ public class JdbcPushStore implements PushStore {
                         .addValue("reviewerEmail", att.getReviewerEmail())
                         .addValue("reason", att.getReason())
                         .addValue("automated", att.isAutomated())
+                        .addValue("selfApproval", att.isSelfApproval())
                         .addValue("timestamp", Timestamp.from(att.getTimestamp())));
     }
 

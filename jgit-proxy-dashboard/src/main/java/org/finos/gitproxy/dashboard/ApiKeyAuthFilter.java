@@ -38,7 +38,9 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
             if (expectedKey.equals(provided)
                     && SecurityContextHolder.getContext().getAuthentication() == null) {
                 var auth = new UsernamePasswordAuthenticationToken(
-                        "api-key", null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+                        "api-key",
+                        null,
+                        List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ROLE_ADMIN")));
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
         }

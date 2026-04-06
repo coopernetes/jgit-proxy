@@ -11,7 +11,7 @@ set -euo pipefail
 GIT_USERNAME=${GIT_USERNAME:-"me"}
 GIT_PASSWORD=${GIT_PASSWORD:-"$(cat ~/.github-pat)"}
 GIT_REPO=${GIT_REPO:-"github.com/coopernetes/test-repo.git"}
-GITPROXY_API_KEY=${GITPROXY_API_KEY:-"foobarbaz"}
+GITPROXY_API_KEY=${GITPROXY_API_KEY:-"change-me-in-production"}
 PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${GIT_REPO}"
 TEST_BRANCH="test/proxy-identity-github-$(date +%s)"
 REPO_DIR=$(mktemp -d /tmp/proxy-identity-github-XXXX)

@@ -5,7 +5,7 @@ set -euo pipefail
 
 GIT_USERNAME=${GIT_USERNAME:-"me"}
 GIT_REPO=${GIT_REPO:-"github.com/coopernetes/test-repo.git"}
-GITPROXY_API_KEY=${GITPROXY_API_KEY:-""}
+GITPROXY_API_KEY=${GITPROXY_API_KEY:-"change-me-in-production"}
 PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${GIT_REPO}"
 LIGHTWEIGHT_TAG="test/proxy-lw-tag-$(date +%s)"
 ANNOTATED_TAG="test/proxy-ann-tag-$(date +%s)"

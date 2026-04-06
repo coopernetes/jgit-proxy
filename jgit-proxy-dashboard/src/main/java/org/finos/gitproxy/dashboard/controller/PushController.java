@@ -121,12 +121,14 @@ public class PushController {
                     }
                     ResponseEntity<?> identityError = checkReviewerIdentity(record);
                     if (identityError != null) return identityError;
+                    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
                     var attestation = Attestation.builder()
                             .pushId(id)
                             .type(Attestation.Type.APPROVAL)
                             .reviewerUsername(resolveReviewer(body))
                             .reviewerEmail(body.get("reviewerEmail"))
                             .reason(body.get("reason"))
+                            .selfApproval(isSelfApproval(record, auth))
                             .build();
                     var updated = pushStore.approve(id, attestation);
                     return ResponseEntity.ok(updated);
@@ -150,12 +152,14 @@ public class PushController {
                     }
                     ResponseEntity<?> identityError = checkReviewerIdentity(record);
                     if (identityError != null) return identityError;
+                    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
                     var attestation = Attestation.builder()
                             .pushId(id)
                             .type(Attestation.Type.REJECTION)
                             .reviewerUsername(resolveReviewer(body))
                             .reviewerEmail(body.get("reviewerEmail"))
                             .reason(reason)
+                            .selfApproval(isSelfApproval(record, auth))
                             .build();
                     var updated = pushStore.reject(id, attestation);
                     return ResponseEntity.ok(updated);
@@ -167,6 +171,7 @@ public class PushController {
      * Validates that the current session user may review the given push record:
      *
      * <ol>
+     *   <li>ROLE_ADMIN bypasses all identity checks — admins may approve/reject any push.
      *   <li>The pusher must have been resolved to a proxy user — if not, we cannot guarantee no self-approval.
      *   <li>The reviewer must not be the same proxy user as the pusher.
      * </ol>
@@ -174,6 +179,9 @@ public class PushController {
      * @return a 403 response if the check fails, {@code null} if the reviewer is permitted to proceed
      */
     private ResponseEntity<?> checkReviewerIdentity(PushRecord record) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (isAdmin(auth)) return null;
+
         String pusherProxyUser = record.getResolvedUser();
         if (pusherProxyUser == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -182,7 +190,6 @@ public class PushController {
                                     "error",
                                     "Pusher identity has not been resolved to a proxy user; approval requires verified identity"));
         }
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String reviewer = auth != null ? auth.getName() : null;
         if (pusherProxyUser.equals(reviewer)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Self-approval is not permitted"));
@@ -190,7 +197,7 @@ public class PushController {
         return null;
     }
 
-    /** Cancel a push. Body: { "reviewerUsername": "..." } */
+    /** Cancel a push. Only the pusher or an admin may cancel. Body: { "reviewerUsername": "..." } */
     @PostMapping("/{id}/cancel")
     public ResponseEntity<?> cancel(@PathVariable String id, @RequestBody(required = false) Map<String, String> body) {
         return pushStore
@@ -199,6 +206,15 @@ public class PushController {
                     if (record.getStatus() != PushStatus.BLOCKED) {
                         return ResponseEntity.badRequest()
                                 .body(Map.of("error", "Push is not in BLOCKED status: " + record.getStatus()));
+                    }
+                    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+                    if (!isAdmin(auth)) {
+                        String pusherProxyUser = record.getResolvedUser();
+                        String reviewer = auth != null ? auth.getName() : null;
+                        if (pusherProxyUser == null || !pusherProxyUser.equals(reviewer)) {
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                    .body(Map.of("error", "Only the pusher or an admin can cancel a push"));
+                        }
                     }
                     var attestation = Attestation.builder()
                             .pushId(id)
@@ -209,5 +225,15 @@ public class PushController {
                     return ResponseEntity.ok(updated);
                 })
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    private static boolean isAdmin(Authentication auth) {
+        return auth != null && auth.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+    }
+
+    private static boolean isSelfApproval(PushRecord record, Authentication auth) {
+        String pusher = record.getResolvedUser();
+        String reviewer = auth != null ? auth.getName() : null;
+        return isAdmin(auth) && pusher != null && pusher.equals(reviewer);
     }
 }

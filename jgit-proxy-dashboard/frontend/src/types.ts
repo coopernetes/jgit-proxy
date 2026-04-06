@@ -34,6 +34,7 @@ export interface Attestation {
   reviewerEmail?: string
   reason?: string
   timestamp?: string
+  selfApproval?: boolean
 }
 
 export interface PushRecord {
@@ -87,6 +88,7 @@ export interface CurrentUser {
   username: string
   emails: EmailEntry[]
   scmIdentities: ScmIdentity[]
+  authorities: string[]
 }
 
 export interface UserSummary {
