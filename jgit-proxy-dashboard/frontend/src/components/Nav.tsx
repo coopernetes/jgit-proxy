@@ -23,8 +23,8 @@ async function logout() {
 export function Nav({ currentUser }: NavProps) {
   return (
     <header className="bg-slate-800 text-white px-6 py-4 flex items-center gap-4 shadow">
-      <NavLink to="/" className="text-xl font-semibold tracking-wide shrink-0 hover:text-slate-200">
-        &#9889; git-proxy
+      <NavLink to="/" className="flex items-center shrink-0 hover:opacity-80 transition-opacity">
+        <img src="/logo.png" alt="jgit-proxy" className="h-10 w-auto" />
       </NavLink>
 
       <nav className="flex gap-1 ml-2">

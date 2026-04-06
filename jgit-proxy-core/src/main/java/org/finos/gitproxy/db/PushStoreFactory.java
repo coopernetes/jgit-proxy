@@ -41,13 +41,6 @@ public final class PushStoreFactory {
         return store;
     }
 
-    /** Create a SQLite file-based store. */
-    public static PushStore sqlite(String filePath) {
-        JdbcPushStore store = new JdbcPushStore(DataSourceFactory.sqlite(filePath));
-        store.initialize();
-        return store;
-    }
-
     /** Create a PostgreSQL store. */
     public static PushStore postgres(String host, int port, String database, String username, String password) {
         JdbcPushStore store = new JdbcPushStore(DataSourceFactory.postgres(host, port, database, username, password));

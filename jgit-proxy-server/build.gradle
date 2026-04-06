@@ -70,7 +70,6 @@ dependencies {
 
     // Database drivers - include all so standalone Jetty server can use any backend
     runtimeOnly "com.h2database:h2:${h2Version}"
-    runtimeOnly "org.xerial:sqlite-jdbc:${sqliteVersion}"
     runtimeOnly "org.postgresql:postgresql:${postgresVersion}"
     runtimeOnly "org.mongodb:mongodb-driver-sync:${mongoVersion}"
 

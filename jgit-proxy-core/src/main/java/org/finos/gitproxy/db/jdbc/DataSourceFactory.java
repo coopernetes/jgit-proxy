@@ -27,16 +27,6 @@ public final class DataSourceFactory {
         return new HikariDataSource(config);
     }
 
-    /** SQLite file-based database. */
-    public static DataSource sqlite(String filePath) {
-        HikariConfig config = new HikariConfig();
-        config.setJdbcUrl("jdbc:sqlite:" + filePath);
-        config.setDriverClassName("org.sqlite.JDBC");
-        // SQLite only supports one writer at a time
-        config.setMaximumPoolSize(1);
-        return new HikariDataSource(config);
-    }
-
     /** PostgreSQL database. */
     public static DataSource postgres(String host, int port, String database, String username, String password) {
         HikariConfig config = new HikariConfig();

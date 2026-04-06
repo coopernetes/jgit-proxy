@@ -33,13 +33,6 @@ class PushStoreFactoryTest {
     }
 
     @Test
-    void sqlite_returnsInitializedStore(@TempDir java.nio.file.Path dir) {
-        String path = dir.resolve("test.db").toAbsolutePath().toString();
-        PushStore store = PushStoreFactory.sqlite(path);
-        assertNotNull(store);
-    }
-
-    @Test
     void fromJdbcUrl_h2_returnsInitializedStore() {
         String url = "jdbc:h2:mem:factory_jdbc_" + System.nanoTime() + ";DB_CLOSE_DELAY=-1";
         PushStore store = PushStoreFactory.fromJdbcUrl(url, null, null);

@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 /**
- * JDBC-backed {@link UserStore}. Works with H2, SQLite, and PostgreSQL via the shared {@code schema.sql} schema
+ * JDBC-backed {@link UserStore}. Works with H2 and PostgreSQL via the shared {@code schema.sql} schema
  * ({@code proxy_users}, {@code user_emails}, {@code user_scm_identities}).
  *
  * <p>Users are loaded from the YAML config into this store on startup via {@link #upsertAll(List)}. Passwords set in
@@ -33,7 +33,7 @@ public class JdbcUserStore implements MutableUserStore {
     public void upsertAll(List<UserEntry> users) {
         for (UserEntry u : users) {
             // Insert user only if missing — preserve existing password so manual changes survive restarts.
-            // Check-then-insert avoids dialect-specific ON CONFLICT syntax (H2/SQLite/Postgres differ).
+            // Check-then-insert avoids dialect-specific ON CONFLICT syntax (H2/Postgres differ).
             boolean exists = !jdbc.queryForList(
                             "SELECT username FROM proxy_users WHERE username = :username",
                             Map.of("username", u.getUsername()),

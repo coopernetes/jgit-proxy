@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react'
-import { addEmail, addScmIdentity, fetchMe, removeEmail, removeScmIdentity } from '../api'
+import {
+  addEmail,
+  addScmIdentity,
+  fetchMe,
+  fetchProviders,
+  removeEmail,
+  removeScmIdentity,
+} from '../api'
 import type { CurrentUser, EmailEntry, ScmIdentity } from '../types'
-
-const KNOWN_PROVIDERS = ['github', 'gitlab', 'codeberg', 'gitea', 'bitbucket']
 
 function LockedBadge({ source }: { source: string }) {
   return (
@@ -26,7 +31,8 @@ export function Profile() {
   const [emailError, setEmailError] = useState<string | null>(null)
   const [emailBusy, setEmailBusy] = useState(false)
 
-  const [newProvider, setNewProvider] = useState(KNOWN_PROVIDERS[0])
+  const [providers, setProviders] = useState<{ name: string; host: string }[]>([])
+  const [newProvider, setNewProvider] = useState('')
   const [newScmUsername, setNewScmUsername] = useState('')
   const [identityError, setIdentityError] = useState<string | null>(null)
   const [identityBusy, setIdentityBusy] = useState(false)
@@ -36,6 +42,12 @@ export function Profile() {
       .then(setProfile)
       .catch(() => setError('Failed to load profile'))
       .finally(() => setLoading(false))
+    fetchProviders()
+      .then((list: { name: string; host: string }[]) => {
+        setProviders(list)
+        if (list.length > 0) setNewProvider(list[0].name)
+      })
+      .catch(() => {})
   }, [])
 
   async function handleAddEmail(e: React.FormEvent) {
@@ -231,10 +243,11 @@ export function Profile() {
               value={newProvider}
               onChange={(e) => setNewProvider(e.target.value)}
               className="rounded border border-gray-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
+              disabled={providers.length === 0}
             >
-              {KNOWN_PROVIDERS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
+              {providers.map((p) => (
+                <option key={p.name} value={p.name}>
+                  {p.host}
                 </option>
               ))}
             </select>

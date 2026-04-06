@@ -28,15 +28,6 @@ class DataSourceFactoryTest {
     }
 
     @Test
-    void sqlite_returnsConnectableDataSource(@TempDir java.nio.file.Path dir) throws SQLException {
-        String path = dir.resolve("test.db").toAbsolutePath().toString();
-        DataSource ds = DataSourceFactory.sqlite(path);
-        try (Connection conn = ds.getConnection()) {
-            assertFalse(conn.isClosed());
-        }
-    }
-
-    @Test
     void fromUrl_h2InMemory_returnsConnectableDataSource() throws SQLException {
         String url = "jdbc:h2:mem:fromurl_" + System.nanoTime() + ";DB_CLOSE_DELAY=-1";
         DataSource ds = DataSourceFactory.fromUrl(url, null, null);
