@@ -25,7 +25,6 @@ ext {
     // Database
     hikariVersion = '7.0.2'
     h2Version = '2.4.240'
-    sqliteVersion = '3.51.3.0'
     postgresVersion = '42.7.10'
     mongoVersion = '5.6.4'
 

@@ -7,15 +7,15 @@ import lombok.Data;
 public class DatabaseConfig {
 
     /**
-     * Storage backend. Values: {@code memory}, {@code h2-mem} (default), {@code h2-file}, {@code sqlite},
-     * {@code postgres}, {@code mongo}.
+     * Storage backend. Values: {@code memory}, {@code h2-mem} (default), {@code h2-file}, {@code postgres},
+     * {@code mongo}.
      */
     private String type = "h2-mem";
 
     /** Database name. Used by h2-mem, h2-file, postgres, mongo. */
     private String name = "gitproxy";
 
-    /** File path. Used by h2-file (no extension) and sqlite (.db extension). */
+    /** File path. Used by h2-file (no extension). */
     private String path = "";
 
     // --- postgres ---

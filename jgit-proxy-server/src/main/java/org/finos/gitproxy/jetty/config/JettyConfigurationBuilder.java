@@ -231,11 +231,11 @@ public class JettyConfigurationBuilder {
 
         return switch (db.getType()) {
             case "memory" -> PushStoreFactory.inMemory();
-            case "h2-mem", "h2-file", "sqlite", "postgres" -> PushStoreFactory.fromDataSource(requireJdbcDataSource());
+            case "h2-mem", "h2-file", "postgres" -> PushStoreFactory.fromDataSource(requireJdbcDataSource());
             case "mongo" -> PushStoreFactory.mongo(db.getUrl(), db.getName());
             default ->
                 throw new IllegalArgumentException("Unknown database type: " + db.getType()
-                        + ". Supported: memory, h2-mem, h2-file, sqlite, postgres, mongo");
+                        + ". Supported: memory, h2-mem, h2-file, postgres, mongo");
         };
     }
 
@@ -309,8 +309,6 @@ public class JettyConfigurationBuilder {
                 case "h2-mem" -> DataSourceFactory.h2InMemory(db.getName());
                 case "h2-file" ->
                     DataSourceFactory.h2File(db.getPath().isBlank() ? "./.data/" + db.getName() : db.getPath());
-                case "sqlite" ->
-                    DataSourceFactory.sqlite(db.getPath().isBlank() ? "./.data/" + db.getName() + ".db" : db.getPath());
                 case "postgres" ->
                     DataSourceFactory.postgres(
                             db.getHost(), db.getPort(), db.getName(), db.getUsername(), db.getPassword());

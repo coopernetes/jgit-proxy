@@ -21,7 +21,7 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * JDBC-based {@link PushStore} implementation. Works with H2 (in-memory and file), SQLite, and PostgreSQL.
+ * JDBC-based {@link PushStore} implementation. Works with H2 (in-memory and file) and PostgreSQL.
  *
  * <p>Uses Spring's {@link NamedParameterJdbcTemplate} and {@link TransactionTemplate} — no manual
  * {@code PreparedStatement} or connection management.

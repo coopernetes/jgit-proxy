@@ -80,7 +80,6 @@ dependencies {
 
     // Database - JDBC drivers (optional at runtime, depending on which store is used)
     compileOnly "com.h2database:h2:${h2Version}"
-    compileOnly "org.xerial:sqlite-jdbc:${sqliteVersion}"
     compileOnly "org.postgresql:postgresql:${postgresVersion}"
 
     // Database - MongoDB driver
@@ -94,7 +93,6 @@ dependencies {
     testImplementation "org.junit.jupiter:junit-jupiter-api:${junitVersion}"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${junitVersion}"
     testRuntimeOnly "com.h2database:h2:${h2Version}"
-    testRuntimeOnly "org.xerial:sqlite-jdbc:${sqliteVersion}"
     testImplementation "org.mockito:mockito-core:${mockitoVersion}"
     testImplementation "org.junit.jupiter:junit-jupiter-params:${junitVersion}"
     testRuntimeOnly "org.junit.platform:junit-platform-launcher:${junitPlatformVersion}"
