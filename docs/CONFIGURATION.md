@@ -46,7 +46,7 @@ Later profiles take priority over earlier ones. All profiles take priority over 
 The Docker Compose setup uses overlay files to compose the stack. See [docker-compose.ldap.yml](../docker-compose.ldap.yml) and [docker-compose.oidc.yml](../docker-compose.oidc.yml) for examples of how profiles are combined.
 
 ```bash
-# Default (static auth, h2 database)
+# Default (local auth, h2 database)
 docker compose up -d
 
 # LDAP auth

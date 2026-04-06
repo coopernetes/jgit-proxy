@@ -26,6 +26,7 @@ public class RuntimeConfigController {
     @GetMapping("/runtime-config")
     public Map<String, Object> runtimeConfig() {
         List<String> allowedOrigins = gitProxyConfig.getServer().getAllowedOrigins();
-        return Map.of("allowedOrigins", allowedOrigins);
+        String authProvider = gitProxyConfig.getAuth().getProvider();
+        return Map.of("allowedOrigins", allowedOrigins, "authProvider", authProvider);
     }
 }

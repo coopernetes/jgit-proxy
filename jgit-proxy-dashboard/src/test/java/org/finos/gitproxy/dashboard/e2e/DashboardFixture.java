@@ -120,10 +120,10 @@ class DashboardFixture implements AutoCloseable {
         server.stop();
     }
 
-    /** Convenience factory for a config with static auth and the given pre-hashed users. */
-    static DashboardFixture withStaticUsers(List<UserEntry> users) throws Exception {
+    /** Convenience factory for a config with local auth and the given pre-hashed users. */
+    static DashboardFixture withLocalUsers(List<UserEntry> users) throws Exception {
         var config = new GitProxyConfig();
-        config.getAuth().setProvider("static");
+        config.getAuth().setProvider("local");
         return new DashboardFixture(config, new StaticUserStore(users));
     }
 }

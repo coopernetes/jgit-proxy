@@ -8,7 +8,7 @@ import lombok.Data;
  * <p>Supported providers:
  *
  * <ul>
- *   <li>{@code static} (default) — usernames and BCrypt password hashes configured directly in {@code users:}
+ *   <li>{@code local} (default) — usernames and BCrypt password hashes configured directly in {@code users:}
  *   <li>{@code ldap} — bind authentication against an LDAP/AD directory
  *   <li>{@code oidc} — OpenID Connect authorization code flow (e.g. Keycloak, Dex, Entra ID)
  * </ul>
@@ -26,8 +26,8 @@ import lombok.Data;
 @Data
 public class AuthConfig {
 
-    /** Active authentication provider. Accepted values: {@code static}, {@code ldap}, {@code oidc}. */
-    private String provider = "static";
+    /** Active authentication provider. Accepted values: {@code local}, {@code ldap}, {@code oidc}. */
+    private String provider = "local";
 
     private LdapAuthConfig ldap = new LdapAuthConfig();
     private OidcAuthConfig oidc = new OidcAuthConfig();

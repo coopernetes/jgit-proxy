@@ -1,19 +1,25 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
-import { fetchMe } from './api'
+import { fetchConfig, fetchMe } from './api'
 import { Nav } from './components/Nav'
 import { Providers } from './pages/Providers'
 import { PushDetail } from './pages/PushDetail'
 import { PushList } from './pages/PushList'
 import { Profile } from './pages/Profile'
 import { Repos } from './pages/Repos'
+import { Users } from './pages/Users'
+import { UserDetail } from './pages/UserDetail'
 import type { CurrentUser } from './types'
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
+  const [authProvider, setAuthProvider] = useState<string>('local')
 
   useEffect(() => {
     fetchMe().then(setCurrentUser).catch(console.error)
+    fetchConfig()
+      .then((c) => setAuthProvider(c.authProvider))
+      .catch(console.error)
   }, [])
 
   return (
@@ -27,6 +33,8 @@ export default function App() {
             <Route path="/providers" element={<Providers />} />
             <Route path="/repos" element={<Repos />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/users" element={<Users authProvider={authProvider} />} />
+            <Route path="/users/:username" element={<UserDetail authProvider={authProvider} />} />
           </Routes>
         </main>
       </div>

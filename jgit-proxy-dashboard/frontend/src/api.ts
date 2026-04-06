@@ -47,6 +47,24 @@ export async function fetchProviders() {
   return res.json()
 }
 
+export async function fetchConfig(): Promise<{ authProvider: string; allowedOrigins: string[] }> {
+  const res = await fetch('/api/runtime-config')
+  if (!res.ok) throw new Error('Failed to fetch config')
+  return res.json()
+}
+
+export async function fetchUsers() {
+  const res = await apiFetch('/api/users')
+  if (!res.ok) throw new Error('Failed to fetch users')
+  return res.json()
+}
+
+export async function fetchUser(username: string) {
+  const res = await apiFetch(`/api/users/${encodeURIComponent(username)}`)
+  if (!res.ok) throw new Error('User not found')
+  return res.json()
+}
+
 async function parseErrorResponse(res: Response, fallback: string): Promise<never> {
   const text = await res.text()
   try {

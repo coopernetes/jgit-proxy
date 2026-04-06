@@ -205,8 +205,8 @@ export function Profile() {
       {tab === 'identities' && (
         <div className="space-y-4">
           <p className="text-sm text-gray-500">
-            Your usernames on upstream SCM providers. Used to verify that push credentials match the
-            commit author.
+            Your usernames on upstream SCM providers. Used to verify that your SCM login matches the
+            account pushing code through the proxy.
           </p>
 
           {profile.scmIdentities.length === 0 ? (

@@ -62,6 +62,17 @@ export function Nav({ currentUser }: NavProps) {
         >
           Repositories
         </NavLink>
+        <NavLink
+          to="/users"
+          className={({ isActive }) =>
+            'px-3 py-1 rounded text-sm transition-colors ' +
+            (isActive
+              ? 'bg-slate-600 text-white'
+              : 'text-slate-300 hover:text-white hover:bg-slate-700')
+          }
+        >
+          Users
+        </NavLink>
       </nav>
 
       {currentUser && (

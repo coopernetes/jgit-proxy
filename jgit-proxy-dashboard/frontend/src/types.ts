@@ -88,3 +88,17 @@ export interface CurrentUser {
   emails: EmailEntry[]
   scmIdentities: ScmIdentity[]
 }
+
+export interface UserSummary {
+  username: string
+  primaryEmail: string | null
+  scmProviders: string[]
+  pushCounts: Partial<Record<PushStatus, number>>
+}
+
+export interface UserDetail {
+  username: string
+  emails: EmailEntry[]
+  scmIdentities: ScmIdentity[]
+  pushCounts: Partial<Record<PushStatus, number>>
+}

@@ -69,7 +69,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  * <p>The active authentication provider is selected from {@code auth.provider} in {@code git-proxy.yml}:
  *
  * <ul>
- *   <li>{@code static} (default) — form login validated against BCrypt password hashes in {@code users:}
+ *   <li>{@code local} (default) — form login validated against BCrypt password hashes in {@code users:}
  *   <li>{@code ldap} — form login with LDAP bind authentication; settings in {@code auth.ldap}
  *   <li>{@code oidc} — OpenID Connect authorization code flow; settings in {@code auth.oidc}
  * </ul>
@@ -127,15 +127,19 @@ public class SecurityConfig {
         switch (provider) {
             case "ldap" -> configureLdapAuth(http, authCfg.getLdap(), successHandler);
             case "oidc" -> configureOidcAuth(http, authCfg.getOidc(), successHandler);
-            default -> configureStaticAuth(http, successHandler);
+            case "local" -> configureLocalAuth(http, successHandler);
+            default -> {
+                log.warn("Unknown auth.provider '{}', falling back to local auth", provider);
+                configureLocalAuth(http, successHandler);
+            }
         }
 
         return http.build();
     }
 
-    // ── Static (default) ────────────────────────────────────────────────────────
+    // ── Local (default) ─────────────────────────────────────────────────────────
 
-    private void configureStaticAuth(HttpSecurity http, AuthenticationSuccessHandler successHandler) throws Exception {
+    private void configureLocalAuth(HttpSecurity http, AuthenticationSuccessHandler successHandler) throws Exception {
         DaoAuthenticationProvider dao = new DaoAuthenticationProvider(staticUserDetailsService());
         dao.setPasswordEncoder(passwordEncoder());
 

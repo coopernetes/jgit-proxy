@@ -32,7 +32,7 @@ interface PushListProps {
 export function PushList({ currentUser }: PushListProps) {
   const navigate = useNavigate()
   const [pushes, setPushes] = useState<PushRecord[]>([])
-  const [filterStatus, setFilterStatus] = useState<string>('BLOCKED')
+  const [filterStatus, setFilterStatus] = useState<string>('')
   const [filterRepo, setFilterRepo] = useState('')
   const [myPushesOnly, setMyPushesOnly] = useState(false)
   const [newestFirst, setNewestFirst] = useState(true)
