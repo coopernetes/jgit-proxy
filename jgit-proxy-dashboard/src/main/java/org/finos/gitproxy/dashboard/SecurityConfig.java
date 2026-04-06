@@ -15,7 +15,11 @@ import java.security.interfaces.RSAPublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.RSAPublicKeySpec;
 import java.util.Base64;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +36,8 @@ import org.springframework.security.authentication.dao.DaoAuthenticationProvider
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -40,9 +46,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.ldap.DefaultSpringSecurityContextSource;
 import org.springframework.security.ldap.authentication.BindAuthenticator;
 import org.springframework.security.ldap.authentication.LdapAuthenticationProvider;
+import org.springframework.security.ldap.userdetails.DefaultLdapAuthoritiesPopulator;
 import org.springframework.security.oauth2.client.endpoint.NimbusJwtClientAuthenticationParametersConverter;
 import org.springframework.security.oauth2.client.endpoint.RestClientAuthorizationCodeTokenResponseClient;
 import org.springframework.security.oauth2.client.oidc.authentication.OidcIdTokenDecoderFactory;
+import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
+import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrations;
 import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
@@ -50,6 +59,7 @@ import org.springframework.security.oauth2.client.web.HttpSessionOAuth2Authorize
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoderFactory;
@@ -124,6 +134,9 @@ public class SecurityConfig {
                         .hasRole("ADMIN")
                         .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/users/**")
                         .hasRole("ADMIN")
+                        .requestMatchers(
+                                org.springframework.http.HttpMethod.POST, "/api/push/*/authorise", "/api/push/*/reject")
+                        .hasAnyRole("APPROVER", "ADMIN")
                         .anyRequest()
                         .authenticated())
                 .logout(logout -> logout.logoutSuccessUrl("/login.html?logout").permitAll())
@@ -134,8 +147,10 @@ public class SecurityConfig {
 
         var successHandler = idpProvisioningSuccessHandler();
         switch (provider) {
-            case "ldap" -> configureLdapAuth(http, authCfg.getLdap(), successHandler);
-            case "oidc" -> configureOidcAuth(http, authCfg.getOidc(), successHandler);
+            case "ldap" -> configureLdapAuth(http, authCfg.getLdap(), successHandler, authCfg.getRoleMappings());
+            case "oidc" ->
+                configureOidcAuth(
+                        http, authCfg.getOidc(), successHandler, authCfg.getRoleMappings(), authCfg.getGroupsClaim());
             case "local" -> configureLocalAuth(http, successHandler);
             default -> {
                 log.warn("Unknown auth.provider '{}', falling back to local auth", provider);
@@ -166,7 +181,11 @@ public class SecurityConfig {
     // ── LDAP ────────────────────────────────────────────────────────────────────
 
     private void configureLdapAuth(
-            HttpSecurity http, LdapAuthConfig ldapCfg, AuthenticationSuccessHandler successHandler) throws Exception {
+            HttpSecurity http,
+            LdapAuthConfig ldapCfg,
+            AuthenticationSuccessHandler successHandler,
+            Map<String, List<String>> roleMappings)
+            throws Exception {
         if (ldapCfg.getUrl().isBlank()) {
             throw new IllegalStateException("auth.provider=ldap requires auth.ldap.url to be set in git-proxy.yml");
         }
@@ -183,7 +202,21 @@ public class SecurityConfig {
         authenticator.setUserAttributes(new String[] {"mail"});
         authenticator.afterPropertiesSet();
 
-        var ldapProvider = new LdapAuthenticationProvider(authenticator);
+        LdapAuthenticationProvider ldapProvider;
+        if (!ldapCfg.getGroupSearchBase().isBlank()) {
+            var populator = new DefaultLdapAuthoritiesPopulator(contextSource, ldapCfg.getGroupSearchBase());
+            populator.setGroupSearchFilter(ldapCfg.getGroupSearchFilter());
+            populator.setRolePrefix("");
+            populator.setSearchSubtree(true);
+            ldapProvider = new LdapAuthenticationProvider(authenticator, populator);
+            ldapProvider.setAuthoritiesMapper(ldapAuthorities -> mapIdpGroupsToRoles(ldapAuthorities, roleMappings));
+            log.info(
+                    "LDAP group search enabled: base={}, filter={}",
+                    ldapCfg.getGroupSearchBase(),
+                    ldapCfg.getGroupSearchFilter());
+        } else {
+            ldapProvider = new LdapAuthenticationProvider(authenticator);
+        }
         ldapProvider.setUserDetailsContextMapper(new LdapEmailContextMapper());
 
         http.authenticationProvider(ldapProvider)
@@ -205,7 +238,12 @@ public class SecurityConfig {
     // ── OIDC ────────────────────────────────────────────────────────────────────
 
     private void configureOidcAuth(
-            HttpSecurity http, OidcAuthConfig oidcCfg, AuthenticationSuccessHandler successHandler) throws Exception {
+            HttpSecurity http,
+            OidcAuthConfig oidcCfg,
+            AuthenticationSuccessHandler successHandler,
+            Map<String, List<String>> roleMappings,
+            String groupsClaim)
+            throws Exception {
         if (oidcCfg.getIssuerUri().isBlank() || oidcCfg.getClientId().isBlank()) {
             throw new IllegalStateException(
                     "auth.provider=oidc requires auth.oidc.issuer-uri and auth.oidc.client-id in git-proxy.yml");
@@ -254,7 +292,9 @@ public class SecurityConfig {
         http.oauth2Login(oauth2 -> {
                     oauth2.clientRegistrationRepository(new InMemoryClientRegistrationRepository(registration))
                             .authorizedClientRepository(new HttpSessionOAuth2AuthorizedClientRepository())
-                            .successHandler(successHandler);
+                            .successHandler(successHandler)
+                            .userInfoEndpoint(userInfo ->
+                                    userInfo.oidcUserService(buildOidcUserService(roleMappings, groupsClaim)));
 
                     if (usePrivateKeyJwt) {
                         RSAKey rsaKey = loadRsaKey(oidcCfg.getPrivateKeyPath());
@@ -328,6 +368,54 @@ public class SecurityConfig {
         } else {
             log.warn("IdP login for '{}' via {} returned no email address", username, authSource);
         }
+    }
+
+    /**
+     * Builds an {@link OidcUserService} that maps IdP group memberships to jgit-proxy roles. The configured
+     * {@code groupsClaim} is read from the OIDC token; any group present in {@code roleMappings} results in a
+     * corresponding {@code ROLE_xxx} authority being added to the session. {@code ROLE_USER} is always granted.
+     */
+    private OidcUserService buildOidcUserService(Map<String, List<String>> roleMappings, String groupsClaim) {
+        return new OidcUserService() {
+            @Override
+            public OidcUser loadUser(OidcUserRequest userRequest) {
+                OidcUser oidcUser = super.loadUser(userRequest);
+                List<String> groups = oidcUser.getClaimAsStringList(groupsClaim);
+                if (groups == null) groups = List.of();
+                Set<GrantedAuthority> authorities = new LinkedHashSet<>(oidcUser.getAuthorities());
+                authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+                for (Map.Entry<String, List<String>> entry : roleMappings.entrySet()) {
+                    List<String> mappedGroups = entry.getValue();
+                    if (groups.stream().anyMatch(mappedGroups::contains)) {
+                        authorities.add(new SimpleGrantedAuthority("ROLE_" + entry.getKey()));
+                        log.debug(
+                                "Granted ROLE_{} to OIDC user '{}' via group membership",
+                                entry.getKey(),
+                                oidcUser.getName());
+                    }
+                }
+                return new DefaultOidcUser(authorities, oidcUser.getIdToken(), oidcUser.getUserInfo());
+            }
+        };
+    }
+
+    /**
+     * Maps IdP-supplied group authorities (from LDAP group search) to jgit-proxy roles using {@code roleMappings}.
+     * {@code ROLE_USER} is always granted.
+     */
+    private Set<GrantedAuthority> mapIdpGroupsToRoles(
+            Collection<? extends GrantedAuthority> ldapAuthorities, Map<String, List<String>> roleMappings) {
+        Set<GrantedAuthority> mapped = new LinkedHashSet<>();
+        mapped.add(new SimpleGrantedAuthority("ROLE_USER"));
+        for (GrantedAuthority authority : ldapAuthorities) {
+            String groupName = authority.getAuthority();
+            for (Map.Entry<String, List<String>> entry : roleMappings.entrySet()) {
+                if (entry.getValue().contains(groupName)) {
+                    mapped.add(new SimpleGrantedAuthority("ROLE_" + entry.getKey()));
+                }
+            }
+        }
+        return mapped;
     }
 
     /**
