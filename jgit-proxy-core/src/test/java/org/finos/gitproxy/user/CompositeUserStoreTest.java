@@ -107,6 +107,42 @@ class CompositeUserStoreTest {
         assertEquals("{noop}config-pw", aliceResult.getPasswordHash());
     }
 
+    // ── enriched queries ────────────────────────────────────────────────────────
+
+    @Test
+    void findEmailsWithVerified_configUser_returnsConfigEmails() {
+        var emails = store.findEmailsWithVerified("alice");
+        assertEquals(1, emails.size());
+        assertEquals("alice@config.com", emails.get(0).get("email"));
+        assertEquals("config", emails.get(0).get("source"));
+    }
+
+    @Test
+    void findEmailsWithVerified_jdbcUser_returnsJdbcEmails() {
+        jdbcStore.createUser("bob", "{noop}pw", "USER");
+        jdbcStore.addEmail("bob", "bob@example.com");
+        var emails = store.findEmailsWithVerified("bob");
+        assertEquals(1, emails.size());
+        assertEquals("bob@example.com", emails.get(0).get("email"));
+    }
+
+    @Test
+    void findScmIdentitiesWithVerified_configUser_returnsConfigIdentities() {
+        var ids = store.findScmIdentitiesWithVerified("alice");
+        assertEquals(1, ids.size());
+        assertEquals("github", ids.get(0).get("provider"));
+        assertEquals("alice-config", ids.get(0).get("username"));
+    }
+
+    @Test
+    void findScmIdentitiesWithVerified_jdbcUser_returnsJdbcIdentities() {
+        jdbcStore.createUser("bob", "{noop}pw", "USER");
+        jdbcStore.addScmIdentity("bob", "github", "bob-gh");
+        var ids = store.findScmIdentitiesWithVerified("bob");
+        assertEquals(1, ids.size());
+        assertEquals("bob-gh", ids.get(0).get("username"));
+    }
+
     // ── writes delegate to JDBC ──────────────────────────────────────────────────
 
     @Test

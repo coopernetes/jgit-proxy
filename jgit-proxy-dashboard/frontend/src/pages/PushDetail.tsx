@@ -172,9 +172,10 @@ function PushTimeline({ record }: { record: PushRecord }) {
     const att = record.attestation
     const typeLabel =
       att.type === 'APPROVAL' ? 'Approved' : att.type === 'REJECTION' ? 'Rejected' : 'Canceled'
+    const overrideNote = att.selfApproval ? ' [admin self-approval override]' : ''
     events.push({
       icon: att.type === 'APPROVAL' ? '✓' : att.type === 'REJECTION' ? '✗' : '○',
-      label: `${typeLabel} by ${att.reviewerUsername}${att.reviewerEmail ? ` (${att.reviewerEmail})` : ''}`,
+      label: `${typeLabel} by ${att.reviewerUsername}${att.reviewerEmail ? ` (${att.reviewerEmail})` : ''}${overrideNote}`,
       detail: att.reason ?? undefined,
       time: att.timestamp,
       color:
@@ -413,6 +414,10 @@ export function PushDetail({ currentUser }: PushDetailProps) {
 
   const hasDiff = record?.steps?.some((s) => s.stepName === 'diff' && s.content)
 
+  function errorMessage(e: unknown): string {
+    return e instanceof Error ? e.message : String(e)
+  }
+
   async function handleApprove() {
     if (!record || !reviewReason.trim()) return
     setSaving(true)
@@ -425,7 +430,7 @@ export function PushDetail({ currentUser }: PushDetailProps) {
       })
       await load(record.id)
     } catch (e) {
-      setActionError(String(e))
+      setActionError(errorMessage(e))
     } finally {
       setSaving(false)
     }
@@ -443,7 +448,7 @@ export function PushDetail({ currentUser }: PushDetailProps) {
       })
       await load(record.id)
     } catch (e) {
-      setActionError(String(e))
+      setActionError(errorMessage(e))
     } finally {
       setSaving(false)
     }
@@ -457,7 +462,7 @@ export function PushDetail({ currentUser }: PushDetailProps) {
       await cancelPush(record.id)
       await load(record.id)
     } catch (e) {
-      setActionError(String(e))
+      setActionError(errorMessage(e))
     } finally {
       setCanceling(false)
     }
@@ -693,55 +698,92 @@ export function PushDetail({ currentUser }: PushDetailProps) {
             record.status === 'APPROVED') && <RePushGuidance record={record} />}
 
           {/* Approve / Reject / Cancel */}
-          {record.status === 'BLOCKED' && (
-            <div className="bg-white rounded-lg shadow border border-gray-200 px-6 py-5">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                Review
-              </h2>
-              <div className="text-xs text-gray-400 mb-3">
-                Reviewing as{' '}
-                <strong>
-                  {currentUser
-                    ? currentUser.username +
-                      (currentUser.emails[0] ? ` (${currentUser.emails[0].email})` : '')
-                    : '…'}
-                </strong>
-              </div>
-              <textarea
-                value={reviewReason}
-                onChange={(e) => setReviewReason(e.target.value)}
-                rows={3}
-                placeholder={
-                  'Reason (required for both approve and reject)\nDescribe the basis for your decision...'
-                }
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm mb-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
-              {actionError && <div className="text-red-600 text-sm mb-3">{actionError}</div>}
-              <div className="flex gap-3">
-                <button
-                  onClick={handleApprove}
-                  disabled={saving || canceling || !reviewReason.trim()}
-                  className="px-4 py-2 text-sm font-medium rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-                >
-                  ✓ Approve
-                </button>
-                <button
-                  onClick={handleReject}
-                  disabled={saving || canceling || !reviewReason.trim()}
-                  className="px-4 py-2 text-sm font-medium rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-                >
-                  ✗ Reject
-                </button>
-                <button
-                  onClick={handleCancel}
-                  disabled={saving || canceling}
-                  className="ml-auto px-4 py-2 text-sm font-medium rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                >
-                  {canceling ? 'Canceling…' : 'Cancel push'}
-                </button>
-              </div>
-            </div>
-          )}
+          {record.status === 'BLOCKED' &&
+            (() => {
+              const isAdmin = currentUser?.authorities?.includes('ROLE_ADMIN') ?? false
+              const isPusher =
+                !!currentUser?.username &&
+                !!record.resolvedUser &&
+                currentUser.username === record.resolvedUser
+              const isSelfReview = isPusher && !isAdmin
+              const canCancel = isAdmin || isPusher
+              return (
+                <div className="bg-white rounded-lg shadow border border-gray-200 px-6 py-5">
+                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                    Review
+                  </h2>
+                  <div className="text-xs text-gray-400 mb-3">
+                    Reviewing as{' '}
+                    <strong>
+                      {currentUser
+                        ? currentUser.username +
+                          (currentUser.emails[0] ? ` (${currentUser.emails[0].email})` : '')
+                        : '…'}
+                    </strong>
+                    {isAdmin && (
+                      <span className="ml-2 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                        admin
+                      </span>
+                    )}
+                  </div>
+                  {isSelfReview && (
+                    <div className="flex gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-3">
+                      <span>⚠</span>
+                      <span>
+                        Self-approval is not permitted — you pushed these commits. Another reviewer
+                        must approve or reject this push.
+                      </span>
+                    </div>
+                  )}
+                  {isAdmin && isPusher && (
+                    <div className="flex gap-2 text-sm text-red-800 bg-red-50 border border-red-200 rounded px-3 py-2 mb-3">
+                      <span>⚠</span>
+                      <span>
+                        <strong>WARNING:</strong> You are about to approve your own push as an admin
+                        override. Only do this if you have a very good reason to — this action will
+                        be permanently recorded in the audit log.
+                      </span>
+                    </div>
+                  )}
+                  <textarea
+                    value={reviewReason}
+                    onChange={(e) => setReviewReason(e.target.value)}
+                    rows={3}
+                    placeholder={
+                      'Reason (required for both approve and reject)\nDescribe the basis for your decision...'
+                    }
+                    disabled={isSelfReview}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm mb-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:bg-gray-50 disabled:text-gray-400"
+                  />
+                  {actionError && <div className="text-red-600 text-sm mb-3">{actionError}</div>}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleApprove}
+                      disabled={isSelfReview || saving || canceling || !reviewReason.trim()}
+                      className="px-4 py-2 text-sm font-medium rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-gray-400"
+                    >
+                      ✓ Approve
+                    </button>
+                    <button
+                      onClick={handleReject}
+                      disabled={isSelfReview || saving || canceling || !reviewReason.trim()}
+                      className="px-4 py-2 text-sm font-medium rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-gray-400"
+                    >
+                      ✗ Reject
+                    </button>
+                    {canCancel && (
+                      <button
+                        onClick={handleCancel}
+                        disabled={saving || canceling}
+                        className="ml-auto px-4 py-2 text-sm font-medium rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        {canceling ? 'Canceling…' : 'Cancel push'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
         </>
       )}
     </div>

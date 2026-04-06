@@ -23,6 +23,7 @@ public final class AttestationRowMapper implements RowMapper<Attestation> {
                 .reviewerEmail(rs.getString("reviewer_email"))
                 .reason(rs.getString("reason"))
                 .automated(rs.getBoolean("automated"))
+                .selfApproval(rs.getBoolean("self_approval"))
                 .timestamp(toInstant(rs.getTimestamp("timestamp")))
                 .build();
     }

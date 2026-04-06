@@ -60,16 +60,37 @@ public class CompositeUserStore implements MutableUserStore {
         return new ArrayList<>(merged.values());
     }
 
-    // ── enriched queries — JDBC only (config users have no DB rows) ──────────────
+    // ── enriched queries — JDBC if the user is there, config fallback ────────────
 
     @Override
     public List<Map<String, Object>> findEmailsWithVerified(String username) {
-        return jdbcStore.findEmailsWithVerified(username);
+        if (jdbcStore.findByUsername(username).isPresent()) {
+            return jdbcStore.findEmailsWithVerified(username);
+        }
+        return configStore
+                .findByUsername(username)
+                .map(u -> u.getEmails().stream()
+                        .<Map<String, Object>>map(
+                                e -> Map.of("email", e, "verified", false, "locked", false, "source", "config"))
+                        .toList())
+                .orElse(List.of());
     }
 
     @Override
     public List<Map<String, Object>> findScmIdentitiesWithVerified(String username) {
-        return jdbcStore.findScmIdentitiesWithVerified(username);
+        if (jdbcStore.findByUsername(username).isPresent()) {
+            return jdbcStore.findScmIdentitiesWithVerified(username);
+        }
+        return configStore
+                .findByUsername(username)
+                .map(u -> u.getScmIdentities().stream()
+                        .filter(id -> !"proxy".equals(id.getProvider()))
+                        .<Map<String, Object>>map(id -> Map.of(
+                                "provider", id.getProvider(),
+                                "username", id.getUsername(),
+                                "verified", false))
+                        .toList())
+                .orElse(List.of());
     }
 
     // ── writes — JDBC only ───────────────────────────────────────────────────────

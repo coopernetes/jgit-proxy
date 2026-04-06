@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS push_attestations (
     reviewer_email      VARCHAR(255),
     reason              TEXT,
     automated           BOOLEAN NOT NULL DEFAULT FALSE,
+    self_approval       BOOLEAN NOT NULL DEFAULT FALSE,
     timestamp           TIMESTAMP NOT NULL,
     PRIMARY KEY (push_id, type, timestamp)
 );
