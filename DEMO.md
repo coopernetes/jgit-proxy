@@ -10,7 +10,7 @@ upstream on approval.
 > **Note:** API approval via admin key is used here for demonstration purposes — approval is normally performed through
 > the dashboard UI.
 
-[Watch: push_mode_pass_email_unregistered.webm](demos/push_mode_pass_email_unregistered.webm)
+![Store-and-forward — successful push](demos/push_mode_pass_email_unregistered.gif)
 
 ---
 
@@ -46,7 +46,7 @@ Proxy mode push rejected for a blocked commit message. The error is returned syn
 
 Multiple validation failures surfaced together in a single proxy mode response.
 
-[Watch: proxy_mode_grouped_failures.webm](demos/proxy_mode_grouped_failures.webm)
+![Proxy mode — grouped validation failures](demos/proxy_mode_grouped_failures.gif)
 
 ---
 
@@ -63,7 +63,7 @@ resolved and unresolved identity states per provider.
 
 An admin attempts to approve their own push and is blocked. The UI prevents self-approval regardless of role.
 
-[Watch: push_mode_prevent_self_review.webm](demos/push_mode_prevent_self_review.webm)
+![Store-and-forward — self-review prevention](demos/push_mode_prevent_self_review.gif)
 
 ---
 
@@ -110,6 +110,15 @@ Expanded view of individual validation step failures: blocked email local-part (
 (`WIP`), diff containing an internal hostname pattern, and a leaked secret detected by secret scanning.
 
 ![Push detail — validation step details](demos/ui_pushdetails_failed_validation_details.png)
+
+---
+
+### Push detail: rejected — identity not linked
+
+Push rejected because the pusher's token could not be resolved to a known proxy user. The `checkUserPermission`
+validation step fails and the push is blocked with an "Identity not linked" warning.
+
+![Push detail — identity not linked](demos/ui_pushdetail_failed_identity_not_linked.png)
 
 ---
 
