@@ -46,6 +46,9 @@ packetline-*.txt
 
 .data/
 
+### Claude Code memory (local only) ###
+memory/
+
 ### Frontend build output ###
 jgit-proxy-dashboard/frontend/node_modules/
 jgit-proxy-dashboard/frontend/dist/
