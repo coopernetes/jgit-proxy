@@ -4,8 +4,11 @@
 
 ## 1. Store-and-forward: successful push (all green)
 
-A clean commit pushed through the `/push/` path. All validation checks pass and the push is forwarded upstream
-automatically.
+A clean commit pushed through the `/push/` path. All validation checks pass, the push waits for review, and is forwarded
+upstream on approval.
+
+> **Note:** API approval via admin key is used here for demonstration purposes — approval is normally performed through
+> the dashboard UI.
 
 [Watch: push_mode_pass_email_unregistered.webm](demos/push_mode_pass_email_unregistered.webm)
 
@@ -22,7 +25,10 @@ containing an internal hostname, and a leaked secret detected by secret scanning
 
 ## 3. Transparent proxy: golden-path push
 
-A push through the `/proxy/` path. Validation passes and the push is forwarded immediately with no review step.
+A push through the `/proxy/` path. Validation passes, the push waits for review, and is forwarded upstream on approval.
+
+> **Note:** API approval via admin key is used here for demonstration purposes — approval is normally performed through
+> the dashboard UI.
 
 ![Proxy mode — golden path](demos/demo-proxy-pass.gif)
 
