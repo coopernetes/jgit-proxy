@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.git.GitRequestDetails;
@@ -30,15 +31,29 @@ public class SecretScanningFilter extends AbstractGitProxyFilter {
 
     private static final int ORDER = 340;
 
-    private final CommitConfig.SecretScanningConfig config;
+    private final Supplier<CommitConfig.SecretScanningConfig> configSupplier;
     private final GitleaksRunner runner;
 
-    public SecretScanningFilter(CommitConfig.SecretScanningConfig config, GitleaksRunner runner) {
+    /** Live-reload constructor — secret scanning config is read from the supplier on every request. */
+    public SecretScanningFilter(Supplier<CommitConfig> commitConfigSupplier, GitleaksRunner runner) {
         super(ORDER, Set.of(HttpOperation.PUSH));
-        this.config = config;
+        this.configSupplier = () -> commitConfigSupplier.get().getSecretScanning();
         this.runner = runner;
     }
 
+    /** Live-reload constructor with default {@link GitleaksRunner}. */
+    public SecretScanningFilter(Supplier<CommitConfig> commitConfigSupplier) {
+        this(commitConfigSupplier, new GitleaksRunner());
+    }
+
+    /** Fixed-config constructor. Useful in tests; wraps the value in a constant supplier. */
+    public SecretScanningFilter(CommitConfig.SecretScanningConfig config, GitleaksRunner runner) {
+        super(ORDER, Set.of(HttpOperation.PUSH));
+        this.configSupplier = () -> config;
+        this.runner = runner;
+    }
+
+    /** Fixed-config constructor with default {@link GitleaksRunner}. Useful in tests. */
     public SecretScanningFilter(CommitConfig.SecretScanningConfig config) {
         this(config, new GitleaksRunner());
     }
@@ -56,6 +71,7 @@ public class SecretScanningFilter extends AbstractGitProxyFilter {
             return;
         }
 
+        var config = configSupplier.get();
         if (!config.isEnabled()) {
             log.debug("Secret scanning disabled - skipping");
             return;

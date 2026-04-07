@@ -135,6 +135,8 @@ public class SecurityConfig {
                         .hasRole("ADMIN")
                         .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/users/**")
                         .hasRole("ADMIN")
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/config/reload")
+                        .hasRole("ADMIN")
                         .requestMatchers(
                                 org.springframework.http.HttpMethod.POST, "/api/push/*/authorise", "/api/push/*/reject")
                         .authenticated()

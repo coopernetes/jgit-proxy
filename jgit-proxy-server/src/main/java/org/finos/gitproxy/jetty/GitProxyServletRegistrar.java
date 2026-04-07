@@ -6,17 +6,20 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.ee11.servlet.FilterHolder;
 import org.eclipse.jetty.ee11.servlet.ServletContextHandler;
 import org.eclipse.jetty.ee11.servlet.ServletHolder;
 import org.eclipse.jgit.http.server.GitServlet;
 import org.finos.gitproxy.approval.ApprovalGateway;
+import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.config.GpgConfig;
 import org.finos.gitproxy.db.FetchStore;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.git.*;
 import org.finos.gitproxy.jetty.config.JettyConfigurationBuilder;
+import org.finos.gitproxy.jetty.reload.ConfigHolder;
 import org.finos.gitproxy.permission.RepoPermissionService;
 import org.finos.gitproxy.provider.BitbucketProvider;
 import org.finos.gitproxy.provider.GitProxyProvider;
@@ -53,13 +56,16 @@ public final class GitProxyServletRegistrar {
         context.addFilter(forceGitClientHolder, PROXY_PATH_PREFIX + "/*", EnumSet.of(DispatcherType.REQUEST));
         context.addFilter(forceGitClientHolder, PUSH_PATH_PREFIX + "/*", EnumSet.of(DispatcherType.REQUEST));
 
+        ConfigHolder configHolder = configBuilder.buildConfigHolder();
+        Supplier<CommitConfig> commitConfigSupplier = configHolder::getCommitConfig;
+
         for (GitProxyProvider provider : providers) {
             log.info("Registering provider: {}", provider.getName());
             registerGitServlet(
                     context,
                     provider,
                     gitProxyCtx.storeForwardCache(),
-                    gitProxyCtx.commitConfig(),
+                    commitConfigSupplier,
                     gitProxyCtx.pushStore(),
                     gitProxyCtx.serviceUrl(),
                     gitProxyCtx.approvalGateway(),
@@ -74,7 +80,7 @@ public final class GitProxyServletRegistrar {
                     provider,
                     gitProxyCtx.proxyCache(),
                     configBuilder,
-                    gitProxyCtx.commitConfig(),
+                    commitConfigSupplier,
                     gitProxyCtx.pushStore(),
                     gitProxyCtx.serviceUrl(),
                     gitProxyCtx.approvalGateway(),
@@ -88,7 +94,7 @@ public final class GitProxyServletRegistrar {
             ServletContextHandler context,
             GitProxyProvider provider,
             LocalRepositoryCache cache,
-            org.finos.gitproxy.config.CommitConfig commitConfig,
+            Supplier<CommitConfig> commitConfigSupplier,
             PushStore pushStore,
             String serviceUrl,
             ApprovalGateway approvalGateway,
@@ -101,7 +107,7 @@ public final class GitProxyServletRegistrar {
 
         var factory = new StoreAndForwardReceivePackFactory(
                 provider,
-                commitConfig,
+                commitConfigSupplier,
                 GpgConfig.defaultConfig(),
                 repoPermissionService,
                 pushIdentityResolver,
@@ -162,7 +168,7 @@ public final class GitProxyServletRegistrar {
             GitProxyProvider provider,
             LocalRepositoryCache repositoryCache,
             JettyConfigurationBuilder configBuilder,
-            org.finos.gitproxy.config.CommitConfig commitConfig,
+            Supplier<CommitConfig> commitConfigSupplier,
             PushStore pushStore,
             String serviceUrl,
             ApprovalGateway approvalGateway,
@@ -193,13 +199,13 @@ public final class GitProxyServletRegistrar {
             filters.add(new BitbucketIdentityFilter(bitbucketProvider));
         }
         filters.add(new CheckUserPushPermissionFilter(pushIdentityResolver, repoPermissionService));
-        filters.add(new IdentityVerificationFilter(pushIdentityResolver, commitConfig.getIdentityVerification()));
+        filters.add(new IdentityVerificationFilter(pushIdentityResolver, commitConfigSupplier));
         filters.add(new CheckEmptyBranchFilter());
         filters.add(new CheckHiddenCommitsFilter(provider));
-        filters.add(new CheckAuthorEmailsFilter(commitConfig));
-        filters.add(new CheckCommitMessagesFilter(commitConfig));
-        filters.add(new ScanDiffFilter(provider, commitConfig));
-        filters.add(new SecretScanningFilter(commitConfig.getSecretScanning()));
+        filters.add(new CheckAuthorEmailsFilter(commitConfigSupplier));
+        filters.add(new CheckCommitMessagesFilter(commitConfigSupplier));
+        filters.add(new ScanDiffFilter(provider, commitConfigSupplier));
+        filters.add(new SecretScanningFilter(commitConfigSupplier));
         filters.add(new GpgSignatureFilter(GpgConfig.defaultConfig()));
         filters.add(new ValidationSummaryFilter());
         filters.add(new FetchFinalizerFilter());

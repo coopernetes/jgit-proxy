@@ -29,6 +29,7 @@ import org.finos.gitproxy.db.memory.InMemoryRepoRegistry;
 import org.finos.gitproxy.db.model.AccessRule;
 import org.finos.gitproxy.git.LocalRepositoryCache;
 import org.finos.gitproxy.jetty.GitProxyContext;
+import org.finos.gitproxy.jetty.reload.ConfigHolder;
 import org.finos.gitproxy.permission.JdbcRepoPermissionStore;
 import org.finos.gitproxy.permission.RepoPermission;
 import org.finos.gitproxy.permission.RepoPermissionService;
@@ -62,6 +63,7 @@ public class JettyConfigurationBuilder {
     private UserStore cachedUserStore;
     private JdbcScmTokenCache cachedTokenCache;
     private RepoPermissionService cachedRepoPermissionService;
+    private ConfigHolder cachedConfigHolder;
 
     public JettyConfigurationBuilder(GitProxyConfig config) {
         this.config = config;
@@ -90,6 +92,24 @@ public class JettyConfigurationBuilder {
     /** Returns the transparent-proxy connect timeout in seconds (0 = no timeout). */
     public int getProxyConnectTimeoutSeconds() {
         return config.getServer().getProxyConnectTimeoutSeconds();
+    }
+
+    /**
+     * Returns the live {@link ConfigHolder} pre-populated with the initial commit config. All filters and hooks that
+     * support live reload receive a {@code Supplier<CommitConfig>} backed by this holder. When
+     * {@link org.finos.gitproxy.jetty.reload.LiveConfigLoader} fires a reload it calls {@link ConfigHolder#update} on
+     * the same instance, so all in-flight and future pushes immediately see the new config.
+     */
+    public ConfigHolder buildConfigHolder() {
+        if (cachedConfigHolder == null) {
+            cachedConfigHolder = new ConfigHolder(buildCommitConfig());
+        }
+        return cachedConfigHolder;
+    }
+
+    /** Returns the {@link ReloadConfig} from the parsed config file. */
+    public ReloadConfig getReloadConfig() {
+        return config.getReload();
     }
 
     /** Returns the service URL for dashboard links, defaulting to {@code http://localhost:<port>/dashboard}. */

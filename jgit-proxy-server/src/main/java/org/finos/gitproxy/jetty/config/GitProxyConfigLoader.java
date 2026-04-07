@@ -1,5 +1,6 @@
 package org.finos.gitproxy.jetty.config;
 
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -7,6 +8,7 @@ import org.github.gestalt.config.Gestalt;
 import org.github.gestalt.config.builder.GestaltBuilder;
 import org.github.gestalt.config.exceptions.GestaltException;
 import org.github.gestalt.config.source.ClassPathConfigSourceBuilder;
+import org.github.gestalt.config.source.FileConfigSourceBuilder;
 import org.github.gestalt.config.source.MapConfigSourceBuilder;
 
 /**
@@ -91,6 +93,53 @@ public final class GitProxyConfigLoader {
         Gestalt gestalt = builder.build();
         gestalt.loadConfigs();
 
+        return gestalt.getConfig("", GitProxyConfig.class);
+    }
+
+    /**
+     * Loads config from all standard sources (classpath base, profiles, env vars) plus an external override file. The
+     * override file takes the highest priority — it is layered on top of everything else, including env vars.
+     *
+     * <p>Used by {@link org.finos.gitproxy.jetty.reload.LiveConfigLoader} to apply reloaded config from a watched
+     * filesystem path or a cloned git repository without restarting the server.
+     *
+     * @param overrideFile path to the external YAML file to overlay
+     * @return fully-populated {@link GitProxyConfig} with the override applied
+     * @throws GestaltException if the base or override config cannot be parsed
+     */
+    public static GitProxyConfig loadWithOverride(Path overrideFile) throws GestaltException {
+        var builder = new GestaltBuilder()
+                .setTreatMissingValuesAsErrors(false)
+                .setTreatMissingDiscretionaryValuesAsErrors(false);
+
+        builder.addSource(
+                ClassPathConfigSourceBuilder.builder().setResource(BASE_CONFIG).build());
+
+        String profilesEnv = System.getenv(PROFILES_ENV_VAR);
+        if (profilesEnv != null && !profilesEnv.isBlank()) {
+            for (String profile : profilesEnv.split(",")) {
+                String profileConfig = "git-proxy-" + profile.trim() + ".yml";
+                if (GitProxyConfigLoader.class.getClassLoader().getResource(profileConfig) != null) {
+                    builder.addSource(ClassPathConfigSourceBuilder.builder()
+                            .setResource(profileConfig)
+                            .build());
+                }
+            }
+        }
+
+        Map<String, String> envOverrides = buildEnvOverrides();
+        if (!envOverrides.isEmpty()) {
+            builder.addSource(MapConfigSourceBuilder.builder()
+                    .setCustomConfig(envOverrides)
+                    .build());
+        }
+
+        builder.addSource(
+                FileConfigSourceBuilder.builder().setFile(overrideFile.toFile()).build());
+        log.info("Applying reload override from {}", overrideFile);
+
+        Gestalt gestalt = builder.build();
+        gestalt.loadConfigs();
         return gestalt.getConfig("", GitProxyConfig.class);
     }
 

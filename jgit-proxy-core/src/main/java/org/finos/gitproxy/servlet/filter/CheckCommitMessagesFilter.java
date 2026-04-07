@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.git.GitRequestDetails;
@@ -24,11 +25,17 @@ import org.finos.gitproxy.validation.Violation;
 public class CheckCommitMessagesFilter extends AbstractGitProxyFilter {
 
     private static final int ORDER = 260;
-    private final CommitMessageCheck check;
+    private final Supplier<CommitConfig> commitConfigSupplier;
 
-    public CheckCommitMessagesFilter(CommitConfig commitConfig) {
+    /** Live-reload constructor — config is read from the supplier on every request. */
+    public CheckCommitMessagesFilter(Supplier<CommitConfig> commitConfigSupplier) {
         super(ORDER, Set.of(HttpOperation.PUSH));
-        this.check = new CommitMessageCheck(commitConfig != null ? commitConfig : CommitConfig.defaultConfig());
+        this.commitConfigSupplier = commitConfigSupplier;
+    }
+
+    /** Fixed-config constructor. Useful in tests; wraps the value in a constant supplier. */
+    public CheckCommitMessagesFilter(CommitConfig commitConfig) {
+        this(() -> commitConfig != null ? commitConfig : CommitConfig.defaultConfig());
     }
 
     @Override
@@ -50,7 +57,7 @@ public class CheckCommitMessagesFilter extends AbstractGitProxyFilter {
             return;
         }
 
-        List<Violation> violations = check.check(commits);
+        List<Violation> violations = new CommitMessageCheck(commitConfigSupplier.get()).check(commits);
         if (violations.isEmpty()) {
             log.debug("All commit messages passed");
             return;

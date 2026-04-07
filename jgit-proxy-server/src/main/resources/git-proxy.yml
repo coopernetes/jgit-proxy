@@ -125,3 +125,21 @@ commit:
 #     scm-identities:
 #       - provider: github
 #         username: alice-gh
+
+# Live config reload. Allows hot-reloading commit rules and auth config without restarting the server.
+# Provider, server, and database changes always require a restart.
+#
+# reload:
+#   file:
+#     # Watch a local filesystem path and reload on modification.
+#     # Relative paths are resolved from the working directory.
+#     enabled: false
+#     path: /app/conf/git-proxy-local.yml
+#   git:
+#     # Periodically clone / pull a git repository and read a YAML file from it.
+#     enabled: false
+#     url: https://github.com/myorg/config.git
+#     branch: main
+#     file-path: git-proxy.yml
+#     # Polling interval in seconds. Set to 0 to disable polling (manual reload only via POST /api/config/reload).
+#     interval-seconds: 300

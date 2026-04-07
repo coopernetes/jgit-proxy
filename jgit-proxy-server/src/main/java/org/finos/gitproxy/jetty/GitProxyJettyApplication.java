@@ -6,8 +6,10 @@ import org.eclipse.jetty.ee11.servlet.ServletContextHandler;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
+import org.finos.gitproxy.jetty.config.GitProxyConfig;
 import org.finos.gitproxy.jetty.config.GitProxyConfigLoader;
 import org.finos.gitproxy.jetty.config.JettyConfigurationBuilder;
+import org.finos.gitproxy.jetty.reload.LiveConfigLoader;
 import org.finos.gitproxy.provider.GitProxyProvider;
 
 /**
@@ -32,7 +34,8 @@ public class GitProxyJettyApplication {
         log.info("Starting JGit Proxy (proxy only - no dashboard)...");
         writePidFile();
 
-        var configBuilder = new JettyConfigurationBuilder(GitProxyConfigLoader.load());
+        GitProxyConfig gitProxyConfig = GitProxyConfigLoader.load();
+        var configBuilder = new JettyConfigurationBuilder(gitProxyConfig);
 
         var threadPool = new QueuedThreadPool();
         threadPool.setName("jgit-proxy-server");
@@ -52,6 +55,11 @@ public class GitProxyJettyApplication {
 
         server.setHandler(context);
         server.start();
+
+        var liveConfigLoader = new LiveConfigLoader(
+                configBuilder.buildConfigHolder(), gitProxyConfig, configBuilder.getReloadConfig());
+        liveConfigLoader.start();
+        Runtime.getRuntime().addShutdownHook(new Thread(liveConfigLoader::stop, "config-reload-shutdown"));
 
         log.info("JGit Proxy started on port {}", connector.getPort());
         for (GitProxyProvider provider : providers) {

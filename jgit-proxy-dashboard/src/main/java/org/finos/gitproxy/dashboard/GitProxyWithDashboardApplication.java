@@ -19,8 +19,11 @@ import org.finos.gitproxy.db.RepoRegistry;
 import org.finos.gitproxy.jetty.GitProxyContext;
 import org.finos.gitproxy.jetty.GitProxyJettyApplication;
 import org.finos.gitproxy.jetty.GitProxyServletRegistrar;
+import org.finos.gitproxy.jetty.config.GitProxyConfig;
 import org.finos.gitproxy.jetty.config.GitProxyConfigLoader;
 import org.finos.gitproxy.jetty.config.JettyConfigurationBuilder;
+import org.finos.gitproxy.jetty.reload.ConfigHolder;
+import org.finos.gitproxy.jetty.reload.LiveConfigLoader;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.springframework.security.web.context.AbstractSecurityWebApplicationInitializer;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
@@ -45,7 +48,7 @@ public class GitProxyWithDashboardApplication {
         log.info("Starting JGit Proxy with Dashboard...");
         GitProxyJettyApplication.writePidFile();
 
-        var gitProxyConfig = GitProxyConfigLoader.load();
+        GitProxyConfig gitProxyConfig = GitProxyConfigLoader.load();
         var configBuilder = new JettyConfigurationBuilder(gitProxyConfig);
 
         var threadPool = new QueuedThreadPool();
@@ -76,8 +79,14 @@ public class GitProxyWithDashboardApplication {
         // Register git proxy servlets (store-and-forward + transparent proxy) for each provider
         GitProxyServletRegistrar.registerProviders(context, ctx, configBuilder, providers);
 
+        ConfigHolder configHolder = configBuilder.buildConfigHolder();
+        var liveConfigLoader = new LiveConfigLoader(configHolder, gitProxyConfig, configBuilder.getReloadConfig());
+        liveConfigLoader.start();
+        Runtime.getRuntime().addShutdownHook(new Thread(liveConfigLoader::stop, "config-reload-shutdown"));
+
         // Spring MVC DispatcherServlet at /* - git-specific paths take precedence per servlet spec
-        registerSpringServlet(context, ctx, providerConfig, gitProxyConfig, repoRegistry);
+        registerSpringServlet(
+                context, ctx, providerConfig, gitProxyConfig, configHolder, liveConfigLoader, repoRegistry);
 
         server.setHandler(context);
         server.start();
@@ -94,7 +103,9 @@ public class GitProxyWithDashboardApplication {
             ServletContextHandler context,
             GitProxyContext ctx,
             ProviderConfigurationSource providers,
-            org.finos.gitproxy.jetty.config.GitProxyConfig gitProxyConfig,
+            GitProxyConfig gitProxyConfig,
+            ConfigHolder configHolder,
+            LiveConfigLoader liveConfigLoader,
             RepoRegistry repoRegistry) {
         var appContext = new AnnotationConfigWebApplicationContext();
         appContext.register(SpringWebConfig.class, SecurityConfig.class);
@@ -103,6 +114,8 @@ public class GitProxyWithDashboardApplication {
             bf.registerSingleton("providers", providers);
             bf.registerSingleton("userStore", ctx.userStore());
             bf.registerSingleton("gitProxyConfig", gitProxyConfig);
+            bf.registerSingleton("configHolder", configHolder);
+            bf.registerSingleton("liveConfigLoader", liveConfigLoader);
             bf.registerSingleton("repoRegistry", repoRegistry);
             bf.registerSingleton("fetchStore", ctx.fetchStore());
             if (ctx.repoPermissionService() != null) {

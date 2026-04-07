@@ -8,6 +8,7 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.transport.*;
@@ -35,7 +36,7 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
     private static final Duration DEFAULT_HEARTBEAT_INTERVAL = Duration.ofSeconds(10);
 
     private final GitProxyProvider provider;
-    private final CommitConfig commitConfig;
+    private final Supplier<CommitConfig> commitConfigSupplier;
     private final GpgConfig gpgConfig;
     private final RepoPermissionService repoPermissionService;
     private final PushIdentityResolver pushIdentityResolver;
@@ -60,6 +61,7 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
         this.connectTimeoutSeconds = connectTimeoutSeconds;
     }
 
+    /** Fixed-config constructors for use in tests and simple setups. */
     public StoreAndForwardReceivePackFactory(
             GitProxyProvider provider,
             CommitConfig commitConfig,
@@ -67,7 +69,7 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
             ApprovalGateway approvalGateway) {
         this(
                 provider,
-                commitConfig,
+                () -> commitConfig,
                 GpgConfig.defaultConfig(),
                 null,
                 null,
@@ -87,8 +89,31 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
             ApprovalGateway approvalGateway,
             String serviceUrl,
             Duration heartbeatInterval) {
+        this(
+                provider,
+                () -> commitConfig,
+                gpgConfig,
+                repoPermissionService,
+                pushIdentityResolver,
+                pushStore,
+                approvalGateway,
+                serviceUrl,
+                heartbeatInterval);
+    }
+
+    /** Live-reload constructor — commit config is read from the supplier on every push. */
+    public StoreAndForwardReceivePackFactory(
+            GitProxyProvider provider,
+            Supplier<CommitConfig> commitConfigSupplier,
+            GpgConfig gpgConfig,
+            RepoPermissionService repoPermissionService,
+            PushIdentityResolver pushIdentityResolver,
+            PushStore pushStore,
+            ApprovalGateway approvalGateway,
+            String serviceUrl,
+            Duration heartbeatInterval) {
         this.provider = provider;
-        this.commitConfig = commitConfig;
+        this.commitConfigSupplier = commitConfigSupplier;
         this.gpgConfig = gpgConfig != null ? gpgConfig : GpgConfig.defaultConfig();
         this.repoPermissionService = repoPermissionService;
         this.pushIdentityResolver = pushIdentityResolver;
@@ -178,6 +203,10 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
 
         var permissionHook = new CheckUserPushPermissionHook(
                 pushIdentityResolver, repoPermissionService, validationContext, pushContext, provider, serviceUrl);
+
+        // Snapshot current config for this push — all hooks in one push see the same config even if a reload fires
+        // mid-push.
+        CommitConfig commitConfig = commitConfigSupplier.get();
 
         var identityVerificationHook = new IdentityVerificationHook(
                 pushIdentityResolver, commitConfig.getIdentityVerification(), validationContext, pushContext, provider);

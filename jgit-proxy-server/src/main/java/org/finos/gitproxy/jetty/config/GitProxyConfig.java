@@ -55,4 +55,10 @@ public class GitProxyConfig {
      * this list.
      */
     private List<PermissionConfig> permissions = new ArrayList<>();
+
+    /**
+     * Live config reload settings. Controls hot-reloading of commit rules and auth config without restarting the
+     * server. Provider, server, and database changes always require a restart.
+     */
+    private ReloadConfig reload = new ReloadConfig();
 }

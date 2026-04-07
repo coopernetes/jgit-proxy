@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.Repository;
@@ -40,11 +41,17 @@ public class ScanDiffFilter extends AbstractProviderAwareGitProxyFilter {
 
     private static final int ORDER = 300;
 
-    private final CommitConfig commitConfig;
+    private final Supplier<CommitConfig> commitConfigSupplier;
 
-    public ScanDiffFilter(GitProxyProvider provider, CommitConfig commitConfig) {
+    /** Live-reload constructor — config is read from the supplier on every request. */
+    public ScanDiffFilter(GitProxyProvider provider, Supplier<CommitConfig> commitConfigSupplier) {
         super(ORDER, Set.of(HttpOperation.PUSH), provider, PROXY_PATH_PREFIX);
-        this.commitConfig = commitConfig != null ? commitConfig : CommitConfig.defaultConfig();
+        this.commitConfigSupplier = commitConfigSupplier;
+    }
+
+    /** Fixed-config constructor. Useful in tests; wraps the value in a constant supplier. */
+    public ScanDiffFilter(GitProxyProvider provider, CommitConfig commitConfig) {
+        this(provider, () -> commitConfig != null ? commitConfig : CommitConfig.defaultConfig());
     }
 
     private static final String PROXY_PATH_PREFIX = "/proxy";
@@ -89,7 +96,8 @@ public class ScanDiffFilter extends AbstractProviderAwareGitProxyFilter {
                     .build();
             requestDetails.getSteps().add(diffStep);
 
-            CommitConfig.BlockConfig block = commitConfig.getDiff().getBlock();
+            CommitConfig.BlockConfig block =
+                    commitConfigSupplier.get().getDiff().getBlock();
             BlockedContentDiffCheck check = new BlockedContentDiffCheck(block);
             List<Violation> violations = check.check(diff).orElse(List.of());
 

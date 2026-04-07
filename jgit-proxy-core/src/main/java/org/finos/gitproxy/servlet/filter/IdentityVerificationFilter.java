@@ -13,6 +13,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.db.model.StepStatus;
@@ -45,13 +46,25 @@ public class IdentityVerificationFilter extends AbstractGitProxyFilter {
     private static final String STEP_NAME = "identityVerification";
 
     private final PushIdentityResolver identityResolver;
-    private final CommitConfig.IdentityVerificationMode mode;
+    private final Supplier<CommitConfig.IdentityVerificationMode> modeSupplier;
 
+    /** Live-reload constructor — identity verification mode is read from the supplier on every request. */
+    public IdentityVerificationFilter(
+            PushIdentityResolver identityResolver, Supplier<CommitConfig> commitConfigSupplier) {
+        super(ORDER, Set.of(HttpOperation.PUSH));
+        this.identityResolver = identityResolver;
+        this.modeSupplier = () -> {
+            CommitConfig.IdentityVerificationMode m = commitConfigSupplier.get().getIdentityVerification();
+            return m != null ? m : CommitConfig.IdentityVerificationMode.WARN;
+        };
+    }
+
+    /** Fixed-mode constructor. Useful in tests; wraps the value in a constant supplier. */
     public IdentityVerificationFilter(
             PushIdentityResolver identityResolver, CommitConfig.IdentityVerificationMode mode) {
         super(ORDER, Set.of(HttpOperation.PUSH));
         this.identityResolver = identityResolver;
-        this.mode = mode != null ? mode : CommitConfig.IdentityVerificationMode.WARN;
+        this.modeSupplier = () -> mode != null ? mode : CommitConfig.IdentityVerificationMode.WARN;
     }
 
     @Override
@@ -61,6 +74,7 @@ public class IdentityVerificationFilter extends AbstractGitProxyFilter {
 
     @Override
     public void doHttpFilter(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        var mode = modeSupplier.get();
         if (mode == CommitConfig.IdentityVerificationMode.OFF) {
             log.debug("Identity verification disabled (mode=off)");
             return;
