@@ -131,7 +131,7 @@ TOKEN_USER2=$(generate_token "${USER2}" "gitproxy-smoke")
 TOKEN_USER3=$(generate_token "${USER3}" "gitproxy-smoke")
 TOKEN_ADMIN=$(generate_token "${ADMIN_USER}" "gitproxy-smoke")
 
-for var token in TOKEN_TESTUSER TOKEN_USER2 TOKEN_USER3 TOKEN_ADMIN; do
+for var in TOKEN_TESTUSER TOKEN_USER2 TOKEN_USER3 TOKEN_ADMIN; do
     eval "val=\$$var"
     if [ -z "${val}" ]; then
         echo "WARNING: could not extract token for ${var} (may already exist — delete and re-run to regenerate)"
