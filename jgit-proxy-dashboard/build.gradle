@@ -108,6 +108,9 @@ tasks.named('run') {
     // Default to the 'local' profile so git-proxy-local.yml is loaded in local dev.
     // Override by setting GITPROXY_CONFIG_PROFILES in your shell before running.
     environment 'GITPROXY_CONFIG_PROFILES', System.getenv('GITPROXY_CONFIG_PROFILES') ?: 'local'
+    // Pass through API key so test scripts can use X-Api-Key without a session.
+    // Default keeps the dev experience simple; override in shell for a stricter key.
+    environment 'GITPROXY_API_KEY', System.getenv('GITPROXY_API_KEY') ?: 'change-me-in-production'
 }
 
 tasks.register('stop') {
