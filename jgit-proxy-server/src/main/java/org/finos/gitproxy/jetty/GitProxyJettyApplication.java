@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.ee11.servlet.ServletContextHandler;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.util.component.LifeCycle;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.finos.gitproxy.jetty.config.GitProxyConfig;
 import org.finos.gitproxy.jetty.config.GitProxyConfigLoader;
@@ -53,13 +54,18 @@ public class GitProxyJettyApplication {
 
         GitProxyServletRegistrar.registerProviders(context, ctx, configBuilder, providers);
 
-        server.setHandler(context);
-        server.start();
-
         var liveConfigLoader = new LiveConfigLoader(
                 configBuilder.buildConfigHolder(), gitProxyConfig, configBuilder.getReloadConfig());
         liveConfigLoader.start();
-        Runtime.getRuntime().addShutdownHook(new Thread(liveConfigLoader::stop, "config-reload-shutdown"));
+        server.addEventListener(new LifeCycle.Listener() {
+            @Override
+            public void lifeCycleStopping(LifeCycle event) {
+                liveConfigLoader.stop();
+            }
+        });
+
+        server.setHandler(context);
+        server.start();
 
         log.info("JGit Proxy started on port {}", connector.getPort());
         for (GitProxyProvider provider : providers) {

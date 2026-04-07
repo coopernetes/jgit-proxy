@@ -11,6 +11,7 @@ import org.eclipse.jetty.ee11.servlet.ServletContextHandler;
 import org.eclipse.jetty.ee11.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.util.component.LifeCycle;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.finos.gitproxy.approval.UiApprovalGateway;
 import org.finos.gitproxy.config.InMemoryProviderConfigurationSource;
@@ -82,7 +83,12 @@ public class GitProxyWithDashboardApplication {
         ConfigHolder configHolder = configBuilder.buildConfigHolder();
         var liveConfigLoader = new LiveConfigLoader(configHolder, gitProxyConfig, configBuilder.getReloadConfig());
         liveConfigLoader.start();
-        Runtime.getRuntime().addShutdownHook(new Thread(liveConfigLoader::stop, "config-reload-shutdown"));
+        server.addEventListener(new LifeCycle.Listener() {
+            @Override
+            public void lifeCycleStopping(LifeCycle event) {
+                liveConfigLoader.stop();
+            }
+        });
 
         // Spring MVC DispatcherServlet at /* - git-specific paths take precedence per servlet spec
         registerSpringServlet(

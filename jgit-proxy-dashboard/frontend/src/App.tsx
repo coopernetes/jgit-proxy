@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { fetchConfig, fetchMe } from './api'
 import { Nav } from './components/Nav'
+import { Admin } from './pages/Admin'
 import { Providers } from './pages/Providers'
 import { PushDetail } from './pages/PushDetail'
 import { PushList } from './pages/PushList'
@@ -38,6 +39,7 @@ export default function App() {
               path="/users/:username"
               element={<UserDetail authProvider={authProvider} currentUser={currentUser} />}
             />
+            <Route path="/admin" element={<Admin />} />
           </Routes>
         </main>
       </div>

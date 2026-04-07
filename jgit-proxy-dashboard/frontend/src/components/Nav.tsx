@@ -73,6 +73,19 @@ export function Nav({ currentUser }: NavProps) {
         >
           Users
         </NavLink>
+        {currentUser?.authorities.includes('ROLE_ADMIN') && (
+          <NavLink
+            to="/admin"
+            className={({ isActive }) =>
+              'px-3 py-1 rounded text-sm transition-colors ' +
+              (isActive
+                ? 'bg-slate-600 text-white'
+                : 'text-slate-300 hover:text-white hover:bg-slate-700')
+            }
+          >
+            Admin
+          </NavLink>
+        )}
       </nav>
 
       {currentUser && (

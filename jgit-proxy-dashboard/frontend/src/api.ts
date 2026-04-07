@@ -47,6 +47,12 @@ export async function fetchProviders() {
   return res.json()
 }
 
+export async function triggerConfigReload(): Promise<{ message: string }> {
+  const res = await apiFetch('/api/config/reload', { method: 'POST' })
+  if (!res.ok) await parseErrorResponse(res, 'Config reload failed')
+  return res.json()
+}
+
 export async function fetchConfig(): Promise<{ authProvider: string; allowedOrigins: string[] }> {
   const res = await fetch('/api/runtime-config')
   if (!res.ok) throw new Error('Failed to fetch config')
