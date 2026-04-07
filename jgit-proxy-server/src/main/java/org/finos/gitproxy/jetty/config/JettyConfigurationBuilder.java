@@ -30,6 +30,7 @@ import org.finos.gitproxy.db.model.AccessRule;
 import org.finos.gitproxy.git.LocalRepositoryCache;
 import org.finos.gitproxy.jetty.GitProxyContext;
 import org.finos.gitproxy.permission.JdbcRepoPermissionStore;
+import org.finos.gitproxy.permission.RepoPermission;
 import org.finos.gitproxy.permission.RepoPermissionService;
 import org.finos.gitproxy.permission.RepoPermissionStore;
 import org.finos.gitproxy.provider.*;
@@ -278,15 +279,30 @@ public class JettyConfigurationBuilder {
     }
 
     /**
-     * Builds and caches the {@link RepoPermissionService}. Seeded from the {@code permissions:} YAML section on first
-     * call; subsequent calls return the same instance.
+     * Builds and caches the {@link RepoPermissionService}. CONFIG-sourced entries from the {@code permissions:} YAML
+     * section are seeded on first call; subsequent calls return the same instance.
      */
     public RepoPermissionService buildRepoPermissionService() {
         if (cachedRepoPermissionService != null) return cachedRepoPermissionService;
         RepoPermissionStore store = buildRepoPermissionStore();
         store.initialize();
         cachedRepoPermissionService = new RepoPermissionService(store);
-        log.info("RepoPermissionService initialized");
+
+        List<RepoPermission> configPerms = config.getPermissions().stream()
+                .map(p -> RepoPermission.builder()
+                        .username(p.getUsername())
+                        .provider(p.getProvider())
+                        .path(p.getPath())
+                        .pathType(
+                                RepoPermission.PathType.valueOf(p.getPathType().toUpperCase()))
+                        .operations(RepoPermission.Operations.valueOf(
+                                p.getOperations().toUpperCase()))
+                        .source(RepoPermission.Source.CONFIG)
+                        .build())
+                .toList();
+        cachedRepoPermissionService.seedFromConfig(configPerms);
+
+        log.info("RepoPermissionService initialized with {} config permission(s)", configPerms.size());
         return cachedRepoPermissionService;
     }
 

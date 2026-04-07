@@ -1,8 +1,80 @@
+# Five users covering all proxy permission scenarios and admin/reviewer roles.
+# gitea-setup.sh creates the corresponding Gitea-side accounts and tokens.
+#
+# Identity chain (store-and-forward):
+#   git push credentials (me:<gitea-token>) → Gitea API → gitea username
+#   → scm_identities lookup → proxy username → permission check
+#
+# Permission scenarios exercised by smoke tests:
+#   test-user → LITERAL  /test-owner/test-repo  (push-permission-literal.sh)
+#   user2     → GLOB     /otherorg/*             (push-permission-glob.sh)
+#   user3     → REGEX    /test-owner/test-repo.* (push-permission-regex.sh)
 users:
   - username: admin
     password-hash: "{noop}admin"
+    roles: [ADMIN]
     emails:
       - admin@example.com
+
+  - username: test-user
+    password-hash: "{noop}Test1234!"
+    emails:
+      - testuser@example.com
+    scm-identities:
+      - provider: gitea
+        username: test-user
+
+  - username: user2
+    password-hash: "{noop}Test1234!"
+    emails:
+      - user2@example.com
+    scm-identities:
+      - provider: gitea
+        username: user2
+
+  - username: user3
+    password-hash: "{noop}Test1234!"
+    emails:
+      - user3@example.com
+    scm-identities:
+      - provider: gitea
+        username: user3
+
+  - username: reviewer
+    password-hash: "{noop}password"
+
+# Repo permissions for the default Docker Compose stack.
+permissions:
+  # test-user: LITERAL — only /test-owner/test-repo
+  - username: test-user
+    provider: gitea
+    path: /test-owner/test-repo
+    operations: PUSH
+
+  # user2: GLOB — any repo under otherorg
+  - username: user2
+    provider: gitea
+    path: /otherorg/*
+    path-type: GLOB
+    operations: PUSH
+
+  # user3: REGEX — test-owner repos matching test-repo.*
+  - username: user3
+    provider: gitea
+    path: /test-owner/test-repo.*
+    path-type: REGEX
+    operations: PUSH
+
+  # reviewer: APPROVE on all the same paths
+  - username: reviewer
+    provider: gitea
+    path: /test-owner/test-repo
+    operations: APPROVE
+  - username: reviewer
+    provider: gitea
+    path: /otherorg/*
+    path-type: GLOB
+    operations: APPROVE
 
 providers:
   # Local gitea included in docker compose setup
@@ -44,8 +116,6 @@ commit:
   diff:
     block:
       # Example: block internal hostnames/URLs from leaking into public repos.
-      # This is the intended use case for diff scanning — org-specific patterns.
-      # Secret detection should be handled by gitleaks (secret-scanning below).
       literals:
         - "internal.corp.example.com"
       patterns:
@@ -65,7 +135,8 @@ filters:
       providers:
         - gitea
       slugs:
-        - test-owner/test-repo
+        - /test-owner/test-repo
+        - /test-owner/test-repo-2
     - enabled: true
       order: 111
       operations:

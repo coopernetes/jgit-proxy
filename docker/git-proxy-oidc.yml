@@ -23,5 +23,44 @@ auth:
     # discovery document so the issuer Spring Security sees matches the iss claim.
 
 # OIDC users do not need to be pre-seeded; /api/me returns the authenticated username
-# even if the user has no DB record yet.  Add entries here only if you need a user to
-# have pre-configured SCM identities before their first login.
+# even if the user has no DB record yet.  Pre-seed here to get scm-identities in place
+# before first login so the identity chain works immediately.
+#
+# testuser's scm-identity (gitea/test-user) closes the identity chain:
+#   git push credentials (test-user:<token>) → Gitea API → "test-user"
+#   → scm_identities lookup → proxy user "testuser" → PUSH permission check
+users:
+  - username: testuser
+    password-hash: "{noop}unused"
+    emails:
+      - testuser@example.com
+    scm-identities:
+      - provider: gitea
+        username: test-user
+  - username: admin
+    password-hash: "{noop}unused"
+    emails:
+      - admin@example.com
+    roles: [ADMIN]
+
+# Repo permissions for OIDC test users.
+# Mirrors docker-default: testuser pushes, admin approves via dashboard.
+permissions:
+  - username: testuser
+    provider: gitea
+    path: /test-owner/test-repo
+    operations: PUSH
+  - username: testuser
+    provider: gitea
+    path: /otherorg/*
+    path-type: GLOB
+    operations: PUSH
+  - username: admin
+    provider: gitea
+    path: /test-owner/test-repo
+    operations: APPROVE
+  - username: admin
+    provider: gitea
+    path: /otherorg/*
+    path-type: GLOB
+    operations: APPROVE

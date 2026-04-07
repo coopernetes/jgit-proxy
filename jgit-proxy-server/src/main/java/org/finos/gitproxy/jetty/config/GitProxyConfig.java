@@ -47,4 +47,11 @@ public class GitProxyConfig {
      * when not set.
      */
     private String serviceUrl;
+
+    /**
+     * CONFIG-sourced repo permissions seeded on startup. These supplement (and on restart replace) any permissions with
+     * source=CONFIG that were previously stored. DB-sourced permissions (created via the REST API) are never touched by
+     * this list.
+     */
+    private List<PermissionConfig> permissions = new ArrayList<>();
 }

@@ -8,44 +8,35 @@ server:
   allowed-origins:
     - http://localhost:5173
 
-# Dev user for local testing. Use {noop} prefix for plaintext passwords (dev only).
-# For production, use {bcrypt} prefix: htpasswd -bnBC 12 "" yourpassword | tr -d ':\n'
-# then set password-hash: "{bcrypt}$2a$12$..."
+# Three users:
+#   admin          — ADMIN role, no SCM identity; for dashboard/user-management testing
+#   thomas-cooper  — personal push account linked to real SCM handles (github/gitlab)
+#   reviewer       — dummy approve-only account; no SCM identity, used to test
+#                    the approval flow independently of the pusher identity
+#
+# Codeberg is intentionally absent from thomas-cooper's scm-identities —
+# push-identity-codeberg.sh expects "Identity Not Linked" as the failure scenario.
+#
+# Password format: {noop}plaintext (dev only).
 users:
   - username: admin
     password-hash: "{noop}admin"
     roles: [ADMIN]
     emails:
-      - developer@example.com
+      - admin@example.com
+
+  - username: thomas-cooper
+    password-hash: "{noop}password"
     scm-identities:
+      - provider: github
+        username: coopernetes
       - provider: gitlab
         username: coopernetes
-      # codeberg intentionally omitted — used to test unresolved identity scenario
+      # codeberg intentionally omitted — used to test unresolved-identity scenario
 
-  - username: dev1
+  - username: reviewer
     password-hash: "{noop}password"
-    emails:
-      - dev1@example.com
-    push-usernames:
-      - dev1
-    scm-identities:
-      - provider: github
-        username: coopernetes
 
-  - username: dev2
-    password-hash: "{noop}password"
-    emails:
-      - dev2@example.com
-    push-usernames:
-      - dev2
-
-  - username: dev3
-    password-hash: "{noop}password"
-    push-usernames:
-      - dev3
-    scm-identities:
-      - provider: github
-        username: dev3-gh
 commit:
   author:
     email:
@@ -70,14 +61,62 @@ commit:
   diff:
     block:
       # Example: block internal hostnames/URLs from leaking into public repos.
-      # This is the intended use case for diff scanning — org-specific patterns.
-      # Secret detection should be handled by gitleaks (secret-scanning below).
       literals:
         - "internal.corp.example.com"
       patterns:
         - '(?i)https?://[a-z0-9.-]*\.corp\.example\.com\b'
   secret-scanning:
     enabled: true
+
+# Repo permissions for local dev / smoke testing.
+#
+# thomas-cooper: push access on all whitelisted repos (exercises LITERAL/GLOB/REGEX).
+# reviewer:      approve-only — dummy account for testing the approval flow
+#                independently of the pusher identity; no SCM identity needed.
+# (admin can also approve via the dashboard by virtue of its ADMIN role.)
+#
+# Path types intentionally exercise all three matching modes:
+#   GitHub   → LITERAL (exact repo path)
+#   GitLab   → GLOB   (/coopernetes/* matches any repo under that owner)
+#   Codeberg → REGEX  (anchored Java regex — permission exists but identity will
+#                      block before it's evaluated in push-identity-codeberg.sh)
+permissions:
+  - username: thomas-cooper
+    provider: github
+    path: /finos/git-proxy
+    operations: PUSH
+  - username: thomas-cooper
+    provider: github
+    path: /coopernetes/test-repo
+    operations: PUSH
+  - username: thomas-cooper
+    provider: gitlab
+    path: /coopernetes/*
+    path-type: GLOB
+    operations: PUSH
+  - username: thomas-cooper
+    provider: codeberg
+    path: /coopernetes/test-repo-codeberg
+    path-type: REGEX
+    operations: PUSH
+  - username: reviewer
+    provider: github
+    path: /finos/git-proxy
+    operations: APPROVE
+  - username: reviewer
+    provider: github
+    path: /coopernetes/test-repo
+    operations: APPROVE
+  - username: reviewer
+    provider: gitlab
+    path: /coopernetes/*
+    path-type: GLOB
+    operations: APPROVE
+  - username: reviewer
+    provider: codeberg
+    path: /coopernetes/test-repo-codeberg
+    path-type: REGEX
+    operations: APPROVE
 
 filters:
   whitelists:

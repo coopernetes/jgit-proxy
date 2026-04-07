@@ -5,6 +5,8 @@ import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -25,7 +27,7 @@ import lombok.extern.slf4j.Slf4j;
  *   <li>{@code LITERAL} — exact string equality
  *   <li>{@code GLOB} — {@link java.nio.file.FileSystem#getPathMatcher} with {@code glob:} prefix; {@code *} matches one
  *       path segment, {@code **} matches any depth
- *   <li>{@code REGEX} — planned; currently treated as no-match
+ *   <li>{@code REGEX} — full Java regex matched against the full path string
  * </ul>
  */
 @Slf4j
@@ -125,10 +127,7 @@ public class RepoPermissionService {
         return switch (perm.getPathType()) {
             case LITERAL -> perm.getPath().equals(path);
             case GLOB -> matchesGlob(perm.getPath(), path);
-            case REGEX -> {
-                log.warn("REGEX path type is not yet enforced; treating as no-match for grant id={}", perm.getId());
-                yield false;
-            }
+            case REGEX -> matchesRegex(perm.getPath(), path);
         };
     }
 
@@ -138,6 +137,15 @@ public class RepoPermissionService {
             return matcher.matches(Paths.get(value));
         } catch (Exception e) {
             log.warn("Invalid glob pattern '{}': {}", pattern, e.getMessage());
+            return false;
+        }
+    }
+
+    private boolean matchesRegex(String pattern, String value) {
+        try {
+            return Pattern.compile(pattern).matcher(value).matches();
+        } catch (PatternSyntaxException e) {
+            log.warn("Invalid regex pattern '{}': {}", pattern, e.getMessage());
             return false;
         }
     }

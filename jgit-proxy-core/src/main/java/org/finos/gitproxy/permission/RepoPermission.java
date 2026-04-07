@@ -11,8 +11,8 @@ import lombok.NoArgsConstructor;
  * {@link #path} at {@link #provider}.
  *
  * <p>{@link #path} is a pattern of the form {@code /owner/repo}. {@link #pathType} controls how it is matched:
- * {@code LITERAL} for exact equality, {@code GLOB} for {@code *}/{@code ?} wildcards, {@code REGEX} for full regex
- * (planned, not yet enforced by the service).
+ * {@code LITERAL} for exact equality, {@code GLOB} for {@code *}/{@code ?} wildcards, {@code REGEX} for full Java regex
+ * matched against the path string.
  */
 @Data
 @Builder

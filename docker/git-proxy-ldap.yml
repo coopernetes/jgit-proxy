@@ -6,6 +6,10 @@
 #
 # The password-hash field is ignored when auth.provider=ldap; it is a placeholder so the user
 # record is seeded into the DB (required for /api/me to return profile data).
+#
+# testuser's scm-identity (gitea/test-user) closes the identity chain:
+#   git push credentials (test-user:<token>) → Gitea API → "test-user"
+#   → scm_identities lookup → proxy user "testuser" → PUSH permission check
 
 auth:
   provider: ldap
@@ -18,7 +22,33 @@ users:
     password-hash: "{noop}unused"
     emails:
       - testuser@example.com
+    scm-identities:
+      - provider: gitea
+        username: test-user
   - username: admin
     password-hash: "{noop}unused"
     emails:
       - admin@example.com
+    roles: [ADMIN]
+
+# Repo permissions for LDAP test users.
+# Mirrors docker-default: testuser pushes, admin approves via dashboard.
+permissions:
+  - username: testuser
+    provider: gitea
+    path: /test-owner/test-repo
+    operations: PUSH
+  - username: testuser
+    provider: gitea
+    path: /otherorg/*
+    path-type: GLOB
+    operations: PUSH
+  - username: admin
+    provider: gitea
+    path: /test-owner/test-repo
+    operations: APPROVE
+  - username: admin
+    provider: gitea
+    path: /otherorg/*
+    path-type: GLOB
+    operations: APPROVE

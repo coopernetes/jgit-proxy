@@ -7,29 +7,24 @@ dn: ou=groups,dc=example,dc=com
 objectClass: organizationalUnit
 ou: groups
 
-# --- Admin User ---
-dn: cn=admin,dc=example,dc=com
+# --- Primary test users (referenced in git-proxy-ldap.yml) ---
+# Login: testuser / testpass123,  admin / admin
+
+dn: cn=testuser,ou=users,dc=example,dc=com
+objectClass: inetOrgPerson
+cn: testuser
+sn: testuser
+mail: testuser@example.com
+userPassword: testpass123
+
+dn: cn=admin,ou=users,dc=example,dc=com
 objectClass: inetOrgPerson
 cn: admin
-userPassword: adminpassword
+sn: admin
 mail: admin@example.com
+userPassword: admin
 
-# --- Users (1-10) ---
-
-dn: cn=developer,ou=users,dc=example,dc=com
-objectClass: inetOrgPerson
-cn: user1
-sn: user1
-mail: developer@example.com
-userPassword: testpass123
-
-# --- Users (1-10) ---
-dn: cn=user2,ou=users,dc=example,dc=com
-objectClass: inetOrgPerson
-cn: user2
-sn: user2
-mail: user2@example.com
-userPassword: testpass123
+# --- Additional test users ---
 
 dn: cn=user2,ou=users,dc=example,dc=com
 objectClass: inetOrgPerson
@@ -99,13 +94,14 @@ userPassword: testpass123
 dn: cn=jgit_proxy_admins,ou=groups,dc=example,dc=com
 objectClass: groupOfNames
 cn: jgit_proxy_admins
+member: cn=admin,ou=users,dc=example,dc=com
 member: cn=user2,ou=users,dc=example,dc=com
 member: cn=user5,ou=users,dc=example,dc=com
 
 dn: cn=contributors,ou=groups,dc=example,dc=com
 objectClass: groupOfNames
 cn: contributors
-member: cn=user1,ou=users,dc=example,dc=com
+member: cn=testuser,ou=users,dc=example,dc=com
 member: cn=user3,ou=users,dc=example,dc=com
 member: cn=user4,ou=users,dc=example,dc=com
 member: cn=user6,ou=users,dc=example,dc=com
