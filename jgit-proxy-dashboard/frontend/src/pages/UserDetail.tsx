@@ -590,6 +590,35 @@ function AddPermissionModal({
   const [operations, setOperations] = useState<'PUSH' | 'APPROVE' | 'ALL'>('ALL')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [regexError, setRegexError] = useState<string | null>(null)
+
+  function handlePathChange(value: string) {
+    setPath(value)
+    if (pathType === 'REGEX') {
+      try {
+        new RegExp(value)
+        setRegexError(null)
+      } catch (e) {
+        setRegexError(e instanceof SyntaxError ? e.message : 'Invalid regex')
+      }
+    } else {
+      setRegexError(null)
+    }
+  }
+
+  function handlePathTypeChange(value: typeof pathType) {
+    setPathType(value)
+    if (value === 'REGEX' && path) {
+      try {
+        new RegExp(path)
+        setRegexError(null)
+      } catch (e) {
+        setRegexError(e instanceof SyntaxError ? e.message : 'Invalid regex')
+      }
+    } else {
+      setRegexError(null)
+    }
+  }
 
   useEffect(() => {
     fetchProviders()
@@ -647,16 +676,17 @@ function AddPermissionModal({
             <input
               required
               value={path}
-              onChange={(e) => setPath(e.target.value)}
+              onChange={(e) => handlePathChange(e.target.value)}
               placeholder="/owner/repo"
-              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm font-mono focus:border-slate-500 focus:outline-none"
+              className={`w-full rounded border px-3 py-1.5 text-sm font-mono focus:outline-none ${regexError ? 'border-amber-400 focus:border-amber-500' : 'border-gray-300 focus:border-slate-500'}`}
             />
+            {regexError && <p className="mt-1 text-xs text-amber-600">⚠ {regexError}</p>}
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Path Type</label>
             <select
               value={pathType}
-              onChange={(e) => setPathType(e.target.value as typeof pathType)}
+              onChange={(e) => handlePathTypeChange(e.target.value as typeof pathType)}
               className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
             >
               <option value="LITERAL">Literal — exact match</option>
