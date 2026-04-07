@@ -1,12 +1,12 @@
 package org.finos.gitproxy.provider;
 
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
 import java.net.URI;
 import java.util.Optional;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hc.client5.http.fluent.Request;
-import org.finos.gitproxy.provider.client.GitHubUserInfo;
-import org.finos.gitproxy.provider.client.ScmUserInfo;
 import tools.jackson.databind.json.JsonMapper;
 
 @Slf4j
@@ -82,3 +82,12 @@ public class GitHubProvider extends AbstractGitProxyProvider implements TokenIde
         return uri.getHost().endsWith(".ghe.com");
     }
 }
+
+/** Jackson deserialization target for the GitHub {@code GET /user} response. */
+record GitHubUserInfo(
+        String login,
+        Long id,
+        // A user has to configure their profile explicitly to have a publicly visible email
+        // for the value to be returned by the API. By most cases, it is null (Optional.empty()) due
+        // to the default visibility of email being private.
+        @JsonSetter(nulls = Nulls.AS_EMPTY) Optional<String> email) {}

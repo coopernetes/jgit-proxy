@@ -12,7 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
 import org.finos.gitproxy.provider.BitbucketProvider;
-import org.finos.gitproxy.provider.client.ScmUserInfo;
+import org.finos.gitproxy.provider.ScmUserInfo;
 
 /**
  * Transparent-proxy filter that resolves the Bitbucket push username and stores it on {@link GitRequestDetails} for

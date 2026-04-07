@@ -7,7 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
 import org.finos.gitproxy.provider.BitbucketProvider;
-import org.finos.gitproxy.provider.client.ScmUserInfo;
+import org.finos.gitproxy.provider.ScmUserInfo;
 
 /**
  * Pre-receive hook that resolves the Bitbucket push user's upstream username and stores it in the repository config

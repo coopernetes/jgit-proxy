@@ -6,8 +6,6 @@ import java.util.Optional;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hc.client5.http.fluent.Request;
-import org.finos.gitproxy.provider.client.ForgejoUserInfo;
-import org.finos.gitproxy.provider.client.ScmUserInfo;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -61,3 +59,6 @@ public class ForgejoProvider extends AbstractGitProxyProvider implements TokenId
         }
     }
 }
+
+/** Jackson deserialization target for the Forgejo/Gitea {@code GET /api/v1/user} response. */
+record ForgejoUserInfo(String login, Long id, String email) {}

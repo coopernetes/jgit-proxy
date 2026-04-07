@@ -1,7 +1,6 @@
 package org.finos.gitproxy.provider;
 
 import java.util.Optional;
-import org.finos.gitproxy.provider.client.ScmUserInfo;
 
 /**
  * Implemented by providers that support resolving a push identity from a token by calling their user API (e.g.

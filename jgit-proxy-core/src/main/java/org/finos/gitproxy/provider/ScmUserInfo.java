@@ -1,4 +1,4 @@
-package org.finos.gitproxy.provider.client;
+package org.finos.gitproxy.provider;
 
 import java.util.Optional;
 

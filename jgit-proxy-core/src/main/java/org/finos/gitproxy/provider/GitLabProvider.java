@@ -4,8 +4,6 @@ import java.net.URI;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hc.client5.http.fluent.Request;
-import org.finos.gitproxy.provider.client.GitLabUserInfo;
-import org.finos.gitproxy.provider.client.ScmUserInfo;
 import tools.jackson.databind.json.JsonMapper;
 
 @Slf4j
@@ -83,3 +81,12 @@ public class GitLabProvider extends AbstractGitProxyProvider implements TokenIde
         }
     }
 }
+
+/** Jackson deserialization target for the GitLab {@code GET /api/v4/user} response. */
+record GitLabUserInfo(
+        String username,
+        Long id,
+        // GitLab's API seems to return the default email address even if profile settings are set to "Do not show on
+        // profile". This needs to be verified with more testing. This was tested with one account and the email
+        // returned in the response was the primary email (not any secondary or committer emails).
+        String email) {}
