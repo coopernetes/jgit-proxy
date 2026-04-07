@@ -49,11 +49,11 @@ public class JdbcPushStore implements PushStore {
     public void save(PushRecord record) {
         tx.executeWithoutResult(status -> {
             jdbc.update("""
-                    INSERT INTO push_records (id, timestamp, url, upstream_url, project, repo_name, branch,
+                    INSERT INTO push_records (id, timestamp, url, upstream_url, provider, project, repo_name, branch,
                         commit_from, commit_to, message, author, author_email, committer, committer_email,
                         push_user, resolved_user, scm_username, user_email, method, status, error_message, blocked_message,
                         auto_approved, auto_rejected)
-                    VALUES (:id, :timestamp, :url, :upstreamUrl, :project, :repoName, :branch,
+                    VALUES (:id, :timestamp, :url, :upstreamUrl, :provider, :project, :repoName, :branch,
                         :commitFrom, :commitTo, :message, :author, :authorEmail, :committer, :committerEmail,
                         :user, :resolvedUser, :scmUsername, :userEmail, :method, :status, :errorMessage, :blockedMessage,
                         :autoApproved, :autoRejected)
@@ -304,6 +304,7 @@ public class JdbcPushStore implements PushStore {
                 .addValue("timestamp", Timestamp.from(r.getTimestamp()))
                 .addValue("url", r.getUrl())
                 .addValue("upstreamUrl", r.getUpstreamUrl())
+                .addValue("provider", r.getProvider())
                 .addValue("project", r.getProject())
                 .addValue("repoName", r.getRepoName())
                 .addValue("branch", r.getBranch())

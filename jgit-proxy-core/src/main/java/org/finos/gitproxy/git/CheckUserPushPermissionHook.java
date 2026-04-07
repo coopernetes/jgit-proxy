@@ -11,17 +11,21 @@ import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
 import org.finos.gitproxy.db.model.PushStep;
 import org.finos.gitproxy.db.model.StepStatus;
+import org.finos.gitproxy.permission.RepoPermissionService;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.service.PushIdentityResolver;
-import org.finos.gitproxy.service.UserAuthorizationService;
 import org.finos.gitproxy.user.UserEntry;
 
 /**
- * Pre-receive hook that validates the pushing user has permission to push to this repository. Mirrors the behavior of
+ * Pre-receive hook that validates the pushing user has permission to push to this repository. Mirrors the behaviour of
  * {@link org.finos.gitproxy.servlet.filter.CheckUserPushPermissionFilter} for store-and-forward mode.
  *
+ * <p>Fail-closed: if no permission grants exist for the repository the push is denied. Skipped entirely when
+ * {@link PushIdentityResolver} is {@code null} (open mode, no user store configured).
+ *
  * <p>The push user is the authenticated HTTP Basic-auth username, stored in the repository config under
- * {@code gitproxy.pushUser} by {@link StoreAndForwardReceivePackFactory}.
+ * {@code gitproxy.pushUser} by {@link StoreAndForwardReceivePackFactory}. The repo slug is stored under
+ * {@code gitproxy.repoSlug} by the same factory.
  */
 @Slf4j
 public class CheckUserPushPermissionHook implements GitProxyHook {
@@ -29,7 +33,7 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
     private static final int ORDER = 150;
 
     private final PushIdentityResolver identityResolver;
-    private final UserAuthorizationService userAuthorizationService;
+    private final RepoPermissionService repoPermissionService;
     private final ValidationContext validationContext;
     private final PushContext pushContext;
     private final GitProxyProvider provider;
@@ -37,30 +41,21 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
 
     public CheckUserPushPermissionHook(
             PushIdentityResolver identityResolver,
-            UserAuthorizationService userAuthorizationService,
+            RepoPermissionService repoPermissionService,
             ValidationContext validationContext,
             PushContext pushContext) {
-        this(identityResolver, userAuthorizationService, validationContext, pushContext, (GitProxyProvider) null);
+        this(identityResolver, repoPermissionService, validationContext, pushContext, null, null);
     }
 
     public CheckUserPushPermissionHook(
             PushIdentityResolver identityResolver,
-            UserAuthorizationService userAuthorizationService,
-            ValidationContext validationContext,
-            PushContext pushContext,
-            GitProxyProvider provider) {
-        this(identityResolver, userAuthorizationService, validationContext, pushContext, provider, null);
-    }
-
-    public CheckUserPushPermissionHook(
-            PushIdentityResolver identityResolver,
-            UserAuthorizationService userAuthorizationService,
+            RepoPermissionService repoPermissionService,
             ValidationContext validationContext,
             PushContext pushContext,
             GitProxyProvider provider,
             String serviceUrl) {
         this.identityResolver = identityResolver;
-        this.userAuthorizationService = userAuthorizationService;
+        this.repoPermissionService = repoPermissionService;
         this.validationContext = validationContext;
         this.pushContext = pushContext;
         this.provider = provider;
@@ -72,6 +67,7 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
         var config = rp.getRepository().getConfig();
         String pushUser = config.getString("gitproxy", null, "pushUser");
         String pushToken = config.getString("gitproxy", null, "pushToken");
+        String repoSlug = config.getString("gitproxy", null, "repoSlug");
 
         if (identityResolver == null) {
             log.debug("No identity resolver configured (open mode), skipping permission check");
@@ -93,7 +89,6 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
             return;
         }
 
-        // Resolve identity: who is the person behind these credentials?
         Optional<UserEntry> resolved =
                 identityResolver != null ? identityResolver.resolve(provider, pushUser, pushToken) : Optional.empty();
 
@@ -117,11 +112,24 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
         }
 
         UserEntry user = resolved.get();
-        if (!userAuthorizationService.isUserAuthorizedToPush(user.getUsername(), null)) {
-            log.warn("Push user '{}' (resolved as '{}') is not authorized", pushUser, user.getUsername());
+        String providerName = provider != null ? provider.getName() : null;
+
+        if (providerName == null
+                || repoSlug == null
+                || !repoPermissionService.isAllowedToPush(user.getUsername(), providerName, repoSlug)) {
+            log.warn(
+                    "Push user '{}' (resolved as '{}') is not authorized for {}/{}",
+                    pushUser,
+                    user.getUsername(),
+                    providerName,
+                    repoSlug);
+            String repoRef = providerName != null && repoSlug != null
+                    ? String.format("https://%s%s", providerName, repoSlug)
+                    : repoSlug;
             String detail = GitClientUtils.format(
                     sym(NO_ENTRY) + "  Push Blocked - Unauthorized",
-                    sym(CROSS_MARK) + "  " + user.getUsername() + " is not authorized to push to this repository.",
+                    sym(CROSS_MARK) + "  " + user.getUsername() + " is not allowed to push to:\n   " + sym(LINK) + "  "
+                            + repoRef,
                     RED,
                     null);
             validationContext.addIssue(
@@ -129,10 +137,13 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
             return;
         }
 
-        log.debug("Push user '{}' resolved as '{}' and authorized", pushUser, user.getUsername());
+        log.debug(
+                "Push user '{}' resolved as '{}' and authorized for {}/{}",
+                pushUser,
+                user.getUsername(),
+                providerName,
+                repoSlug);
         config.setString("gitproxy", null, "resolvedUser", user.getUsername());
-        // Store the SCM username (provider-side login, e.g. "coopernetes") when available.
-        // This differs from the proxy username and is the correct handle for provider profile links.
         if (provider != null && user.getScmIdentities() != null) {
             user.getScmIdentities().stream()
                     .filter(id -> provider.getName().equalsIgnoreCase(id.getProvider()))

@@ -60,6 +60,12 @@ public class ParseGitRequestFilter extends AbstractProviderAwareGitProxyFilter {
         // Add the details to the request attributes
         wrapper.setAttribute(GIT_REQUEST_ATTR, requestDetails);
 
+        if (System.getenv().containsKey("GITPROXY_DEBUG_CLIENT")
+                && !System.getenv("GITPROXY_DEBUG_CLIENT").equals("")) {
+            log.info("remote addr: {}", request.getRemoteAddr());
+            log.info("user-agent: {}", ((HttpServletRequest) request).getHeader("User-Agent"));
+        }
+
         // Block multi-ref pushes immediately — do not let them reach downstream filters
         if (requestDetails.getResult() == GitRequestDetails.GitResult.REJECTED) {
             String title = sym(NO_ENTRY) + "  Push Blocked - Multi-Branch Push";
@@ -149,7 +155,7 @@ public class ParseGitRequestFilter extends AbstractProviderAwareGitProxyFilter {
     private static String getSlug(String pathInfo) {
         var parts = pathInfo.split("/");
         if (parts.length < 3) return pathInfo;
-        return String.join("/", parts[1], parts[2]).replace(Constants.DOT_GIT_EXT, "");
+        return "/" + String.join("/", parts[1], parts[2]).replace(Constants.DOT_GIT_EXT, "");
     }
 
     private byte[] readRemainingData(InputStream is) throws IOException {

@@ -22,7 +22,7 @@ public class AccessRule {
     /** Provider name this rule applies to. Null = applies to all providers. */
     private String provider;
 
-    /** Glob pattern matching {@code owner/repo} slug. Null = not used. */
+    /** Glob pattern matching {@code /owner/repo} slug. Null = not used. */
     private String slug;
 
     /** Glob pattern matching the owner/org portion of the URL. Null = not used. */

@@ -95,7 +95,7 @@ class PushFinalizerFilterTest {
         details.setOperation(HttpOperation.PUSH);
         details.setCommitTo("abc123");
         details.setRepoRef(
-                GitRequestDetails.RepoRef.builder().slug("owner/repo").build());
+                GitRequestDetails.RepoRef.builder().slug("/owner/repo").build());
         return details;
     }
 

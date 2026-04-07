@@ -89,8 +89,8 @@ filters:
       providers:
         - github
       slugs:
-        - finos/git-proxy
-        - coopernetes/test-repo
+        - /finos/git-proxy
+        - /coopernetes/test-repo
     - enabled: true
       order: 111
       operations:
@@ -99,7 +99,7 @@ filters:
       providers:
         - gitlab
       slugs:
-        - coopernetes/test-repo-gitlab
+        - /coopernetes/test-repo-gitlab
     - enabled: true
       order: 112
       operations:
@@ -108,7 +108,7 @@ filters:
       providers:
         - codeberg
       slugs:
-        - coopernetes/test-repo-codeberg
+        - /coopernetes/test-repo-codeberg
     - enabled: true
       order: 120
       operations:

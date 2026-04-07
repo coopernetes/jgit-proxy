@@ -141,7 +141,7 @@ class ScanDiffFilterTest {
         details.setRepoRef(GitRequestDetails.RepoRef.builder()
                 .owner("owner")
                 .name("repo")
-                .slug("owner/repo")
+                .slug("/owner/repo")
                 .build());
         details.setCommitFrom(fromCommit);
         details.setCommitTo(toCommit);

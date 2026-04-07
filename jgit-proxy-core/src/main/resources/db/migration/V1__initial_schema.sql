@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS push_records (
     timestamp       TIMESTAMP NOT NULL,
     url             VARCHAR(1024),
     upstream_url    VARCHAR(1024),
+    provider        VARCHAR(100),
     project         VARCHAR(255),
     repo_name       VARCHAR(255),
     branch          VARCHAR(512),
@@ -110,7 +111,7 @@ CREATE INDEX IF NOT EXISTS idx_user_emails_email ON user_emails(email);
 CREATE TABLE IF NOT EXISTS access_rules (
     id          VARCHAR(36)  PRIMARY KEY,
     provider    VARCHAR(100),               -- NULL = applies to all providers
-    slug        VARCHAR(512),               -- owner/repo glob pattern; NULL = not used
+    slug        VARCHAR(512),               -- /owner/repo glob pattern; NULL = not used
     owner       VARCHAR(255),               -- owner/org glob pattern; NULL = not used
     name        VARCHAR(255),               -- repo name glob pattern; NULL = not used
     access      VARCHAR(10)  NOT NULL DEFAULT 'ALLOW',  -- ALLOW or DENY
@@ -147,6 +148,28 @@ CREATE TABLE IF NOT EXISTS scm_token_cache (
     cached_at       TIMESTAMP    NOT NULL,
     PRIMARY KEY (token_hash, provider)
 );
+
+-- ---------------------------------------------------------------------------
+-- Per-repo push and approval authorization (issue #47)
+--
+-- A grant says "username may perform operations on repos matching path at provider".
+-- path is a /owner/repo pattern; path_type controls matching: LITERAL, GLOB, or REGEX.
+-- operations: PUSH, APPROVE, or ALL.
+-- Fail-closed: if no grant rows exist for a (provider, path) the request is denied.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS repo_permissions (
+    id          VARCHAR(36)  PRIMARY KEY,
+    username    VARCHAR(255) NOT NULL,
+    provider    VARCHAR(100) NOT NULL,
+    path        VARCHAR(512) NOT NULL,
+    path_type   VARCHAR(10)  NOT NULL DEFAULT 'LITERAL',  -- LITERAL | GLOB | REGEX
+    operations  VARCHAR(10)  NOT NULL DEFAULT 'ALL',      -- PUSH | APPROVE | ALL
+    source      VARCHAR(10)  NOT NULL DEFAULT 'DB'        -- CONFIG | DB
+);
+
+CREATE INDEX IF NOT EXISTS idx_repo_permissions_username ON repo_permissions(username);
+CREATE INDEX IF NOT EXISTS idx_repo_permissions_provider ON repo_permissions(provider);
 
 -- ---------------------------------------------------------------------------
 -- Indexes for common queries

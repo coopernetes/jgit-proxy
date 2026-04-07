@@ -17,10 +17,10 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
 import org.finos.gitproxy.db.model.StepStatus;
+import org.finos.gitproxy.permission.RepoPermissionService;
 import org.finos.gitproxy.provider.GitHubProvider;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.service.PushIdentityResolver;
-import org.finos.gitproxy.service.UserAuthorizationService;
 import org.finos.gitproxy.user.UserEntry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,7 +34,7 @@ class CheckUserPushPermissionHookTest {
     Git git;
     Repository repo;
     PushIdentityResolver resolver;
-    UserAuthorizationService authService;
+    RepoPermissionService permService;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -43,7 +43,7 @@ class CheckUserPushPermissionHookTest {
         repo.getConfig().setBoolean("commit", null, "gpgsign", false);
         repo.getConfig().save();
         resolver = mock(PushIdentityResolver.class);
-        authService = mock(UserAuthorizationService.class);
+        permService = mock(RepoPermissionService.class);
     }
 
     private RevCommit createCommit(String message) throws Exception {
@@ -58,7 +58,7 @@ class CheckUserPushPermissionHookTest {
     }
 
     private CheckUserPushPermissionHook hook(ValidationContext vc, PushContext pc) {
-        return new CheckUserPushPermissionHook(resolver, authService, vc, pc);
+        return new CheckUserPushPermissionHook(resolver, permService, vc, pc);
     }
 
     private static UserEntry userEntry(String username) {
@@ -85,7 +85,7 @@ class CheckUserPushPermissionHookTest {
         assertFalse(pushContext.getSteps().isEmpty());
         assertEquals(StepStatus.PASS, pushContext.getSteps().get(0).getStatus());
         assertFalse(validationContext.hasIssues());
-        verifyNoInteractions(resolver, authService);
+        verifyNoInteractions(resolver, permService);
     }
 
     // ---- resolver returns empty → "identity not linked" ----
@@ -113,18 +113,19 @@ class CheckUserPushPermissionHookTest {
         assertTrue(
                 validationContext.getIssues().get(0).summary().contains("Identity not linked"),
                 "Issue message should mention 'Identity not linked'");
-        verifyNoInteractions(authService);
+        verifyNoInteractions(permService);
     }
 
-    // ---- resolver resolves user but not authorized ----
+    // ---- resolver resolves user but not authorized (provider + slug configured) ----
 
     @Test
     void userNotAuthorized_addsUnauthorizedIssue() throws Exception {
         repo.getConfig().setString("gitproxy", null, "pushUser", "corp-user");
+        repo.getConfig().setString("gitproxy", null, "repoSlug", "/owner/repo");
         repo.getConfig().save();
-        when(resolver.resolve(nullable(GitProxyProvider.class), eq("corp-user"), any()))
-                .thenReturn(Optional.of(userEntry("alice")));
-        when(authService.isUserAuthorizedToPush("alice", null)).thenReturn(false);
+        GitProxyProvider github = new GitHubProvider("/push");
+        when(resolver.resolve(eq(github), eq("corp-user"), any())).thenReturn(Optional.of(userEntry("alice")));
+        when(permService.isAllowedToPush("alice", "github", "/owner/repo")).thenReturn(false);
 
         RevCommit c1 = createCommit("init");
         RevCommit c2 = createCommit("second");
@@ -133,7 +134,8 @@ class CheckUserPushPermissionHookTest {
         PushContext pushContext = new PushContext();
         ValidationContext validationContext = new ValidationContext();
 
-        hook(validationContext, pushContext).onPreReceive(rp, List.of(cmd));
+        new CheckUserPushPermissionHook(resolver, permService, validationContext, pushContext, github, null)
+                .onPreReceive(rp, List.of(cmd));
 
         assertTrue(validationContext.hasIssues());
         assertEquals(
@@ -150,10 +152,12 @@ class CheckUserPushPermissionHookTest {
     void resolvedAndAuthorized_recordsPass() throws Exception {
         repo.getConfig().setString("gitproxy", null, "pushUser", "corp-user");
         repo.getConfig().setString("gitproxy", null, "pushToken", "ghp_secret");
+        repo.getConfig().setString("gitproxy", null, "repoSlug", "/owner/repo");
         repo.getConfig().save();
-        when(resolver.resolve(nullable(GitProxyProvider.class), eq("corp-user"), eq("ghp_secret")))
+        GitProxyProvider github = new GitHubProvider("/push");
+        when(resolver.resolve(eq(github), eq("corp-user"), eq("ghp_secret")))
                 .thenReturn(Optional.of(userEntry("alice")));
-        when(authService.isUserAuthorizedToPush("alice", null)).thenReturn(true);
+        when(permService.isAllowedToPush("alice", "github", "/owner/repo")).thenReturn(true);
 
         RevCommit c1 = createCommit("init");
         RevCommit c2 = createCommit("second");
@@ -162,7 +166,8 @@ class CheckUserPushPermissionHookTest {
         PushContext pushContext = new PushContext();
         ValidationContext validationContext = new ValidationContext();
 
-        hook(validationContext, pushContext).onPreReceive(rp, List.of(cmd));
+        new CheckUserPushPermissionHook(resolver, permService, validationContext, pushContext, github, null)
+                .onPreReceive(rp, List.of(cmd));
 
         assertFalse(validationContext.hasIssues());
         assertFalse(pushContext.getSteps().isEmpty());
@@ -183,7 +188,7 @@ class CheckUserPushPermissionHookTest {
         PushContext pushContext = new PushContext();
         ValidationContext validationContext = new ValidationContext();
 
-        new CheckUserPushPermissionHook(null, authService, validationContext, pushContext)
+        new CheckUserPushPermissionHook(null, permService, validationContext, pushContext)
                 .onPreReceive(rp, List.of(cmd));
 
         assertFalse(
@@ -197,10 +202,11 @@ class CheckUserPushPermissionHookTest {
     @Test
     void provider_isPassedToResolver() throws Exception {
         repo.getConfig().setString("gitproxy", null, "pushUser", "my-user");
+        repo.getConfig().setString("gitproxy", null, "repoSlug", "/owner/repo");
         repo.getConfig().save();
-        GitProxyProvider github = new GitHubProvider("/proxy");
+        GitProxyProvider github = new GitHubProvider("/push");
         when(resolver.resolve(eq(github), eq("my-user"), any())).thenReturn(Optional.of(userEntry("my-user")));
-        when(authService.isUserAuthorizedToPush("my-user", null)).thenReturn(true);
+        when(permService.isAllowedToPush("my-user", "github", "/owner/repo")).thenReturn(true);
 
         RevCommit c1 = createCommit("init");
         RevCommit c2 = createCommit("second");
@@ -209,7 +215,7 @@ class CheckUserPushPermissionHookTest {
         PushContext pushContext = new PushContext();
         ValidationContext validationContext = new ValidationContext();
 
-        new CheckUserPushPermissionHook(resolver, authService, validationContext, pushContext, github)
+        new CheckUserPushPermissionHook(resolver, permService, validationContext, pushContext, github, null)
                 .onPreReceive(rp, List.of(cmd));
 
         verify(resolver).resolve(eq(github), eq("my-user"), any());

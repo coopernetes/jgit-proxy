@@ -18,10 +18,10 @@ import org.finos.gitproxy.approval.ApprovalGateway;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.config.GpgConfig;
 import org.finos.gitproxy.db.PushStore;
+import org.finos.gitproxy.permission.RepoPermissionService;
 import org.finos.gitproxy.provider.BitbucketProvider;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.service.PushIdentityResolver;
-import org.finos.gitproxy.service.UserAuthorizationService;
 
 /**
  * Factory that creates {@link ReceivePack} instances for store-and-forward push handling. Extracts credentials from the
@@ -37,7 +37,7 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
     private final GitProxyProvider provider;
     private final CommitConfig commitConfig;
     private final GpgConfig gpgConfig;
-    private final UserAuthorizationService userAuthorizationService;
+    private final RepoPermissionService repoPermissionService;
     private final PushIdentityResolver pushIdentityResolver;
     private final PushStore pushStore;
     private final ApprovalGateway approvalGateway;
@@ -80,47 +80,8 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
     public StoreAndForwardReceivePackFactory(
             GitProxyProvider provider,
             CommitConfig commitConfig,
-            PushStore pushStore,
-            ApprovalGateway approvalGateway,
-            String serviceUrl) {
-        this(
-                provider,
-                commitConfig,
-                GpgConfig.defaultConfig(),
-                null,
-                null,
-                pushStore,
-                approvalGateway,
-                serviceUrl,
-                DEFAULT_HEARTBEAT_INTERVAL);
-    }
-
-    public StoreAndForwardReceivePackFactory(
-            GitProxyProvider provider,
-            CommitConfig commitConfig,
             GpgConfig gpgConfig,
-            UserAuthorizationService userAuthorizationService,
-            PushIdentityResolver pushIdentityResolver,
-            PushStore pushStore,
-            ApprovalGateway approvalGateway,
-            String serviceUrl) {
-        this(
-                provider,
-                commitConfig,
-                gpgConfig,
-                userAuthorizationService,
-                pushIdentityResolver,
-                pushStore,
-                approvalGateway,
-                serviceUrl,
-                DEFAULT_HEARTBEAT_INTERVAL);
-    }
-
-    public StoreAndForwardReceivePackFactory(
-            GitProxyProvider provider,
-            CommitConfig commitConfig,
-            GpgConfig gpgConfig,
-            UserAuthorizationService userAuthorizationService,
+            RepoPermissionService repoPermissionService,
             PushIdentityResolver pushIdentityResolver,
             PushStore pushStore,
             ApprovalGateway approvalGateway,
@@ -129,7 +90,7 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
         this.provider = provider;
         this.commitConfig = commitConfig;
         this.gpgConfig = gpgConfig != null ? gpgConfig : GpgConfig.defaultConfig();
-        this.userAuthorizationService = userAuthorizationService;
+        this.repoPermissionService = repoPermissionService;
         this.pushIdentityResolver = pushIdentityResolver;
         this.pushStore = pushStore;
         this.approvalGateway = approvalGateway;
@@ -162,6 +123,19 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
         }
         if (pushToken != null) {
             db.getConfig().setString("gitproxy", null, "pushToken", pushToken);
+        }
+
+        // Store the repo slug (/owner/repo) so permission hooks can read it without re-parsing the URL.
+        String pathInfo = req.getPathInfo();
+        if (pathInfo != null) {
+            // pathInfo is e.g. /owner/repo.git — strip .git suffix
+            String slug = pathInfo.replaceAll("\\.git$", "");
+            // Normalise to /owner/repo (at most two path segments after leading /)
+            String[] segments = slug.split("/", 4);
+            if (segments.length >= 3) {
+                slug = "/" + segments[1] + "/" + segments[2];
+            }
+            db.getConfig().setString("gitproxy", null, "repoSlug", slug);
         }
 
         // Per-request shared contexts
@@ -203,14 +177,7 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
         //   PushStorePersistenceHook.postReceive - save FORWARDED/ERROR
 
         var permissionHook = new CheckUserPushPermissionHook(
-                pushIdentityResolver,
-                userAuthorizationService != null
-                        ? userAuthorizationService
-                        : new org.finos.gitproxy.service.DummyUserAuthorizationService(),
-                validationContext,
-                pushContext,
-                provider,
-                serviceUrl);
+                pushIdentityResolver, repoPermissionService, validationContext, pushContext, provider, serviceUrl);
 
         var identityVerificationHook = new IdentityVerificationHook(
                 pushIdentityResolver, commitConfig.getIdentityVerification(), validationContext, pushContext, provider);

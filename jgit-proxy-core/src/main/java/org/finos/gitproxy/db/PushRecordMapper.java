@@ -39,6 +39,7 @@ public final class PushRecordMapper {
         }
 
         if (details.getProvider() != null) {
+            builder.provider(details.getProvider().getName());
             String url = builder.build().getUrl();
             if (url == null) {
                 builder.url(details.getProvider().getName());
@@ -47,7 +48,7 @@ public final class PushRecordMapper {
             String providerUri = details.getProvider().getUri().toString();
             String slug = details.getRepoRef() != null ? details.getRepoRef().getSlug() : null;
             if (slug != null) {
-                String upstreamUrl = providerUri.endsWith("/") ? providerUri + slug : providerUri + "/" + slug;
+                String upstreamUrl = providerUri.replaceAll("/$", "") + slug;
                 builder.upstreamUrl(upstreamUrl);
             }
         }

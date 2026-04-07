@@ -22,6 +22,7 @@ public final class PushRecordRowMapper implements RowMapper<PushRecord> {
                 .timestamp(toInstant(rs.getTimestamp("timestamp")))
                 .url(rs.getString("url"))
                 .upstreamUrl(rs.getString("upstream_url"))
+                .provider(rs.getString("provider"))
                 .project(rs.getString("project"))
                 .repoName(rs.getString("repo_name"))
                 .branch(rs.getString("branch"))

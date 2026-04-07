@@ -5,8 +5,8 @@ import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.db.FetchStore;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.git.LocalRepositoryCache;
+import org.finos.gitproxy.permission.RepoPermissionService;
 import org.finos.gitproxy.service.PushIdentityResolver;
-import org.finos.gitproxy.service.UserAuthorizationService;
 import org.finos.gitproxy.user.UserStore;
 
 /**
@@ -22,7 +22,7 @@ public record GitProxyContext(
         PushStore pushStore,
         FetchStore fetchStore,
         UserStore userStore,
-        UserAuthorizationService userAuthService,
+        RepoPermissionService repoPermissionService,
         PushIdentityResolver pushIdentityResolver,
         ApprovalGateway approvalGateway,
         CommitConfig commitConfig,

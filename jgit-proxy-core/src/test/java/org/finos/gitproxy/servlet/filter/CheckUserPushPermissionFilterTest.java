@@ -19,10 +19,10 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
+import org.finos.gitproxy.permission.RepoPermissionService;
 import org.finos.gitproxy.provider.GitHubProvider;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.service.PushIdentityResolver;
-import org.finos.gitproxy.service.UserAuthorizationService;
 import org.finos.gitproxy.user.UserEntry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,12 +30,12 @@ import org.junit.jupiter.api.Test;
 class CheckUserPushPermissionFilterTest {
 
     PushIdentityResolver resolver;
-    UserAuthorizationService authService;
+    RepoPermissionService permService;
 
     @BeforeEach
     void setUp() {
         resolver = mock(PushIdentityResolver.class);
-        authService = mock(UserAuthorizationService.class);
+        permService = mock(RepoPermissionService.class);
     }
 
     // ---- test infrastructure ----
@@ -117,7 +117,7 @@ class CheckUserPushPermissionFilterTest {
         details.setRepoRef(GitRequestDetails.RepoRef.builder()
                 .owner("owner")
                 .name("repo")
-                .slug("owner/repo")
+                .slug("/owner/repo")
                 .build());
         return details;
     }
@@ -142,10 +142,10 @@ class CheckUserPushPermissionFilterTest {
         when(req.getInputStream()).thenReturn(emptyStream());
         FakeResponse resp = new FakeResponse();
 
-        new CheckUserPushPermissionFilter(resolver, authService).doHttpFilter(req, resp.mock);
+        new CheckUserPushPermissionFilter(resolver, permService).doHttpFilter(req, resp.mock);
 
         assertFalse(resp.committed.get());
-        verifyNoInteractions(resolver, authService);
+        verifyNoInteractions(resolver, permService);
     }
 
     // ---- null resolver (open mode) → skip check ----
@@ -155,12 +155,12 @@ class CheckUserPushPermissionFilterTest {
         GitRequestDetails details = pushDetails();
         FakeResponse resp = new FakeResponse();
 
-        new CheckUserPushPermissionFilter(null, authService)
+        new CheckUserPushPermissionFilter(null, permService)
                 .doHttpFilter(mockRequest(details, basicAuth("anyone", "token")), resp.mock);
 
         assertFalse(resp.committed.get(), "Open mode (null resolver) must not block");
         assertEquals(GitRequestDetails.GitResult.PENDING, details.getResult());
-        verifyNoInteractions(authService);
+        verifyNoInteractions(permService);
     }
 
     // ---- resolver returns empty → reject ----
@@ -172,12 +172,12 @@ class CheckUserPushPermissionFilterTest {
                 .thenReturn(Optional.empty());
         FakeResponse resp = new FakeResponse();
 
-        new CheckUserPushPermissionFilter(resolver, authService)
+        new CheckUserPushPermissionFilter(resolver, permService)
                 .doHttpFilter(mockRequest(details, basicAuth("ghost", "tok")), resp.mock);
 
         assertTrue(resp.committed.get(), "Should block unresolved user");
         assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
-        verifyNoInteractions(authService);
+        verifyNoInteractions(permService);
     }
 
     // ---- resolver resolves but authorization denies → reject ----
@@ -185,13 +185,12 @@ class CheckUserPushPermissionFilterTest {
     @Test
     void resolvedButNotAuthorized_blocks() throws Exception {
         GitRequestDetails details = pushDetails();
-        details.setProvider(new GitHubProvider("/proxy"));
         when(resolver.resolve(any(GitProxyProvider.class), eq("corp"), eq("tok")))
                 .thenReturn(Optional.of(userEntry("alice")));
-        when(authService.isUserAuthorizedToPush(eq("alice"), anyString())).thenReturn(false);
+        when(permService.isAllowedToPush(eq("alice"), anyString(), anyString())).thenReturn(false);
         FakeResponse resp = new FakeResponse();
 
-        new CheckUserPushPermissionFilter(resolver, authService)
+        new CheckUserPushPermissionFilter(resolver, permService)
                 .doHttpFilter(mockRequest(details, basicAuth("corp", "tok")), resp.mock);
 
         assertTrue(resp.committed.get(), "Should block unauthorized user");
@@ -205,10 +204,10 @@ class CheckUserPushPermissionFilterTest {
         GitRequestDetails details = pushDetails();
         when(resolver.resolve(any(GitProxyProvider.class), eq("corp"), eq("tok")))
                 .thenReturn(Optional.of(userEntry("alice")));
-        when(authService.isUserAuthorizedToPush(eq("alice"), anyString())).thenReturn(true);
+        when(permService.isAllowedToPush(eq("alice"), anyString(), anyString())).thenReturn(true);
         FakeResponse resp = new FakeResponse();
 
-        new CheckUserPushPermissionFilter(resolver, authService)
+        new CheckUserPushPermissionFilter(resolver, permService)
                 .doHttpFilter(mockRequest(details, basicAuth("corp", "tok")), resp.mock);
 
         assertFalse(resp.committed.get(), "Authorized user must not be blocked");
@@ -223,7 +222,7 @@ class CheckUserPushPermissionFilterTest {
         when(resolver.resolve(any(GitProxyProvider.class), isNull(), isNull())).thenReturn(Optional.empty());
         FakeResponse resp = new FakeResponse();
 
-        new CheckUserPushPermissionFilter(resolver, authService).doHttpFilter(mockRequest(details, null), resp.mock);
+        new CheckUserPushPermissionFilter(resolver, permService).doHttpFilter(mockRequest(details, null), resp.mock);
 
         verify(resolver).resolve(any(GitProxyProvider.class), isNull(), isNull());
         assertTrue(resp.committed.get());
@@ -237,10 +236,10 @@ class CheckUserPushPermissionFilterTest {
         GitProxyProvider github = new GitHubProvider("/proxy");
         details.setProvider(github);
         when(resolver.resolve(eq(github), eq("corp"), eq("tok"))).thenReturn(Optional.of(userEntry("alice")));
-        when(authService.isUserAuthorizedToPush(eq("alice"), anyString())).thenReturn(true);
+        when(permService.isAllowedToPush(eq("alice"), anyString(), anyString())).thenReturn(true);
         FakeResponse resp = new FakeResponse();
 
-        new CheckUserPushPermissionFilter(resolver, authService)
+        new CheckUserPushPermissionFilter(resolver, permService)
                 .doHttpFilter(mockRequest(details, basicAuth("corp", "tok")), resp.mock);
 
         verify(resolver).resolve(eq(github), eq("corp"), eq("tok"));
@@ -256,10 +255,10 @@ class CheckUserPushPermissionFilterTest {
         GitRequestDetails details = pushDetails();
         when(resolver.resolve(any(GitProxyProvider.class), eq("user"), eq(tokenWithColon)))
                 .thenReturn(Optional.of(userEntry("user")));
-        when(authService.isUserAuthorizedToPush(anyString(), anyString())).thenReturn(true);
+        when(permService.isAllowedToPush(anyString(), anyString(), anyString())).thenReturn(true);
         FakeResponse resp = new FakeResponse();
 
-        new CheckUserPushPermissionFilter(resolver, authService)
+        new CheckUserPushPermissionFilter(resolver, permService)
                 .doHttpFilter(mockRequest(details, basicAuth("user", tokenWithColon)), resp.mock);
 
         verify(resolver).resolve(any(GitProxyProvider.class), eq("user"), eq(tokenWithColon));

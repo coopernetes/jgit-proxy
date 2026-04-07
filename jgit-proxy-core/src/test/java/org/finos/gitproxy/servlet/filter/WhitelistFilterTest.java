@@ -175,8 +175,8 @@ class WhitelistFilterTest {
 
     @Test
     void whitelistByUrl_applyWhitelist_slugMatch_setsAttribute() throws Exception {
-        var filter = new WhitelistByUrlFilter(100, GITHUB, List.of("owner/repo"), AuthorizedByUrlFilter.Target.SLUG);
-        GitRequestDetails details = makeDetails("owner", "repo", "owner/repo");
+        var filter = new WhitelistByUrlFilter(100, GITHUB, List.of("/owner/repo"), AuthorizedByUrlFilter.Target.SLUG);
+        GitRequestDetails details = makeDetails("owner", "repo", "/owner/repo");
         HttpServletRequest req = mockPushRequest(details);
 
         filter.applyWhitelist(req);
@@ -210,8 +210,8 @@ class WhitelistFilterTest {
 
     @Test
     void whitelistByUrl_globSlug_matches() throws Exception {
-        var filter = new WhitelistByUrlFilter(100, GITHUB, List.of("*/public-*"), AuthorizedByUrlFilter.Target.SLUG);
-        GitRequestDetails details = makeDetails("owner", "public-api", "owner/public-api");
+        var filter = new WhitelistByUrlFilter(100, GITHUB, List.of("/*/public-*"), AuthorizedByUrlFilter.Target.SLUG);
+        GitRequestDetails details = makeDetails("owner", "public-api", "/owner/public-api");
         HttpServletRequest req = mockPushRequest(details);
 
         filter.applyWhitelist(req);
@@ -221,8 +221,8 @@ class WhitelistFilterTest {
 
     @Test
     void whitelistByUrl_globSlug_noMatch() throws Exception {
-        var filter = new WhitelistByUrlFilter(100, GITHUB, List.of("*/public-*"), AuthorizedByUrlFilter.Target.SLUG);
-        GitRequestDetails details = makeDetails("owner", "private-repo", "owner/private-repo");
+        var filter = new WhitelistByUrlFilter(100, GITHUB, List.of("/*/public-*"), AuthorizedByUrlFilter.Target.SLUG);
+        GitRequestDetails details = makeDetails("owner", "private-repo", "/owner/private-repo");
         HttpServletRequest req = mockPushRequest(details);
 
         filter.applyWhitelist(req);
@@ -233,7 +233,7 @@ class WhitelistFilterTest {
     @Test
     void whitelistByUrl_globName_matches() throws Exception {
         var filter = new WhitelistByUrlFilter(100, GITHUB, List.of("feature-*"), AuthorizedByUrlFilter.Target.NAME);
-        GitRequestDetails details = makeDetails("owner", "feature-xyz", "owner/feature-xyz");
+        GitRequestDetails details = makeDetails("owner", "feature-xyz", "/owner/feature-xyz");
         HttpServletRequest req = mockPushRequest(details);
 
         filter.applyWhitelist(req);
@@ -253,7 +253,7 @@ class WhitelistFilterTest {
     @Test
     void whitelistByUrl_doHttpFilter_isNoOp() throws Exception {
         var filter = new WhitelistByUrlFilter(100, GITHUB, List.of("owner"), AuthorizedByUrlFilter.Target.OWNER);
-        GitRequestDetails details = makeDetails("owner", "repo", "owner/repo");
+        GitRequestDetails details = makeDetails("owner", "repo", "/owner/repo");
         FakeResponse resp = new FakeResponse();
 
         filter.doHttpFilter(mockPushRequest(details), resp.mock);
@@ -272,7 +272,7 @@ class WhitelistFilterTest {
     void whitelistAggregate_whitelistMatches_passes() throws Exception {
         var ownerFilter = new WhitelistByUrlFilter(100, GITHUB, List.of("owner"), AuthorizedByUrlFilter.Target.OWNER);
         var aggregate = new WhitelistAggregateFilter(50, GITHUB, List.of(ownerFilter));
-        GitRequestDetails details = makeDetails("owner", "repo", "owner/repo");
+        GitRequestDetails details = makeDetails("owner", "repo", "/owner/repo");
         FakeResponse resp = new FakeResponse();
 
         aggregate.doHttpFilter(mockPushRequest(details), resp.mock);
@@ -284,7 +284,7 @@ class WhitelistFilterTest {
     void whitelistAggregate_noWhitelistMatch_blocks() throws Exception {
         var ownerFilter = new WhitelistByUrlFilter(100, GITHUB, List.of("allowed"), AuthorizedByUrlFilter.Target.OWNER);
         var aggregate = new WhitelistAggregateFilter(50, Set.of(HttpOperation.PUSH), GITHUB, List.of(ownerFilter));
-        GitRequestDetails details = makeDetails("not-allowed", "repo", "not-allowed/repo");
+        GitRequestDetails details = makeDetails("not-allowed", "repo", "/not-allowed/repo");
         FakeResponse resp = new FakeResponse();
 
         aggregate.doHttpFilter(mockPushRequest(details), resp.mock);
@@ -295,7 +295,7 @@ class WhitelistFilterTest {
     @Test
     void whitelistAggregate_emptyWhitelist_blocks() throws Exception {
         var aggregate = new WhitelistAggregateFilter(50, Set.of(HttpOperation.PUSH), GITHUB, List.of());
-        GitRequestDetails details = makeDetails("owner", "repo", "owner/repo");
+        GitRequestDetails details = makeDetails("owner", "repo", "/owner/repo");
         FakeResponse resp = new FakeResponse();
 
         aggregate.doHttpFilter(mockPushRequest(details), resp.mock);

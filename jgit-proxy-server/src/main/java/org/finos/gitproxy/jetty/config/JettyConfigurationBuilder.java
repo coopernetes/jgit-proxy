@@ -29,14 +29,14 @@ import org.finos.gitproxy.db.memory.InMemoryRepoRegistry;
 import org.finos.gitproxy.db.model.AccessRule;
 import org.finos.gitproxy.git.LocalRepositoryCache;
 import org.finos.gitproxy.jetty.GitProxyContext;
+import org.finos.gitproxy.permission.JdbcRepoPermissionStore;
+import org.finos.gitproxy.permission.RepoPermissionService;
+import org.finos.gitproxy.permission.RepoPermissionStore;
 import org.finos.gitproxy.provider.*;
 import org.finos.gitproxy.service.CachingTokenPushIdentityResolver;
-import org.finos.gitproxy.service.DummyUserAuthorizationService;
 import org.finos.gitproxy.service.JdbcScmTokenCache;
-import org.finos.gitproxy.service.LinkedIdentityAuthorizationService;
 import org.finos.gitproxy.service.PushIdentityResolver;
 import org.finos.gitproxy.service.TokenPushIdentityResolver;
-import org.finos.gitproxy.service.UserAuthorizationService;
 import org.finos.gitproxy.servlet.filter.AuthorizedByUrlFilter;
 import org.finos.gitproxy.servlet.filter.WhitelistByUrlFilter;
 import org.finos.gitproxy.user.CompositeUserStore;
@@ -60,6 +60,7 @@ public class JettyConfigurationBuilder {
     private FetchStore cachedFetchStore;
     private UserStore cachedUserStore;
     private JdbcScmTokenCache cachedTokenCache;
+    private RepoPermissionService cachedRepoPermissionService;
 
     public JettyConfigurationBuilder(GitProxyConfig config) {
         this.config = config;
@@ -254,7 +255,7 @@ public class JettyConfigurationBuilder {
                 ps,
                 fs,
                 us,
-                buildUserAuthService(us),
+                buildRepoPermissionService(),
                 buildPushIdentityResolver(us),
                 approvalGateway,
                 buildCommitConfig(),
@@ -265,6 +266,28 @@ public class JettyConfigurationBuilder {
                 getProxyConnectTimeoutSeconds(),
                 storeForwardCache,
                 proxyCache);
+    }
+
+    /** Builds a {@link RepoPermissionStore} backed by the configured database. */
+    public RepoPermissionStore buildRepoPermissionStore() {
+        String type = config.getDatabase().getType();
+        if ("memory".equals(type) || "mongo".equals(type)) {
+            return new org.finos.gitproxy.permission.InMemoryRepoPermissionStore();
+        }
+        return new JdbcRepoPermissionStore(requireJdbcDataSource());
+    }
+
+    /**
+     * Builds and caches the {@link RepoPermissionService}. Seeded from the {@code permissions:} YAML section on first
+     * call; subsequent calls return the same instance.
+     */
+    public RepoPermissionService buildRepoPermissionService() {
+        if (cachedRepoPermissionService != null) return cachedRepoPermissionService;
+        RepoPermissionStore store = buildRepoPermissionStore();
+        store.initialize();
+        cachedRepoPermissionService = new RepoPermissionService(store);
+        log.info("RepoPermissionService initialized");
+        return cachedRepoPermissionService;
     }
 
     /**
@@ -331,7 +354,8 @@ public class JettyConfigurationBuilder {
             List<String> providers =
                     wl.getProviders().isEmpty() ? java.util.Collections.singletonList(null) : wl.getProviders();
             for (String provider : providers) {
-                for (String slug : wl.getSlugs()) {
+                for (String rawSlug : wl.getSlugs()) {
+                    String slug = rawSlug.startsWith("/") ? rawSlug : "/" + rawSlug;
                     configRegistry.save(AccessRule.builder()
                             .provider(provider)
                             .slug(slug)
@@ -483,19 +507,6 @@ public class JettyConfigurationBuilder {
                 .orElse(7L);
         log.info("SCM token identity cache enabled (max age {} days)", maxAgeDays);
         return new JdbcScmTokenCache(requireJdbcDataSource(), Duration.ofDays(maxAgeDays));
-    }
-
-    /**
-     * Builds the {@link UserAuthorizationService}. Uses {@link LinkedIdentityAuthorizationService} when users are
-     * configured, otherwise falls back to {@link DummyUserAuthorizationService} (open/permissive mode).
-     */
-    public UserAuthorizationService buildUserAuthService(UserStore userStore) {
-        if (config.getUsers().isEmpty()) {
-            log.info("No users configured — open authorization mode (all pushes permitted)");
-            return new DummyUserAuthorizationService();
-        }
-        log.info("User authorization enabled ({} users)", config.getUsers().size());
-        return new LinkedIdentityAuthorizationService(userStore);
     }
 
     private DataSource requireJdbcDataSource() {

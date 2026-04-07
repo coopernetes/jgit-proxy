@@ -20,7 +20,7 @@ class RowMapperTest {
         ResultSet rs = mock(ResultSet.class);
         when(rs.getString("id")).thenReturn("rule-1");
         when(rs.getString("provider")).thenReturn("github");
-        when(rs.getString("slug")).thenReturn("org/*");
+        when(rs.getString("slug")).thenReturn("/org/*");
         when(rs.getString("owner")).thenReturn("org");
         when(rs.getString("name")).thenReturn("*");
         when(rs.getString("access")).thenReturn("DENY");
@@ -34,7 +34,7 @@ class RowMapperTest {
 
         assertEquals("rule-1", rule.getId());
         assertEquals("github", rule.getProvider());
-        assertEquals("org/*", rule.getSlug());
+        assertEquals("/org/*", rule.getSlug());
         assertEquals("org", rule.getOwner());
         assertEquals("*", rule.getName());
         assertEquals(AccessRule.Access.DENY, rule.getAccess());

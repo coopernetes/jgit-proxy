@@ -1,24 +1,119 @@
+# --- Organizational Units ---
 dn: ou=users,dc=example,dc=com
 objectClass: organizationalUnit
 ou: users
 
-dn: cn=testuser,ou=users,dc=example,dc=com
-objectClass: inetOrgPerson
-cn: testuser
-sn: testuser
-mail: testuser@example.com
-userPassword: testpass123
+dn: ou=groups,dc=example,dc=com
+objectClass: organizationalUnit
+ou: groups
 
-dn: cn=otheruser,ou=users,dc=example,dc=com
-objectClass: inetOrgPerson
-cn: otheruser
-sn: otheruser
-mail: otheruser@example.com
-userPassword: testpass123
-
-dn: cn=admin,ou=users,dc=example,dc=com
+# --- Admin User ---
+dn: cn=admin,dc=example,dc=com
 objectClass: inetOrgPerson
 cn: admin
-sn: admin
+userPassword: adminpassword
 mail: admin@example.com
-userPassword: admin
+
+# --- Users (1-10) ---
+
+dn: cn=developer,ou=users,dc=example,dc=com
+objectClass: inetOrgPerson
+cn: user1
+sn: user1
+mail: developer@example.com
+userPassword: testpass123
+
+# --- Users (1-10) ---
+dn: cn=user2,ou=users,dc=example,dc=com
+objectClass: inetOrgPerson
+cn: user2
+sn: user2
+mail: user2@example.com
+userPassword: testpass123
+
+dn: cn=user2,ou=users,dc=example,dc=com
+objectClass: inetOrgPerson
+cn: user2
+sn: user2
+mail: user2@example.com
+userPassword: testpass123
+
+dn: cn=user3,ou=users,dc=example,dc=com
+objectClass: inetOrgPerson
+cn: user3
+sn: user3
+mail: user3@example.com
+userPassword: testpass123
+
+dn: cn=user4,ou=users,dc=example,dc=com
+objectClass: inetOrgPerson
+cn: user4
+sn: user4
+mail: user4@example.com
+userPassword: testpass123
+
+dn: cn=user5,ou=users,dc=example,dc=com
+objectClass: inetOrgPerson
+cn: user5
+sn: user5
+mail: user5@example.com
+userPassword: testpass123
+
+dn: cn=user6,ou=users,dc=example,dc=com
+objectClass: inetOrgPerson
+cn: user6
+sn: user6
+mail: user6@example.com
+userPassword: testpass123
+
+dn: cn=user7,ou=users,dc=example,dc=com
+objectClass: inetOrgPerson
+cn: user7
+sn: user7
+mail: user7@example.com
+userPassword: testpass123
+
+dn: cn=user8,ou=users,dc=example,dc=com
+objectClass: inetOrgPerson
+cn: user8
+sn: user8
+mail: user8@example.com
+userPassword: testpass123
+
+dn: cn=user9,ou=users,dc=example,dc=com
+objectClass: inetOrgPerson
+cn: user9
+sn: user9
+mail: user9@example.com
+userPassword: testpass123
+
+dn: cn=user10,ou=users,dc=example,dc=com
+objectClass: inetOrgPerson
+cn: user10
+sn: user10
+mail: user10@example.com
+userPassword: testpass123
+
+# --- Groups ---
+
+dn: cn=jgit_proxy_admins,ou=groups,dc=example,dc=com
+objectClass: groupOfNames
+cn: jgit_proxy_admins
+member: cn=user2,ou=users,dc=example,dc=com
+member: cn=user5,ou=users,dc=example,dc=com
+
+dn: cn=contributors,ou=groups,dc=example,dc=com
+objectClass: groupOfNames
+cn: contributors
+member: cn=user1,ou=users,dc=example,dc=com
+member: cn=user3,ou=users,dc=example,dc=com
+member: cn=user4,ou=users,dc=example,dc=com
+member: cn=user6,ou=users,dc=example,dc=com
+
+dn: cn=viewers,ou=groups,dc=example,dc=com
+objectClass: groupOfNames
+cn: viewers
+member: cn=user7,ou=users,dc=example,dc=com
+member: cn=user8,ou=users,dc=example,dc=com
+member: cn=user9,ou=users,dc=example,dc=com
+member: cn=user10,ou=users,dc=example,dc=com

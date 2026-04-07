@@ -112,11 +112,11 @@ class PushRecordMapperTest {
         details.setRepoRef(GitRequestDetails.RepoRef.builder()
                 .owner("myorg")
                 .name("myrepo")
-                .slug("myorg/myrepo")
+                .slug("/myorg/myrepo")
                 .build());
 
         PushRecord record = PushRecordMapper.fromRequestDetails(details);
-        assertEquals("myorg/myrepo", record.getUrl());
+        assertEquals("/myorg/myrepo", record.getUrl());
         assertEquals("myorg", record.getProject());
         assertEquals("myrepo", record.getRepoName());
     }
@@ -129,7 +129,7 @@ class PushRecordMapperTest {
 
         GitRequestDetails details = new GitRequestDetails();
         details.setRepoRef(
-                GitRequestDetails.RepoRef.builder().slug("myorg/myrepo").build());
+                GitRequestDetails.RepoRef.builder().slug("/myorg/myrepo").build());
         details.setProvider(provider);
 
         PushRecord record = PushRecordMapper.fromRequestDetails(details);

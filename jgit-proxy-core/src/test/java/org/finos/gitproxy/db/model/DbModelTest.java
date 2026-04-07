@@ -35,7 +35,7 @@ class DbModelTest {
         AccessRule rule = AccessRule.builder()
                 .id("fixed-id")
                 .provider("github")
-                .slug("org/*")
+                .slug("/org/*")
                 .owner("org")
                 .name("repo")
                 .access(AccessRule.Access.DENY)
@@ -48,7 +48,7 @@ class DbModelTest {
 
         assertEquals("fixed-id", rule.getId());
         assertEquals("github", rule.getProvider());
-        assertEquals("org/*", rule.getSlug());
+        assertEquals("/org/*", rule.getSlug());
         assertEquals("org", rule.getOwner());
         assertEquals("repo", rule.getName());
         assertEquals(AccessRule.Access.DENY, rule.getAccess());

@@ -8,6 +8,7 @@ import org.finos.gitproxy.db.model.Attestation;
 import org.finos.gitproxy.db.model.PushQuery;
 import org.finos.gitproxy.db.model.PushRecord;
 import org.finos.gitproxy.db.model.PushStatus;
+import org.finos.gitproxy.permission.RepoPermissionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +23,9 @@ public class PushController {
 
     @Autowired
     private PushStore pushStore;
+
+    @Autowired(required = false)
+    private RepoPermissionService repoPermissionService;
 
     /** Returns the authenticated username, falling back to {@code body.reviewerUsername}, then {@code "system"}. */
     private static String resolveReviewer(Map<String, String> body) {
@@ -172,6 +176,7 @@ public class PushController {
      *
      * <ol>
      *   <li>ROLE_ADMIN bypasses all identity checks — admins may approve/reject any push.
+     *   <li>When {@link RepoPermissionService} is configured the reviewer must have APPROVE permission for the repo.
      *   <li>The pusher must have been resolved to a proxy user — if not, we cannot guarantee no self-approval.
      *   <li>The reviewer must not be the same proxy user as the pusher.
      * </ol>
@@ -181,6 +186,16 @@ public class PushController {
     private ResponseEntity<?> checkReviewerIdentity(PushRecord record) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (isAdmin(auth)) return null;
+
+        // Repo-level permission check — only enforced when the service is wired up.
+        if (repoPermissionService != null && record.getProvider() != null && record.getUrl() != null) {
+            String reviewer = auth != null ? auth.getName() : null;
+            if (reviewer != null
+                    && !repoPermissionService.isAllowedToApprove(reviewer, record.getProvider(), record.getUrl())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "You do not have permission to approve pushes for this repository"));
+            }
+        }
 
         String pusherProxyUser = record.getResolvedUser();
         if (pusherProxyUser == null) {

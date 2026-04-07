@@ -207,6 +207,6 @@ public class EnrichPushCommitsFilter extends AbstractProviderAwareGitProxyFilter
     private String constructRemoteUrl(GitRequestDetails requestDetails) {
         String providerHost = provider.getUri().getHost();
         String slug = requestDetails.getRepoRef().getSlug();
-        return String.format("https://%s/%s.git", providerHost, slug);
+        return String.format("https://%s%s.git", providerHost, slug);
     }
 }

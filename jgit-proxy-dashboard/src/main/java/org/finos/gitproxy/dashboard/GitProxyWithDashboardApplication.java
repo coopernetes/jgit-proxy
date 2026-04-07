@@ -105,6 +105,9 @@ public class GitProxyWithDashboardApplication {
             bf.registerSingleton("gitProxyConfig", gitProxyConfig);
             bf.registerSingleton("repoRegistry", repoRegistry);
             bf.registerSingleton("fetchStore", ctx.fetchStore());
+            if (ctx.repoPermissionService() != null) {
+                bf.registerSingleton("repoPermissionService", ctx.repoPermissionService());
+            }
         });
 
         // Refresh the Spring context inside a ServletContextListener so the ServletContext is set

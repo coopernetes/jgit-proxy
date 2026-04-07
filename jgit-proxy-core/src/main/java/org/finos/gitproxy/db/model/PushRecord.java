@@ -28,6 +28,9 @@ public class PushRecord {
     /** The upstream repository URL being proxied to (e.g., https://github.com/owner/repo). */
     private String upstreamUrl;
 
+    /** Provider name (e.g., "github", "gitlab"). */
+    private String provider;
+
     /** Project/organization name (e.g., "finos"). */
     private String project;
 

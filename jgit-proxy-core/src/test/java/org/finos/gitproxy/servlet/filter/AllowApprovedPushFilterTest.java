@@ -32,7 +32,7 @@ class AllowApprovedPushFilterTest {
         details.setRepoRef(GitRequestDetails.RepoRef.builder()
                 .owner("owner")
                 .name(repoName)
-                .slug("owner/" + repoName)
+                .slug("/owner/" + repoName)
                 .build());
         details.setCommit(org.finos.gitproxy.git.Commit.builder()
                 .sha(commitTo)
@@ -158,7 +158,7 @@ class AllowApprovedPushFilterTest {
         details.setRepoRef(GitRequestDetails.RepoRef.builder()
                 .owner("owner")
                 .name("my-repo")
-                .slug("owner/my-repo")
+                .slug("/owner/my-repo")
                 .build());
 
         HttpServletRequest req = mockPushRequest(details);

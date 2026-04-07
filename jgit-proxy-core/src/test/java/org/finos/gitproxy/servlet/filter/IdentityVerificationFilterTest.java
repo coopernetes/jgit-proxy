@@ -117,7 +117,7 @@ class IdentityVerificationFilterTest {
         details.setRepoRef(GitRequestDetails.RepoRef.builder()
                 .owner("owner")
                 .name("repo")
-                .slug("owner/repo")
+                .slug("/owner/repo")
                 .build());
         details.getPushedCommits().addAll(commits);
         return details;

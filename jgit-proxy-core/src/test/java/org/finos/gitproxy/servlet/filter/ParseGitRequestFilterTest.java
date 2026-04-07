@@ -151,6 +151,17 @@ class ParseGitRequestFilterTest {
     }
 
     @Test
+    void parse_pushRequest_extractsSlugWithLeadingSlash() throws Exception {
+        byte[] body = loadResource("push-sample-01-body.bin");
+        RequestBodyWrapper wrapper = wrapBody(body, "/owner/repo.git/git-receive-pack");
+
+        GitRequestDetails details = makeFilter().parse(wrapper);
+
+        assertNotNull(details.getRepoRef());
+        assertEquals("/owner/repo", details.getRepoRef().getSlug());
+    }
+
+    @Test
     void parse_pushRequest_hasNonNullCommit() throws Exception {
         byte[] body = loadResource("push-sample-01-body.bin");
         RequestBodyWrapper wrapper = wrapBody(body, "/owner/repo.git/git-receive-pack");
