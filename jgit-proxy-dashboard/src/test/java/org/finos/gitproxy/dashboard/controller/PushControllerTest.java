@@ -1,0 +1,407 @@
+package org.finos.gitproxy.dashboard.controller;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import org.finos.gitproxy.db.PushStore;
+import org.finos.gitproxy.db.model.PushRecord;
+import org.finos.gitproxy.db.model.PushStatus;
+import org.finos.gitproxy.permission.RepoPermissionService;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.server.ResponseStatusException;
+
+@ExtendWith(MockitoExtension.class)
+class PushControllerTest {
+
+    @InjectMocks
+    PushController controller;
+
+    @Mock
+    PushStore pushStore;
+
+    // Not injected by default — individual tests that need it set it on the controller directly.
+    RepoPermissionService repoPermissionService;
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    // ── helpers ──────────────────────────────────────────────────────────────────
+
+    private static PushRecord blockedPush(String id, String pusher) {
+        return PushRecord.builder()
+                .id(id)
+                .status(PushStatus.BLOCKED)
+                .resolvedUser(pusher)
+                .provider("github")
+                .url("github.com/acme/repo.git")
+                .build();
+    }
+
+    private static PushRecord approvedPush(String id) {
+        return PushRecord.builder().id(id).status(PushStatus.APPROVED).build();
+    }
+
+    private void loginAs(String username, boolean admin) {
+        var authorities = admin
+                ? List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ROLE_ADMIN"))
+                : List.of(new SimpleGrantedAuthority("ROLE_USER"));
+        SecurityContextHolder.getContext()
+                .setAuthentication(new UsernamePasswordAuthenticationToken(username, null, authorities));
+    }
+
+    // ── GET /api/push ─────────────────────────────────────────────────────────────
+
+    @Nested
+    class List_ {
+        @Test
+        void noFilters_delegatesToStore() {
+            when(pushStore.find(any())).thenReturn(java.util.List.of());
+            var result = controller.list(null, null, null, null, null, 50, 0, true);
+            assertEquals(0, result.size());
+            verify(pushStore).find(argThat(q -> q.getLimit() == 50 && q.getOffset() == 0));
+        }
+
+        @Test
+        void invalidStatus_throws400() {
+            var ex = assertThrows(
+                    ResponseStatusException.class,
+                    () -> controller.list("NONSENSE", null, null, null, null, 50, 0, true));
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        }
+
+        @Test
+        void validStatus_passedToQuery() {
+            when(pushStore.find(any())).thenReturn(java.util.List.of());
+            controller.list("BLOCKED", null, null, null, null, 50, 0, true);
+            verify(pushStore).find(argThat(q -> q.getStatus() == PushStatus.BLOCKED));
+        }
+    }
+
+    // ── GET /api/push/by-ref/{ref} ────────────────────────────────────────────────
+
+    @Nested
+    class GetByRef {
+        @Test
+        void invalidRefFormat_returns400() {
+            var resp = controller.getByRef("nounderscore");
+            assertEquals(HttpStatus.BAD_REQUEST, resp.getStatusCode());
+        }
+
+        @Test
+        void exactCommitToMatch_returnsRecord() {
+            var push = blockedPush("p1", "alice");
+            when(pushStore.find(argThat(q -> "abc123".equals(q.getCommitTo())))).thenReturn(List.of(push));
+
+            var resp = controller.getByRef("def456_abc123");
+
+            assertEquals(HttpStatus.OK, resp.getStatusCode());
+            assertEquals(push, resp.getBody());
+        }
+
+        @Test
+        void shortShaFallback_matchesByPrefix() {
+            var push = PushRecord.builder()
+                    .id("p1")
+                    .status(PushStatus.BLOCKED)
+                    .commitTo("abc12345fullsha")
+                    .build();
+            // First call (exact commitTo) returns empty; second call (fallback scan) returns full list
+            when(pushStore.find(any())).thenReturn(List.of()).thenReturn(List.of(push));
+
+            var resp = controller.getByRef("def456_abc123");
+
+            assertEquals(HttpStatus.OK, resp.getStatusCode());
+            assertEquals(push, resp.getBody());
+        }
+
+        @Test
+        void notFound_returns404() {
+            when(pushStore.find(any())).thenReturn(List.of());
+            var resp = controller.getByRef("def456_abc123");
+            assertEquals(HttpStatus.NOT_FOUND, resp.getStatusCode());
+        }
+    }
+
+    // ── GET /api/push/{id} ────────────────────────────────────────────────────────
+
+    @Nested
+    class GetById {
+        @Test
+        void found_returnsRecord() {
+            var push = blockedPush("p1", "alice");
+            when(pushStore.findById("p1")).thenReturn(Optional.of(push));
+            var resp = controller.getById("p1");
+            assertEquals(HttpStatus.OK, resp.getStatusCode());
+        }
+
+        @Test
+        void notFound_returns404() {
+            when(pushStore.findById("missing")).thenReturn(Optional.empty());
+            assertEquals(HttpStatus.NOT_FOUND, controller.getById("missing").getStatusCode());
+        }
+    }
+
+    // ── POST /api/push/{id}/authorise ─────────────────────────────────────────────
+
+    @Nested
+    class Approve {
+        @Test
+        void notFound_returns404() {
+            when(pushStore.findById("x")).thenReturn(Optional.empty());
+            assertEquals(HttpStatus.NOT_FOUND, controller.approve("x", Map.of()).getStatusCode());
+        }
+
+        @Test
+        void notBlocked_returns400() {
+            when(pushStore.findById("p1")).thenReturn(Optional.of(approvedPush("p1")));
+            loginAs("reviewer", false);
+            assertEquals(
+                    HttpStatus.BAD_REQUEST, controller.approve("p1", Map.of()).getStatusCode());
+        }
+
+        @Test
+        void selfApproval_returns403() {
+            when(pushStore.findById("p1")).thenReturn(Optional.of(blockedPush("p1", "alice")));
+            loginAs("alice", false);
+            assertEquals(
+                    HttpStatus.FORBIDDEN, controller.approve("p1", Map.of()).getStatusCode());
+        }
+
+        @Test
+        void unresolvedPusher_returns403() {
+            var push = PushRecord.builder().id("p1").status(PushStatus.BLOCKED).build(); // no resolvedUser
+            when(pushStore.findById("p1")).thenReturn(Optional.of(push));
+            loginAs("reviewer", false);
+            assertEquals(
+                    HttpStatus.FORBIDDEN, controller.approve("p1", Map.of()).getStatusCode());
+        }
+
+        @Test
+        void admin_bypassesIdentityChecks_returns200() {
+            when(pushStore.findById("p1")).thenReturn(Optional.of(blockedPush("p1", "alice")));
+            when(pushStore.approve(eq("p1"), any())).thenReturn(approvedPush("p1"));
+            loginAs("alice", true); // same user as pusher — admin bypass
+
+            assertEquals(HttpStatus.OK, controller.approve("p1", Map.of()).getStatusCode());
+        }
+
+        @Test
+        void admin_selfApproval_flaggedInAttestation() {
+            when(pushStore.findById("p1")).thenReturn(Optional.of(blockedPush("p1", "alice")));
+            when(pushStore.approve(eq("p1"), any())).thenReturn(approvedPush("p1"));
+            loginAs("alice", true);
+
+            controller.approve("p1", Map.of());
+
+            verify(pushStore).approve(eq("p1"), argThat(a -> a.isSelfApproval()));
+        }
+
+        @Test
+        void differentUser_returns200() {
+            when(pushStore.findById("p1")).thenReturn(Optional.of(blockedPush("p1", "alice")));
+            when(pushStore.approve(eq("p1"), any())).thenReturn(approvedPush("p1"));
+            loginAs("reviewer", false);
+
+            assertEquals(HttpStatus.OK, controller.approve("p1", Map.of()).getStatusCode());
+            verify(pushStore).approve(eq("p1"), argThat(a -> !a.isSelfApproval()));
+        }
+
+        @Test
+        void repoPermissionService_denies_returns403() throws Exception {
+            var push = blockedPush("p1", "alice");
+            when(pushStore.findById("p1")).thenReturn(Optional.of(push));
+            loginAs("reviewer", false);
+
+            repoPermissionService = mock(RepoPermissionService.class);
+            when(repoPermissionService.isAllowedToApprove("reviewer", "github", "github.com/acme/repo.git"))
+                    .thenReturn(false);
+            // inject into controller
+            var field = PushController.class.getDeclaredField("repoPermissionService");
+            field.setAccessible(true);
+            field.set(controller, repoPermissionService);
+
+            assertEquals(
+                    HttpStatus.FORBIDDEN, controller.approve("p1", Map.of()).getStatusCode());
+        }
+
+        @Test
+        void repoPermissionService_allows_proceeds() throws Exception {
+            var push = blockedPush("p1", "alice");
+            when(pushStore.findById("p1")).thenReturn(Optional.of(push));
+            when(pushStore.approve(eq("p1"), any())).thenReturn(approvedPush("p1"));
+            loginAs("reviewer", false);
+
+            repoPermissionService = mock(RepoPermissionService.class);
+            when(repoPermissionService.isAllowedToApprove("reviewer", "github", "github.com/acme/repo.git"))
+                    .thenReturn(true);
+            var field = PushController.class.getDeclaredField("repoPermissionService");
+            field.setAccessible(true);
+            field.set(controller, repoPermissionService);
+
+            assertEquals(HttpStatus.OK, controller.approve("p1", Map.of()).getStatusCode());
+        }
+
+        @Test
+        void admin_bypassesRepoPermissionService() throws Exception {
+            when(pushStore.findById("p1")).thenReturn(Optional.of(blockedPush("p1", "alice")));
+            when(pushStore.approve(eq("p1"), any())).thenReturn(approvedPush("p1"));
+            loginAs("admin", true);
+
+            // Wire up a service that would deny — admin should bypass it
+            repoPermissionService = mock(RepoPermissionService.class);
+            var field = PushController.class.getDeclaredField("repoPermissionService");
+            field.setAccessible(true);
+            field.set(controller, repoPermissionService);
+
+            assertEquals(HttpStatus.OK, controller.approve("p1", Map.of()).getStatusCode());
+            // isAllowedToApprove must never have been called
+            org.mockito.Mockito.verifyNoInteractions(repoPermissionService);
+        }
+    }
+
+    // ── POST /api/push/{id}/reject ────────────────────────────────────────────────
+
+    @Nested
+    class Reject {
+        @Test
+        void missingReason_returns400() {
+            assertEquals(
+                    HttpStatus.BAD_REQUEST, controller.reject("p1", Map.of()).getStatusCode());
+        }
+
+        @Test
+        void notFound_returns404() {
+            when(pushStore.findById("x")).thenReturn(Optional.empty());
+            assertEquals(
+                    HttpStatus.NOT_FOUND,
+                    controller.reject("x", Map.of("reason", "nope")).getStatusCode());
+        }
+
+        @Test
+        void notBlocked_returns400() {
+            when(pushStore.findById("p1")).thenReturn(Optional.of(approvedPush("p1")));
+            loginAs("reviewer", false);
+            assertEquals(
+                    HttpStatus.BAD_REQUEST,
+                    controller.reject("p1", Map.of("reason", "nope")).getStatusCode());
+        }
+
+        @Test
+        void selfApproval_returns403() {
+            when(pushStore.findById("p1")).thenReturn(Optional.of(blockedPush("p1", "alice")));
+            loginAs("alice", false);
+            assertEquals(
+                    HttpStatus.FORBIDDEN,
+                    controller.reject("p1", Map.of("reason", "nope")).getStatusCode());
+        }
+
+        @Test
+        void success_returns200() {
+            when(pushStore.findById("p1")).thenReturn(Optional.of(blockedPush("p1", "alice")));
+            when(pushStore.reject(eq("p1"), any()))
+                    .thenReturn(PushRecord.builder()
+                            .id("p1")
+                            .status(PushStatus.REJECTED)
+                            .build());
+            loginAs("reviewer", false);
+
+            var resp = controller.reject("p1", Map.of("reason", "bad commit"));
+            assertEquals(HttpStatus.OK, resp.getStatusCode());
+            verify(pushStore).reject(eq("p1"), argThat(a -> "bad commit".equals(a.getReason())));
+        }
+    }
+
+    // ── POST /api/push/{id}/cancel ────────────────────────────────────────────────
+
+    @Nested
+    class Cancel {
+        @Test
+        void notFound_returns404() {
+            when(pushStore.findById("x")).thenReturn(Optional.empty());
+            assertEquals(HttpStatus.NOT_FOUND, controller.cancel("x", null).getStatusCode());
+        }
+
+        @Test
+        void notBlocked_returns400() {
+            when(pushStore.findById("p1")).thenReturn(Optional.of(approvedPush("p1")));
+            loginAs("alice", false);
+            assertEquals(HttpStatus.BAD_REQUEST, controller.cancel("p1", null).getStatusCode());
+        }
+
+        @Test
+        void pusher_canCancelOwnPush() {
+            when(pushStore.findById("p1")).thenReturn(Optional.of(blockedPush("p1", "alice")));
+            when(pushStore.cancel(eq("p1"), any()))
+                    .thenReturn(PushRecord.builder()
+                            .id("p1")
+                            .status(PushStatus.CANCELED)
+                            .build());
+            loginAs("alice", false);
+
+            assertEquals(HttpStatus.OK, controller.cancel("p1", null).getStatusCode());
+        }
+
+        @Test
+        void otherUser_cannotCancel() {
+            when(pushStore.findById("p1")).thenReturn(Optional.of(blockedPush("p1", "alice")));
+            loginAs("bob", false);
+            assertEquals(HttpStatus.FORBIDDEN, controller.cancel("p1", null).getStatusCode());
+        }
+
+        @Test
+        void unresolvedPusher_nonAdminCannotCancel() {
+            var push = PushRecord.builder().id("p1").status(PushStatus.BLOCKED).build();
+            when(pushStore.findById("p1")).thenReturn(Optional.of(push));
+            loginAs("alice", false);
+            assertEquals(HttpStatus.FORBIDDEN, controller.cancel("p1", null).getStatusCode());
+        }
+
+        @Test
+        void admin_canCancelAnyPush() {
+            when(pushStore.findById("p1")).thenReturn(Optional.of(blockedPush("p1", "alice")));
+            when(pushStore.cancel(eq("p1"), any()))
+                    .thenReturn(PushRecord.builder()
+                            .id("p1")
+                            .status(PushStatus.CANCELED)
+                            .build());
+            loginAs("admin", true);
+
+            assertEquals(HttpStatus.OK, controller.cancel("p1", null).getStatusCode());
+        }
+
+        @Test
+        void admin_cancelOwnPush_allowed() {
+            // Admin trying to cancel their own push — cancel doesn't use checkReviewerIdentity, so it's allowed
+            when(pushStore.findById("p1")).thenReturn(Optional.of(blockedPush("p1", "admin")));
+            when(pushStore.cancel(eq("p1"), any()))
+                    .thenReturn(PushRecord.builder()
+                            .id("p1")
+                            .status(PushStatus.CANCELED)
+                            .build());
+            loginAs("admin", true);
+
+            assertEquals(HttpStatus.OK, controller.cancel("p1", null).getStatusCode());
+        }
+    }
+}

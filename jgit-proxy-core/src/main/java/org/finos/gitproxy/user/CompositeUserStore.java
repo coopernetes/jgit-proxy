@@ -71,7 +71,7 @@ public class CompositeUserStore implements MutableUserStore {
                 .findByUsername(username)
                 .map(u -> u.getEmails().stream()
                         .<Map<String, Object>>map(
-                                e -> Map.of("email", e, "verified", false, "locked", false, "source", "config"))
+                                e -> Map.of("email", e, "verified", false, "locked", true, "source", "config"))
                         .toList())
                 .orElse(List.of());
     }
@@ -126,8 +126,7 @@ public class CompositeUserStore implements MutableUserStore {
 
     private void requireMutable(String username) {
         if (configStore.findByUsername(username).isPresent()) {
-            throw new IllegalArgumentException(
-                    "User '" + username + "' is defined in configuration and cannot be modified at runtime");
+            throw new LockedByConfigException(username);
         }
     }
 

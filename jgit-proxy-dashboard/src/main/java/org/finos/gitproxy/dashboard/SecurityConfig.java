@@ -175,6 +175,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
                         .ignoringRequestMatchers("/login")
+                        .ignoringRequestMatchers("/api/health", "/api/")
                         .ignoringRequestMatchers(req -> req.getHeader("X-Api-Key") != null));
     }
 

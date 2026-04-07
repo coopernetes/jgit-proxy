@@ -1,6 +1,7 @@
 package org.finos.gitproxy.dashboard.controller;
 
 import java.util.Map;
+import org.finos.gitproxy.user.LockedByConfigException;
 import org.finos.gitproxy.user.LockedEmailException;
 import org.finos.gitproxy.user.MutableUserStore;
 import org.finos.gitproxy.user.ScmIdentityConflictException;
@@ -32,6 +33,10 @@ public class ProfileController {
                     HttpStatus.NOT_IMPLEMENTED)
             .body(Map.of("error", "Profile mutations are not supported with the current user store backend"));
 
+    private static final ResponseEntity<Map<String, String>> LOCKED_BY_CONFIG = ResponseEntity.status(
+                    HttpStatus.FORBIDDEN)
+            .body(Map.of("error", "This profile is defined in configuration and cannot be modified at runtime"));
+
     @Autowired
     private UserStore userStore;
 
@@ -58,7 +63,11 @@ public class ProfileController {
             return ResponseEntity.ok(Map.of("email", email));
         }
 
-        mutable.addEmail(currentUser, email);
+        try {
+            mutable.addEmail(currentUser, email);
+        } catch (LockedByConfigException e) {
+            return LOCKED_BY_CONFIG;
+        }
         return ResponseEntity.ok(Map.of("email", email));
     }
 
@@ -67,6 +76,8 @@ public class ProfileController {
         if (!(userStore instanceof MutableUserStore mutable)) return NOT_MUTABLE;
         try {
             mutable.removeEmail(currentUsername(), email.toLowerCase());
+        } catch (LockedByConfigException e) {
+            return LOCKED_BY_CONFIG;
         } catch (LockedEmailException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "Cannot remove an email address locked by the identity provider"));
@@ -90,6 +101,8 @@ public class ProfileController {
         String currentUser = currentUsername();
         try {
             mutable.addScmIdentity(currentUser, provider, scmUsername);
+        } catch (LockedByConfigException e) {
+            return LOCKED_BY_CONFIG;
         } catch (ScmIdentityConflictException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "SCM identity is already claimed by another user"));
@@ -100,7 +113,11 @@ public class ProfileController {
     @DeleteMapping("/identities/{provider}/{scmUsername}")
     public ResponseEntity<?> removeScmIdentity(@PathVariable String provider, @PathVariable String scmUsername) {
         if (!(userStore instanceof MutableUserStore mutable)) return NOT_MUTABLE;
-        mutable.removeScmIdentity(currentUsername(), provider, scmUsername);
+        try {
+            mutable.removeScmIdentity(currentUsername(), provider, scmUsername);
+        } catch (LockedByConfigException e) {
+            return LOCKED_BY_CONFIG;
+        }
         return ResponseEntity.noContent().build();
     }
 

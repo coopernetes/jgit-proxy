@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.db.model.PushQuery;
 import org.finos.gitproxy.db.model.PushRecord;
+import org.finos.gitproxy.user.LockedByConfigException;
 import org.finos.gitproxy.user.MutableUserStore;
 import org.finos.gitproxy.user.ScmIdentityConflictException;
 import org.finos.gitproxy.user.UserEntry;
@@ -125,7 +126,11 @@ public class UserController {
         if (userStore.findByUsername(username).isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-        mutable.addEmail(username, req.email());
+        try {
+            mutable.addEmail(username, req.email());
+        } catch (LockedByConfigException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
+        }
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("email", req.email()));
     }
 
@@ -141,6 +146,8 @@ public class UserController {
         }
         try {
             mutable.removeEmail(username, email);
+        } catch (LockedByConfigException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
@@ -165,9 +172,9 @@ public class UserController {
         }
         try {
             mutable.addScmIdentity(username, req.provider(), req.scmUsername());
+        } catch (LockedByConfigException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
         } catch (ScmIdentityConflictException e) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
-        } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
         }
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -187,8 +194,8 @@ public class UserController {
         }
         try {
             mutable.removeScmIdentity(username, provider, scmUsername);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
+        } catch (LockedByConfigException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
         }
         return ResponseEntity.noContent().build();
     }

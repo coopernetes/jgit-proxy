@@ -10,10 +10,14 @@ import {
 import type { CurrentUser, EmailEntry, ScmIdentity } from '../types'
 
 function LockedBadge({ source }: { source: string }) {
+  const title =
+    source === 'config'
+      ? 'Defined in server configuration and cannot be removed'
+      : `Managed by your ${source.toUpperCase()} identity provider and cannot be removed`
   return (
     <span
       className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600"
-      title={`Email address is managed by your ${source.toUpperCase()} identity provider and cannot be removed`}
+      title={title}
     >
       locked ({source})
     </span>
@@ -223,14 +227,17 @@ export function Profile() {
                       {id.provider}
                     </span>
                     <span className="text-gray-800">{id.username}</span>
+                    {id.source === 'config' && <LockedBadge source="config" />}
                   </span>
-                  <button
-                    onClick={() => handleRemoveIdentity(id)}
-                    className="text-gray-400 hover:text-red-500 transition-colors text-xs"
-                    title="Remove"
-                  >
-                    Remove
-                  </button>
+                  {id.source !== 'config' && (
+                    <button
+                      onClick={() => handleRemoveIdentity(id)}
+                      className="text-gray-400 hover:text-red-500 transition-colors text-xs"
+                      title="Remove"
+                    >
+                      Remove
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>

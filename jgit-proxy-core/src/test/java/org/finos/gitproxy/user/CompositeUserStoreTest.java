@@ -112,11 +112,12 @@ class CompositeUserStoreTest {
     // ── enriched queries ────────────────────────────────────────────────────────
 
     @Test
-    void findEmailsWithVerified_configUser_returnsConfigEmails() {
+    void findEmailsWithVerified_configUser_returnsConfigEmails_lockedTrue() {
         var emails = store.findEmailsWithVerified("alice");
         assertEquals(1, emails.size());
         assertEquals("alice@config.com", emails.get(0).get("email"));
         assertEquals("config", emails.get(0).get("source"));
+        assertEquals(true, emails.get(0).get("locked"));
     }
 
     @Test
@@ -143,6 +144,28 @@ class CompositeUserStoreTest {
         var ids = store.findScmIdentitiesWithVerified("bob");
         assertEquals(1, ids.size());
         assertEquals("bob-gh", ids.get(0).get("username"));
+    }
+
+    // ── config users are immutable ───────────────────────────────────────────────
+
+    @Test
+    void addEmail_configUser_throwsLockedByConfigException() {
+        assertThrows(LockedByConfigException.class, () -> store.addEmail("alice", "new@example.com"));
+    }
+
+    @Test
+    void removeEmail_configUser_throwsLockedByConfigException() {
+        assertThrows(LockedByConfigException.class, () -> store.removeEmail("alice", "alice@config.com"));
+    }
+
+    @Test
+    void addScmIdentity_configUser_throwsLockedByConfigException() {
+        assertThrows(LockedByConfigException.class, () -> store.addScmIdentity("alice", "github", "new-handle"));
+    }
+
+    @Test
+    void removeScmIdentity_configUser_throwsLockedByConfigException() {
+        assertThrows(LockedByConfigException.class, () -> store.removeScmIdentity("alice", "github", "alice-config"));
     }
 
     // ── writes delegate to JDBC ──────────────────────────────────────────────────
