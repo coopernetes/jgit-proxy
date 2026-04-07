@@ -34,7 +34,10 @@ export default function App() {
             <Route path="/repos" element={<Repos />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/users" element={<Users authProvider={authProvider} />} />
-            <Route path="/users/:username" element={<UserDetail authProvider={authProvider} />} />
+            <Route
+              path="/users/:username"
+              element={<UserDetail authProvider={authProvider} currentUser={currentUser} />}
+            />
           </Routes>
         </main>
       </div>

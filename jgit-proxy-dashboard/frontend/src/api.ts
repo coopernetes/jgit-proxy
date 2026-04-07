@@ -203,3 +203,30 @@ export async function removeUserIdentity(username: string, provider: string, scm
   )
   if (!res.ok) await parseErrorResponse(res, 'Failed to remove SCM identity')
 }
+
+export async function fetchUserPermissions(username: string) {
+  const res = await apiFetch(`/api/users/${encodeURIComponent(username)}/permissions`)
+  if (!res.ok) throw new Error('Failed to fetch permissions')
+  return res.json()
+}
+
+export async function addUserPermission(
+  username: string,
+  data: { provider: string; path: string; pathType: string; operations: string },
+) {
+  const res = await apiFetch(`/api/users/${encodeURIComponent(username)}/permissions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) await parseErrorResponse(res, 'Failed to add permission')
+  return res.json()
+}
+
+export async function deleteUserPermission(username: string, id: string) {
+  const res = await apiFetch(
+    `/api/users/${encodeURIComponent(username)}/permissions/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+  )
+  if (!res.ok) await parseErrorResponse(res, 'Failed to remove permission')
+}

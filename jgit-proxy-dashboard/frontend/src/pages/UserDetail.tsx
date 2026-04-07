@@ -3,56 +3,34 @@ import { useNavigate, useParams } from 'react-router-dom'
 import {
   addUserEmail,
   addUserIdentity,
+  addUserPermission,
   deleteUser,
+  deleteUserPermission,
+  fetchProviders,
   fetchPushes,
   fetchUser,
+  fetchUserPermissions,
   removeUserEmail,
   removeUserIdentity,
   resetUserPassword,
 } from '../api'
 import { StatusBadge } from '../components/StatusBadge'
-import type { EmailEntry, PushRecord, ScmIdentity, UserDetail as UserDetailType } from '../types'
+import type {
+  CurrentUser,
+  EmailEntry,
+  Provider,
+  PushRecord,
+  RepoPermission,
+  ScmIdentity,
+  UserDetail as UserDetailType,
+} from '../types'
 
 interface UserDetailProps {
   authProvider: string
+  currentUser: CurrentUser | null
 }
 
 type Tab = 'overview' | 'pushes' | 'permissions'
-
-// ── Permission stub data ─────────────────────────────────────────────────────
-
-const PERMISSION_SCOPES = [
-  {
-    icon: '🌐',
-    title: 'Provider',
-    description: 'Access to all repositories on a provider',
-    example: 'github.com — allow all pushes',
-  },
-  {
-    icon: '👤',
-    title: 'Owner / Organisation',
-    description: 'Access scoped to an owner or org on a specific provider',
-    example: 'github.com/acme — allow owner',
-  },
-  {
-    icon: '📦',
-    title: 'Repository',
-    description: 'Access to a specific repository',
-    example: 'github.com/acme/my-repo — allow repo',
-  },
-  {
-    icon: '🌿',
-    title: 'Ref (branch / tag)',
-    description: 'Access restricted to matching refs',
-    example: 'branch: main, tag: v*',
-  },
-  {
-    icon: '🕐',
-    title: 'Time-bound',
-    description: 'Permission valid only within a date range',
-    example: 'valid 2025-01-01 → 2025-12-31',
-  },
-]
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
@@ -566,50 +544,299 @@ function PushesTab({ username }: { username: string }) {
   )
 }
 
-function PermissionsTab({ isLocalAuth }: { isLocalAuth: boolean }) {
+function PathTypeBadge({ pathType }: { pathType: RepoPermission['pathType'] }) {
+  const styles = {
+    LITERAL: 'bg-gray-100 text-gray-600',
+    GLOB: 'bg-purple-50 text-purple-700',
+    REGEX: 'bg-orange-50 text-orange-700',
+  }
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${styles[pathType]}`}
+    >
+      {pathType.toLowerCase()}
+    </span>
+  )
+}
+
+function OperationsBadge({ operations }: { operations: RepoPermission['operations'] }) {
+  const styles = {
+    PUSH: 'bg-blue-50 text-blue-700',
+    APPROVE: 'bg-green-50 text-green-700',
+    ALL: 'bg-slate-100 text-slate-700',
+  }
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${styles[operations]}`}
+    >
+      {operations.toLowerCase()}
+    </span>
+  )
+}
+
+function AddPermissionModal({
+  username,
+  onClose,
+  onAdded,
+}: {
+  username: string
+  onClose: () => void
+  onAdded: () => void
+}) {
+  const [providers, setProviders] = useState<Provider[]>([])
+  const [provider, setProvider] = useState('')
+  const [path, setPath] = useState('')
+  const [pathType, setPathType] = useState<'LITERAL' | 'GLOB' | 'REGEX'>('LITERAL')
+  const [operations, setOperations] = useState<'PUSH' | 'APPROVE' | 'ALL'>('ALL')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchProviders()
+      .then((list: Provider[]) => {
+        setProviders(list)
+        if (list.length > 0) setProvider(list[0].name)
+      })
+      .catch(console.error)
+  }, [])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitting(true)
+    setError(null)
+    try {
+      await addUserPermission(username, {
+        provider: provider.trim(),
+        path: path.trim(),
+        pathType,
+        operations,
+      })
+      onAdded()
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add permission')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
+        <h3 className="text-base font-semibold text-gray-800 mb-4">Add Permission</h3>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Provider</label>
+            <select
+              required
+              value={provider}
+              onChange={(e) => setProvider(e.target.value)}
+              disabled={providers.length === 0}
+              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-slate-500 focus:outline-none disabled:bg-gray-50 disabled:text-gray-400"
+            >
+              {providers.length === 0 && <option value="">Loading…</option>}
+              {providers.map((p) => (
+                <option key={p.name} value={p.name}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Path</label>
+            <input
+              required
+              value={path}
+              onChange={(e) => setPath(e.target.value)}
+              placeholder="/owner/repo"
+              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm font-mono focus:border-slate-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Path Type</label>
+            <select
+              value={pathType}
+              onChange={(e) => setPathType(e.target.value as typeof pathType)}
+              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+            >
+              <option value="LITERAL">Literal — exact match</option>
+              <option value="GLOB">Glob — wildcard (* / **)</option>
+              <option value="REGEX">Regex — full Java regex</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Operations</label>
+            <select
+              value={operations}
+              onChange={(e) => setOperations(e.target.value as typeof operations)}
+              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+            >
+              <option value="ALL">All (push + approve)</option>
+              <option value="PUSH">Push only</option>
+              <option value="APPROVE">Approve only</option>
+            </select>
+          </div>
+          {error && <p className="text-xs text-red-500">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-1.5 rounded border border-gray-200 text-xs text-gray-600 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="px-3 py-1.5 rounded bg-slate-700 text-white text-xs hover:bg-slate-800 disabled:opacity-50"
+            >
+              {submitting ? 'Adding…' : 'Add'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function PermissionsTab({ username, isAdmin }: { username: string; isAdmin: boolean }) {
+  const [permissions, setPermissions] = useState<RepoPermission[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showAdd, setShowAdd] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  function loadPermissions() {
+    setLoading(true)
+    fetchUserPermissions(username)
+      .then(setPermissions)
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadPermissions()
+  }, [username])
+
+  async function handleDelete(id: string) {
+    setDeletingId(id)
+    setActionError(null)
+    try {
+      await deleteUserPermission(username, id)
+      loadPermissions()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to remove permission')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  if (loading) return <div className="py-8 text-center text-gray-400 text-sm">Loading…</div>
+
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-5 py-4">
-        <p className="text-sm font-medium text-slate-600">Permissions — coming soon</p>
-        <p className="text-xs text-slate-400 mt-1">
-          Per-user push permissions will be configurable at multiple scopes. The taxonomy below
-          shows what will be supported.
+      {showAdd && (
+        <AddPermissionModal
+          username={username}
+          onClose={() => setShowAdd(false)}
+          onAdded={loadPermissions}
+        />
+      )}
+
+      {permissions.length === 0 ? (
+        <p className="text-sm text-gray-400 italic py-4">
+          No permissions configured for this user.
         </p>
-      </div>
+      ) : (
+        <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                <th className="px-4 py-3">Provider</th>
+                <th className="px-4 py-3">Type</th>
+                <th className="px-4 py-3">Path</th>
+                <th className="px-4 py-3">Operations</th>
+                <th className="px-4 py-3">Source</th>
+                {isAdmin && <th className="px-4 py-3" />}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {permissions.map((p) => (
+                <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3">
+                    <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                      {p.provider}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <PathTypeBadge pathType={p.pathType} />
+                  </td>
+                  <td className="px-4 py-3 font-mono text-gray-700 text-xs">{p.path}</td>
+                  <td className="px-4 py-3">
+                    <OperationsBadge operations={p.operations} />
+                  </td>
+                  <td className="px-4 py-3">
+                    {p.source === 'CONFIG' ? (
+                      <LockedBadge source="config" />
+                    ) : (
+                      <span className="text-xs text-gray-400">db</span>
+                    )}
+                  </td>
+                  {isAdmin && (
+                    <td className="px-4 py-3 text-right">
+                      {p.source !== 'CONFIG' && (
+                        <button
+                          onClick={() => handleDelete(p.id)}
+                          disabled={deletingId === p.id}
+                          className="text-red-400 text-xs hover:text-red-600 disabled:opacity-40"
+                        >
+                          {deletingId === p.id ? '…' : 'Remove'}
+                        </button>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {PERMISSION_SCOPES.map(({ icon, title, description, example }) => (
-          <div
-            key={title}
-            className="rounded-lg border border-gray-200 bg-white px-4 py-3 space-y-1 opacity-60"
-          >
-            <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-              <span>{icon}</span>
-              <span>{title}</span>
-            </div>
-            <p className="text-xs text-gray-500">{description}</p>
-            <p className="text-xs font-mono text-slate-400 bg-slate-50 rounded px-2 py-0.5 inline-block">
-              {example}
-            </p>
-          </div>
-        ))}
-      </div>
+      {actionError && <p className="text-xs text-red-500">{actionError}</p>}
 
-      {isLocalAuth && (
+      {isAdmin && (
         <button
-          disabled
-          className="px-3 py-1.5 rounded bg-slate-700 text-white text-sm opacity-30 cursor-not-allowed"
+          onClick={() => setShowAdd(true)}
+          className="px-3 py-1.5 rounded bg-slate-700 text-white text-xs hover:bg-slate-800"
         >
           + Add Permission
         </button>
       )}
+
+      <div className="pt-2 space-y-2">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Coming soon</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-3 space-y-1 opacity-70">
+            <p className="text-sm font-medium text-gray-500">Time-bound permissions</p>
+            <p className="text-xs text-gray-400">
+              Grant access valid only within a date range, e.g. valid 2025-01-01 → 2025-12-31.
+            </p>
+          </div>
+          <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-3 space-y-1 opacity-70">
+            <p className="text-sm font-medium text-gray-500">Just-in-time permissions</p>
+            <p className="text-xs text-gray-400">
+              Self-service, short-lived access requests with automatic expiry and audit trail.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-export function UserDetail({ authProvider }: UserDetailProps) {
+export function UserDetail({ authProvider, currentUser }: UserDetailProps) {
   const { username } = useParams<{ username: string }>()
   const navigate = useNavigate()
   const [user, setUser] = useState<UserDetailType | null>(null)
@@ -618,6 +845,7 @@ export function UserDetail({ authProvider }: UserDetailProps) {
   const [tab, setTab] = useState<Tab>('overview')
 
   const isLocalAuth = authProvider === 'local'
+  const isAdmin = currentUser?.authorities?.includes('ROLE_ADMIN') ?? false
 
   function loadUser() {
     if (!username) return
@@ -692,7 +920,7 @@ export function UserDetail({ authProvider }: UserDetailProps) {
         />
       )}
       {tab === 'pushes' && <PushesTab username={user.username} />}
-      {tab === 'permissions' && <PermissionsTab isLocalAuth={isLocalAuth} />}
+      {tab === 'permissions' && <PermissionsTab username={user.username} isAdmin={isAdmin} />}
     </div>
   )
 }

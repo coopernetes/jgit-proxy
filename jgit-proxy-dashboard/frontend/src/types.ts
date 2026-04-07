@@ -105,3 +105,13 @@ export interface UserDetail {
   scmIdentities: ScmIdentity[]
   pushCounts: Partial<Record<PushStatus, number>>
 }
+
+export interface RepoPermission {
+  id: string
+  username: string
+  provider: string
+  path: string
+  pathType: 'LITERAL' | 'GLOB' | 'REGEX'
+  operations: 'PUSH' | 'APPROVE' | 'ALL'
+  source: 'CONFIG' | 'DB'
+}
