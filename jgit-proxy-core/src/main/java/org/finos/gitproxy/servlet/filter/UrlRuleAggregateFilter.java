@@ -126,16 +126,16 @@ public class UrlRuleAggregateFilter extends AbstractProviderAwareGitProxyFilter 
             return;
         }
 
-        // Allow rules evaluated next — open if no allow rules configured
+        // Allow rules evaluated next — must match at least one allow rule to proceed
         for (UrlRuleFilter filter : allowFilters) {
             filter.applyRule(request);
         }
         String matchedBy = (String) request.getAttribute(MATCHED_BY_ATTRIBUTE);
         var operation = determineOperation(request);
-        boolean allowed = matchedBy != null || allowFilters.isEmpty();
+        boolean allowed = matchedBy != null;
 
         if (allowed) {
-            log.debug("Allowed: {}", matchedBy != null ? "matched rule " + matchedBy : "no allow rules (open)");
+            log.debug("Allowed: matched rule {}", matchedBy);
         }
 
         if (operation == HttpOperation.FETCH && fetchStore != null) {

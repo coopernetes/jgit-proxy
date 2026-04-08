@@ -38,7 +38,7 @@ override everything.
 
 | Profile name     | File                           | Purpose                                                   |
 | ---------------- | ------------------------------ | --------------------------------------------------------- |
-| `local`          | `git-proxy-local.yml`          | Local development: dev users, Vite CORS, test whitelists  |
+| `local`          | `git-proxy-local.yml`          | Local development: dev users, Vite CORS, test allow rules |
 | `docker-default` | `git-proxy-docker-default.yml` | Docker base: admin user, Gitea provider, validation rules |
 | `ldap`           | `git-proxy-ldap.yml`           | LDAP authentication config (used with `docker-default`)   |
 | `oidc`           | `git-proxy-oidc.yml`           | OIDC authentication config (used with `docker-default`)   |
@@ -78,7 +78,7 @@ Strip the `GITPROXY_` prefix, lowercase, and replace `_` with `.` to get the con
 | `GITPROXY_PROVIDERS_GITHUB_ENABLED` | `providers.github.enabled`  | `false`                   |
 | `GITPROXY_PROVIDERS_<NAME>_URI`     | `providers.<name>.uri`      | `https://gitlab.corp.com` |
 
-> Complex nested structures (whitelists, full commit validation blocks) are not overridable via env vars. Use YAML
+> Complex nested structures (URL rules, full commit validation blocks) are not overridable via env vars. Use YAML
 > profile files instead.
 
 ## Server settings
@@ -480,55 +480,68 @@ users:
         username: alice
 ```
 
-## Whitelist filters
+## URL rules
 
-Whitelist filters control which repositories are accessible through the proxy. Multiple entries can be defined, each
-scoped to specific providers and operations. At least one whitelist must match for a request to be allowed.
+URL rules control which repositories are accessible through the proxy. jgit-proxy is **default-deny**: if no allow
+rules are configured for a provider, all pushes and fetches to that provider are rejected. At least one allow rule
+must match for a request to proceed.
 
 Slugs, owners, and names support glob patterns (e.g. `finos/*`, `*-public`).
 
 ```yaml
-filters:
-  whitelists:
+rules:
+  allow:
     # Specific repos by slug (owner/name) — both FETCH and PUSH
     - enabled: true
-      order: 1100
+      order: 110
       operations:
         - FETCH
         - PUSH
       providers:
         - github
       slugs:
-        - finos/git-proxy
-        - coopernetes/test-repo
+        - /finos/git-proxy
+        - /coopernetes/test-repo
 
     # All repos under an owner — FETCH only, any provider
     - enabled: true
-      order: 1200
+      order: 120
       operations:
         - FETCH
       owners:
         - finos
 
-    # Repos by name pattern across all providers
+  deny:
+    # Block a specific repo across all operations
     - enabled: true
-      order: 1300
-      operations:
-        - FETCH
-      names:
-        - hello-world
-        - my-org-*
+      order: 100
+      slugs:
+        - /myorg/forbidden-repo
 ```
 
-### Whitelist properties
+To allow all repositories on a provider (open mode), use a wildcard slug:
+
+```yaml
+rules:
+  allow:
+    - enabled: true
+      order: 110
+      operations:
+        - FETCH
+        - PUSH
+      slugs:
+        - "*/*"
+```
+
+### URL rule properties
 
 | Property     | Type    | Default | Description                                           |
 | ------------ | ------- | ------- | ----------------------------------------------------- |
 | `enabled`    | boolean | `true`  | Whether this entry is active                          |
-| `order`      | int     | `1100`  | Evaluation order (lower = earlier; 1000–1999 range)   |
+| `order`      | int     | —       | Evaluation order (lower = earlier; 50–199 range)      |
 | `operations` | list    | _none_  | `FETCH`, `PUSH` — which operations this entry matches |
 | `providers`  | list    | _all_   | Provider names to scope this entry to                 |
-| `slugs`      | list    | _none_  | `owner/repo` slugs; supports glob patterns            |
+| `slugs`      | list    | _none_  | `/owner/repo` slugs; supports glob patterns           |
 | `owners`     | list    | _none_  | Owner/org names; supports glob patterns               |
 | `names`      | list    | _none_  | Repository names; supports glob patterns              |
 

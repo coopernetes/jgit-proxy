@@ -323,14 +323,14 @@ class UrlRuleFilterTest {
     }
 
     @Test
-    void urlRuleAggregate_emptyRules_allows() throws Exception {
+    void urlRuleAggregate_emptyRules_blocks() throws Exception {
         var aggregate = new UrlRuleAggregateFilter(50, Set.of(HttpOperation.PUSH), GITHUB, List.of());
         GitRequestDetails details = makeDetails("owner", "repo", "/owner/repo");
         FakeResponse resp = new FakeResponse();
 
         aggregate.doHttpFilter(mockPushRequest(details), resp.mock);
 
-        assertFalse(resp.committed.get(), "Empty rules should allow all requests (open mode)");
+        assertTrue(resp.committed.get(), "No allow rules configured — default-deny should block all requests");
     }
 
     @Test
@@ -377,7 +377,7 @@ class UrlRuleFilterTest {
     }
 
     @Test
-    void urlRuleAggregate_denyRulesOnly_nonMatchedPasses() throws Exception {
+    void urlRuleAggregate_denyRulesOnly_nonMatchedBlocks() throws Exception {
         var denyFilter = new UrlRuleFilter(
                 100, GITHUB, List.of("blocked-owner"), UrlRuleFilter.Target.OWNER, AccessRule.Access.DENY);
         var aggregate = new UrlRuleAggregateFilter(50, Set.of(HttpOperation.PUSH), GITHUB, List.of(denyFilter));
@@ -386,6 +386,8 @@ class UrlRuleFilterTest {
 
         aggregate.doHttpFilter(mockPushRequest(details), resp.mock);
 
-        assertFalse(resp.committed.get(), "Request not matching any deny rule should pass when no allow rules exist");
+        assertTrue(
+                resp.committed.get(),
+                "No allow rules configured — default-deny blocks even requests that miss deny rules");
     }
 }

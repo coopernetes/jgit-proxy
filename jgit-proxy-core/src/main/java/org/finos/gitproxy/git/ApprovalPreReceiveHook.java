@@ -9,6 +9,12 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.transport.PreReceiveHook;
 import org.eclipse.jgit.transport.ReceiveCommand;
@@ -30,6 +36,7 @@ import org.finos.gitproxy.db.model.PushStatus;
 public class ApprovalPreReceiveHook implements PreReceiveHook {
 
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(30);
+    private static final ExecutorService APPROVAL_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
     private final PushStore pushStore;
     private final ApprovalGateway approvalGateway;
@@ -97,8 +104,23 @@ public class ApprovalPreReceiveHook implements PreReceiveHook {
                 sendAndFlush(rp, msgOut, color(YELLOW, "   Reason: " + record.getBlockedMessage()));
             }
 
-            ApprovalResult result =
-                    approvalGateway.waitForApproval(validationRecordId, msg -> sendAndFlush(rp, msgOut, msg), timeout);
+            Future<ApprovalResult> future = APPROVAL_EXECUTOR.submit(() ->
+                    approvalGateway.waitForApproval(validationRecordId, msg -> sendAndFlush(rp, msgOut, msg), timeout));
+            ApprovalResult result;
+            try {
+                result = future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            } catch (TimeoutException e) {
+                future.cancel(true);
+                result = ApprovalResult.TIMED_OUT;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                future.cancel(true);
+                result = ApprovalResult.CANCELED;
+            } catch (ExecutionException e) {
+                log.error("Unexpected error in approval gateway", e.getCause());
+                rejectAll(commands, "Approval error");
+                return;
+            }
 
             switch (result) {
                 case APPROVED ->
