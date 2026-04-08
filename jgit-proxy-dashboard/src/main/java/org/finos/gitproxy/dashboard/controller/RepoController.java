@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.db.FetchStore;
 import org.finos.gitproxy.db.FetchStore.RepoFetchSummary;
 import org.finos.gitproxy.db.PushStore;
@@ -16,8 +17,11 @@ import org.finos.gitproxy.db.model.PushRecord;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/repos")
 public class RepoController {
@@ -51,6 +55,9 @@ public class RepoController {
     public ResponseEntity<AccessRule> createRule(@RequestBody AccessRule rule) {
         rule.setSource(AccessRule.Source.DB);
         repoRegistry.save(rule);
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String login = auth != null ? auth.getName() : "unknown";
+        log.info("Access rule created by login={}: id={}", login, rule.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(rule);
     }
 
@@ -68,10 +75,14 @@ public class RepoController {
     /** Delete an access rule. */
     @DeleteMapping("/rules/{id}")
     public ResponseEntity<Void> deleteRule(@PathVariable String id) {
-        if (repoRegistry.findById(id).isEmpty()) {
+        var existing = repoRegistry.findById(id);
+        if (existing.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
         repoRegistry.delete(id);
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String login = auth != null ? auth.getName() : "unknown";
+        log.info("Access rule deleted by login={}: id={}", login, id);
         return ResponseEntity.noContent().build();
     }
 

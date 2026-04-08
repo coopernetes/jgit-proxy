@@ -133,7 +133,10 @@ public class SecurityConfig {
                                 "/api/users/*/emails",
                                 "/api/users/*/permissions")
                         .hasRole("ADMIN")
-                        .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/users/**")
+                        .requestMatchers(
+                                org.springframework.http.HttpMethod.DELETE, "/api/users/**", "/api/repos/rules/**")
+                        .hasRole("ADMIN")
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/repos/rules")
                         .hasRole("ADMIN")
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/config/reload")
                         .hasRole("ADMIN")

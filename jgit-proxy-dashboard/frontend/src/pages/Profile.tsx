@@ -4,10 +4,12 @@ import {
   addScmIdentity,
   fetchMe,
   fetchProviders,
+  fetchUserPermissions,
   removeEmail,
   removeScmIdentity,
 } from '../api'
-import type { CurrentUser, EmailEntry, ScmIdentity } from '../types'
+import { OperationsBadge, PathTypeBadge } from '../components/PermissionBadges'
+import type { CurrentUser, EmailEntry, RepoPermission, ScmIdentity } from '../types'
 
 function LockedBadge({ source }: { source: string }) {
   const title =
@@ -29,7 +31,9 @@ export function Profile() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [tab, setTab] = useState<'emails' | 'identities'>('emails')
+  const [tab, setTab] = useState<'emails' | 'identities' | 'permissions'>('emails')
+  const [permissions, setPermissions] = useState<RepoPermission[]>([])
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false)
 
   const [newEmail, setNewEmail] = useState('')
   const [emailError, setEmailError] = useState<string | null>(null)
@@ -53,6 +57,16 @@ export function Profile() {
       })
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (tab !== 'permissions' || permissionsLoaded || !profile) return
+    fetchUserPermissions(profile.username)
+      .then((data) => {
+        setPermissions(data)
+        setPermissionsLoaded(true)
+      })
+      .catch(() => {})
+  }, [tab, permissionsLoaded, profile])
 
   async function handleAddEmail(e: React.FormEvent) {
     e.preventDefault()
@@ -133,7 +147,7 @@ export function Profile() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200">
-        {(['emails', 'identities'] as const).map((t) => (
+        {(['emails', 'identities', 'permissions'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -144,7 +158,11 @@ export function Profile() {
                 : 'border-transparent text-gray-500 hover:text-gray-700')
             }
           >
-            {t === 'emails' ? 'Email Addresses' : 'SCM Identities'}
+            {t === 'emails'
+              ? 'Email Addresses'
+              : t === 'identities'
+                ? 'SCM Identities'
+                : 'Permissions'}
           </button>
         ))}
       </div>
@@ -202,6 +220,59 @@ export function Profile() {
               Add
             </button>
           </form>
+        </div>
+      )}
+
+      {/* Permissions tab */}
+      {tab === 'permissions' && (
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500">
+            Repository access permissions granted to your account.
+          </p>
+          {!permissionsLoaded ? (
+            <p className="text-sm text-gray-400">Loading…</p>
+          ) : permissions.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">No permissions configured.</p>
+          ) : (
+            <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    <th className="px-4 py-3">Provider</th>
+                    <th className="px-4 py-3">Type</th>
+                    <th className="px-4 py-3">Path</th>
+                    <th className="px-4 py-3">Operations</th>
+                    <th className="px-4 py-3">Source</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {permissions.map((p) => (
+                    <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                          {p.provider}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <PathTypeBadge pathType={p.pathType} />
+                      </td>
+                      <td className="px-4 py-3 font-mono text-gray-700 text-xs">{p.path}</td>
+                      <td className="px-4 py-3">
+                        <OperationsBadge operations={p.operations} />
+                      </td>
+                      <td className="px-4 py-3">
+                        {p.source === 'CONFIG' ? (
+                          <LockedBadge source="config" />
+                        ) : (
+                          <span className="text-xs text-gray-400">local</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

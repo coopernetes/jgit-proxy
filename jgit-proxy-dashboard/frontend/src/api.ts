@@ -248,6 +248,11 @@ export async function createAccessRule(rule: {
   return res.json()
 }
 
+export async function deleteAccessRule(id: string) {
+  const res = await apiFetch(`/api/repos/rules/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  if (!res.ok) await parseErrorResponse(res, 'Failed to delete access rule')
+}
+
 export async function deleteUserPermission(username: string, id: string) {
   const res = await apiFetch(
     `/api/users/${encodeURIComponent(username)}/permissions/${encodeURIComponent(id)}`,

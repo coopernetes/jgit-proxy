@@ -3,6 +3,7 @@ package org.finos.gitproxy.db.model;
 import java.util.UUID;
 import lombok.Builder;
 import lombok.Data;
+import lombok.extern.jackson.Jacksonized;
 
 /**
  * A single access control rule governing which repositories may be fetched from or pushed to through the proxy. Rules
@@ -14,6 +15,7 @@ import lombok.Data;
  */
 @Data
 @Builder
+@Jacksonized
 public class AccessRule {
 
     @Builder.Default

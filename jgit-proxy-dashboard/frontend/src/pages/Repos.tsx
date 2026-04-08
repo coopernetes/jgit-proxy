@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { createAccessRule, fetchProviders } from '../api'
+import { createAccessRule, deleteAccessRule, fetchProviders } from '../api'
 
 interface ActiveRepo {
   provider: string
@@ -105,7 +105,6 @@ interface AddRuleForm {
   pattern: string
   provider: string
   operations: 'ALL' | 'PUSH' | 'FETCH'
-  description: string
 }
 
 const DEFAULT_FORM: AddRuleForm = {
@@ -115,7 +114,6 @@ const DEFAULT_FORM: AddRuleForm = {
   pattern: '',
   provider: '',
   operations: 'ALL',
-  description: '',
 }
 
 function AddRuleModal({
@@ -187,7 +185,6 @@ function AddRuleModal({
         access: form.access,
         operations: form.operations,
         provider: form.provider || undefined,
-        description: form.description.trim() || undefined,
       }
       if (form.targetType === 'slug') payload.slug = encoded
       else if (form.targetType === 'owner') payload.owner = encoded
@@ -334,20 +331,6 @@ function AddRuleModal({
               <option value="FETCH">Fetch only</option>
             </select>
           </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Description <span className="text-gray-400 font-normal">(optional)</span>
-            </label>
-            <input
-              type="text"
-              value={form.description}
-              onChange={(e) => set('description', e.target.value)}
-              placeholder="Why this rule exists"
-              className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
-            />
-          </div>
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
@@ -396,7 +379,7 @@ export function Repos() {
   }, [tab])
 
   const deleteRule = async (id: string) => {
-    await fetch(`/api/repos/rules/${id}`, { method: 'DELETE' })
+    await deleteAccessRule(id)
     setRules((prev) => prev.filter((r) => r.id !== id))
   }
 
@@ -544,10 +527,8 @@ export function Repos() {
                     >
                       {rule.operations === 'ALL' ? 'PUSH & FETCH' : rule.operations}
                     </span>
-                    <span
-                      className={`text-xs ${rule.source === 'CONFIG' ? 'text-gray-400' : 'text-blue-500'}`}
-                    >
-                      {rule.source === 'CONFIG' ? 'from config' : 'via API'}
+                    <span className="text-xs text-gray-400">
+                      {rule.source === 'CONFIG' ? 'config' : 'local'}
                     </span>
                     {!rule.enabled && <span className="text-xs text-amber-500">disabled</span>}
                     {rule.source === 'DB' && (
