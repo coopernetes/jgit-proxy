@@ -229,6 +229,25 @@ export async function addUserPermission(
   return res.json()
 }
 
+export async function createAccessRule(rule: {
+  access: 'ALLOW' | 'DENY'
+  operations: 'ALL' | 'PUSH' | 'FETCH'
+  slug?: string
+  owner?: string
+  name?: string
+  provider?: string
+  description?: string
+  ruleOrder?: number
+}) {
+  const res = await apiFetch('/api/repos/rules', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...rule, enabled: true, source: 'DB' }),
+  })
+  if (!res.ok) await parseErrorResponse(res, 'Failed to create access rule')
+  return res.json()
+}
+
 export async function deleteUserPermission(username: string, id: string) {
   const res = await apiFetch(
     `/api/users/${encodeURIComponent(username)}/permissions/${encodeURIComponent(id)}`,

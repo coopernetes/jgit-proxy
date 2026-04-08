@@ -139,14 +139,19 @@ public class JettyConfigurationBuilder {
         return providers;
     }
 
-    /** Creates URL rule filters for a given provider from configuration. */
+    /** Creates URL rule filters for a given provider from configuration (both allow and deny rules). */
     public List<UrlRuleFilter> buildUrlRuleFilters(GitProxyProvider provider) {
         List<UrlRuleFilter> filters = new ArrayList<>();
+        buildUrlRuleFiltersForAccess(filters, provider, config.getRules().getAllow(), AccessRule.Access.ALLOW);
+        buildUrlRuleFiltersForAccess(filters, provider, config.getRules().getDeny(), AccessRule.Access.DENY);
+        return filters;
+    }
 
-        for (RuleConfig rule : config.getRules().getAllow()) {
+    private void buildUrlRuleFiltersForAccess(
+            List<UrlRuleFilter> filters, GitProxyProvider provider, List<RuleConfig> rules, AccessRule.Access access) {
+        for (RuleConfig rule : rules) {
             if (!rule.isEnabled()) continue;
 
-            // Scope check: skip if this rule is scoped to specific providers that exclude this one
             List<String> providerNames = rule.getProviders();
             if (!providerNames.isEmpty()
                     && !providerNames.contains(provider.getName().toLowerCase())) {
@@ -154,22 +159,21 @@ public class JettyConfigurationBuilder {
             }
 
             int order = rule.getOrder();
+            String accessLabel = access.name().toLowerCase();
 
             if (!rule.getSlugs().isEmpty()) {
-                filters.add(new UrlRuleFilter(order, provider, rule.getSlugs(), UrlRuleFilter.Target.SLUG));
-                log.debug("Added slug allow rule for provider {}: {}", provider.getName(), rule.getSlugs());
+                filters.add(new UrlRuleFilter(order, provider, rule.getSlugs(), UrlRuleFilter.Target.SLUG, access));
+                log.debug("Added slug {} rule for provider {}: {}", accessLabel, provider.getName(), rule.getSlugs());
             }
             if (!rule.getOwners().isEmpty()) {
-                filters.add(new UrlRuleFilter(order, provider, rule.getOwners(), UrlRuleFilter.Target.OWNER));
-                log.debug("Added owner allow rule for provider {}: {}", provider.getName(), rule.getOwners());
+                filters.add(new UrlRuleFilter(order, provider, rule.getOwners(), UrlRuleFilter.Target.OWNER, access));
+                log.debug("Added owner {} rule for provider {}: {}", accessLabel, provider.getName(), rule.getOwners());
             }
             if (!rule.getNames().isEmpty()) {
-                filters.add(new UrlRuleFilter(order, provider, rule.getNames(), UrlRuleFilter.Target.NAME));
-                log.debug("Added name allow rule for provider {}: {}", provider.getName(), rule.getNames());
+                filters.add(new UrlRuleFilter(order, provider, rule.getNames(), UrlRuleFilter.Target.NAME, access));
+                log.debug("Added name {} rule for provider {}: {}", accessLabel, provider.getName(), rule.getNames());
             }
         }
-
-        return filters;
     }
 
     /**
@@ -372,53 +376,14 @@ public class JettyConfigurationBuilder {
     }
 
     /**
-     * Builds a {@link RepoRegistry}, seeding it with rules derived from the YAML allow rules config. JDBC backends
-     * share the same {@link DataSource} as the push store.
+     * Builds a {@link RepoRegistry}, seeding it with rules derived from the YAML allow and deny rules config. JDBC
+     * backends share the same {@link DataSource} as the push store.
      */
     public RepoRegistry buildRepoRegistry() {
         // CONFIG rules live only in memory — never written to DB, no stale duplicates on restart.
         InMemoryRepoRegistry configRegistry = new InMemoryRepoRegistry();
-        for (RuleConfig rule : config.getRules().getAllow()) {
-            if (!rule.isEnabled()) continue;
-            AccessRule.Operations ops = toOperations(rule.getOperations());
-            // A rule with no providers means "all providers" — one rule with provider=null.
-            // A rule scoped to N providers produces N rules, one per provider name.
-            List<String> providers =
-                    rule.getProviders().isEmpty() ? java.util.Collections.singletonList(null) : rule.getProviders();
-            for (String provider : providers) {
-                for (String rawSlug : rule.getSlugs()) {
-                    String slug = rawSlug.startsWith("/") ? rawSlug : "/" + rawSlug;
-                    configRegistry.save(AccessRule.builder()
-                            .provider(provider)
-                            .slug(slug)
-                            .access(AccessRule.Access.ALLOW)
-                            .operations(ops)
-                            .source(AccessRule.Source.CONFIG)
-                            .ruleOrder(rule.getOrder())
-                            .build());
-                }
-                for (String owner : rule.getOwners()) {
-                    configRegistry.save(AccessRule.builder()
-                            .provider(provider)
-                            .owner(owner)
-                            .access(AccessRule.Access.ALLOW)
-                            .operations(ops)
-                            .source(AccessRule.Source.CONFIG)
-                            .ruleOrder(rule.getOrder())
-                            .build());
-                }
-                for (String name : rule.getNames()) {
-                    configRegistry.save(AccessRule.builder()
-                            .provider(provider)
-                            .name(name)
-                            .access(AccessRule.Access.ALLOW)
-                            .operations(ops)
-                            .source(AccessRule.Source.CONFIG)
-                            .ruleOrder(rule.getOrder())
-                            .build());
-                }
-            }
-        }
+        seedRulesIntoRegistry(configRegistry, config.getRules().getAllow(), AccessRule.Access.ALLOW);
+        seedRulesIntoRegistry(configRegistry, config.getRules().getDeny(), AccessRule.Access.DENY);
 
         String type = config.getDatabase().getType();
         RepoRegistry dbRegistry;
@@ -450,6 +415,49 @@ public class JettyConfigurationBuilder {
         store.initialize();
         cachedFetchStore = store;
         return cachedFetchStore;
+    }
+
+    private static void seedRulesIntoRegistry(
+            InMemoryRepoRegistry registry, List<RuleConfig> rules, AccessRule.Access access) {
+        for (RuleConfig rule : rules) {
+            if (!rule.isEnabled()) continue;
+            AccessRule.Operations ops = toOperations(rule.getOperations());
+            List<String> providers =
+                    rule.getProviders().isEmpty() ? java.util.Collections.singletonList(null) : rule.getProviders();
+            for (String provider : providers) {
+                for (String rawSlug : rule.getSlugs()) {
+                    String slug = rawSlug.startsWith("/") ? rawSlug : "/" + rawSlug;
+                    registry.save(AccessRule.builder()
+                            .provider(provider)
+                            .slug(slug)
+                            .access(access)
+                            .operations(ops)
+                            .source(AccessRule.Source.CONFIG)
+                            .ruleOrder(rule.getOrder())
+                            .build());
+                }
+                for (String owner : rule.getOwners()) {
+                    registry.save(AccessRule.builder()
+                            .provider(provider)
+                            .owner(owner)
+                            .access(access)
+                            .operations(ops)
+                            .source(AccessRule.Source.CONFIG)
+                            .ruleOrder(rule.getOrder())
+                            .build());
+                }
+                for (String name : rule.getNames()) {
+                    registry.save(AccessRule.builder()
+                            .provider(provider)
+                            .name(name)
+                            .access(access)
+                            .operations(ops)
+                            .source(AccessRule.Source.CONFIG)
+                            .ruleOrder(rule.getOrder())
+                            .build());
+                }
+            }
+        }
     }
 
     private static AccessRule.Operations toOperations(List<String> ops) {

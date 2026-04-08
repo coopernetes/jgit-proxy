@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createAccessRule } from '../api'
 
 interface ActiveRepo {
   provider: string
@@ -93,11 +94,218 @@ function CloneButton({ cloneUrl }: { cloneUrl: string }) {
 
 type Tab = 'active' | 'rules'
 
+type TargetType = 'slug' | 'owner' | 'name'
+
+interface AddRuleForm {
+  access: 'ALLOW' | 'DENY'
+  targetType: TargetType
+  pattern: string
+  provider: string
+  operations: 'ALL' | 'PUSH' | 'FETCH'
+  description: string
+}
+
+const DEFAULT_FORM: AddRuleForm = {
+  access: 'ALLOW',
+  targetType: 'slug',
+  pattern: '',
+  provider: '',
+  operations: 'ALL',
+  description: '',
+}
+
+function AddRuleModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void
+  onCreated: (rule: AccessRule) => void
+}) {
+  const [form, setForm] = useState<AddRuleForm>(DEFAULT_FORM)
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  const set = <K extends keyof AddRuleForm>(key: K, value: AddRuleForm[K]) =>
+    setForm((f) => ({ ...f, [key]: value }))
+
+  const handleSubmit = async () => {
+    if (!form.pattern.trim()) {
+      setError('Pattern is required')
+      return
+    }
+    setSubmitting(true)
+    setError(null)
+    try {
+      const payload: Parameters<typeof createAccessRule>[0] = {
+        access: form.access,
+        operations: form.operations,
+        provider: form.provider.trim() || undefined,
+        description: form.description.trim() || undefined,
+      }
+      if (form.targetType === 'slug') payload.slug = form.pattern.trim()
+      else if (form.targetType === 'owner') payload.owner = form.pattern.trim()
+      else payload.name = form.pattern.trim()
+
+      const created = await createAccessRule(payload)
+      onCreated(created)
+      onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unknown error')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-800">Add Access Rule</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          {/* Access type */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Access type</label>
+            <div className="flex gap-3">
+              {(['ALLOW', 'DENY'] as const).map((a) => (
+                <label key={a} className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="access"
+                    checked={form.access === a}
+                    onChange={() => set('access', a)}
+                    className="accent-blue-600"
+                  />
+                  <span
+                    className={`text-sm font-medium ${a === 'ALLOW' ? 'text-green-700' : 'text-red-700'}`}
+                  >
+                    {a}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Match target */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Match by</label>
+            <select
+              value={form.targetType}
+              onChange={(e) => set('targetType', e.target.value as TargetType)}
+              className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
+            >
+              <option value="slug">Slug (owner/repo)</option>
+              <option value="owner">Owner / org</option>
+              <option value="name">Repository name</option>
+            </select>
+          </div>
+
+          {/* Pattern */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Pattern{' '}
+              <span className="text-gray-400 font-normal">
+                (literal, glob <code>*</code>, or <code>regex:…</code>)
+              </span>
+            </label>
+            <input
+              type="text"
+              value={form.pattern}
+              onChange={(e) => set('pattern', e.target.value)}
+              placeholder={
+                form.targetType === 'slug'
+                  ? 'myorg/myrepo or myorg/*'
+                  : form.targetType === 'owner'
+                    ? 'myorg or myorg-*'
+                    : 'myrepo or regex:^my.*'
+              }
+              className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm font-mono"
+            />
+          </div>
+
+          {/* Provider */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Provider{' '}
+              <span className="text-gray-400 font-normal">(leave blank for all providers)</span>
+            </label>
+            <input
+              type="text"
+              value={form.provider}
+              onChange={(e) => set('provider', e.target.value)}
+              placeholder="github, gitlab, …"
+              className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
+            />
+          </div>
+
+          {/* Operations */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Operations</label>
+            <select
+              value={form.operations}
+              onChange={(e) => set('operations', e.target.value as AddRuleForm['operations'])}
+              className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
+            >
+              <option value="ALL">Push &amp; Fetch</option>
+              <option value="PUSH">Push only</option>
+              <option value="FETCH">Fetch only</option>
+            </select>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Description <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={form.description}
+              onChange={(e) => set('description', e.target.value)}
+              placeholder="Why this rule exists"
+              className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
+            />
+          </div>
+        </div>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className={`px-4 py-1.5 text-sm text-white rounded disabled:opacity-50 transition-colors ${
+              form.access === 'DENY'
+                ? 'bg-red-600 hover:bg-red-500'
+                : 'bg-blue-600 hover:bg-blue-500'
+            }`}
+          >
+            {submitting ? 'Saving…' : `Add ${form.access} rule`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function Repos() {
   const [tab, setTab] = useState<Tab>('active')
   const [activeRepos, setActiveRepos] = useState<ActiveRepo[]>([])
   const [rules, setRules] = useState<AccessRule[]>([])
   const [loadedTab, setLoadedTab] = useState<Tab | null>(null)
+  const [showAddRule, setShowAddRule] = useState(false)
 
   const loading = loadedTab !== tab
 
@@ -118,25 +326,42 @@ export function Repos() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+      {showAddRule && (
+        <AddRuleModal
+          onClose={() => setShowAddRule(false)}
+          onCreated={(rule) => setRules((prev) => [...prev, rule])}
+        />
+      )}
+
       <div className="flex items-baseline gap-3">
         <h2 className="text-lg font-semibold text-gray-800">Repositories</h2>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-200">
-        {(['active', 'rules'] as Tab[]).map((t) => (
+      <div className="flex items-center justify-between border-b border-gray-200">
+        <div className="flex gap-2">
+          {(['active', 'rules'] as Tab[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                tab === t
+                  ? 'border-blue-600 text-blue-700'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t === 'active' ? 'Active' : 'Access Rules'}
+            </button>
+          ))}
+        </div>
+        {tab === 'rules' && (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === t
-                ? 'border-blue-600 text-blue-700'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
+            onClick={() => setShowAddRule(true)}
+            className="mb-px px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
           >
-            {t === 'active' ? 'Active' : 'Access Rules'}
+            + Add rule
           </button>
-        ))}
+        )}
       </div>
 
       {loading && <div className="text-sm text-gray-400">Loading…</div>}

@@ -14,7 +14,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.finos.gitproxy.db.model.AccessRule;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
 import org.finos.gitproxy.provider.GitProxyProvider;
@@ -46,6 +48,7 @@ public class UrlRuleFilter extends AbstractProviderAwareGitProxyFilter {
     }
 
     public static final String MATCHED_BY_ATTRIBUTE = "org.finos.gitproxy.servlet.filter.UrlRuleFilter.matchedBy";
+    public static final String DENIED_BY_ATTRIBUTE = "org.finos.gitproxy.servlet.filter.UrlRuleFilter.deniedBy";
 
     private static final String REGEX_PREFIX = "regex:";
 
@@ -53,17 +56,21 @@ public class UrlRuleFilter extends AbstractProviderAwareGitProxyFilter {
     private static final int MIN_ORDER = 50;
     private static final int MAX_ORDER = 199;
 
+    @Getter
+    private final AccessRule.Access access;
+
     private final List<String> entries;
     private final Target target;
     private final Map<String, PathMatcher> globPatterns;
     private final Map<String, Pattern> regexPatterns;
 
     public UrlRuleFilter(int order, GitProxyProvider provider, List<String> entries, Target target) {
-        super(validateOrder(order), DEFAULT_OPERATIONS, provider);
-        this.entries = entries;
-        this.target = target;
-        this.globPatterns = compileGlobPatterns(entries);
-        this.regexPatterns = compileRegexPatterns(entries);
+        this(order, DEFAULT_OPERATIONS, provider, entries, target, AccessRule.Access.ALLOW);
+    }
+
+    public UrlRuleFilter(
+            int order, GitProxyProvider provider, List<String> entries, Target target, AccessRule.Access access) {
+        this(order, DEFAULT_OPERATIONS, provider, entries, target, access);
     }
 
     public UrlRuleFilter(
@@ -72,7 +79,18 @@ public class UrlRuleFilter extends AbstractProviderAwareGitProxyFilter {
             GitProxyProvider provider,
             List<String> entries,
             Target target) {
+        this(order, appliedOperations, provider, entries, target, AccessRule.Access.ALLOW);
+    }
+
+    public UrlRuleFilter(
+            int order,
+            Set<HttpOperation> appliedOperations,
+            GitProxyProvider provider,
+            List<String> entries,
+            Target target,
+            AccessRule.Access access) {
         super(validateOrder(order), appliedOperations, provider);
+        this.access = access;
         this.entries = entries;
         this.target = target;
         this.globPatterns = compileGlobPatterns(entries);
@@ -170,12 +188,16 @@ public class UrlRuleFilter extends AbstractProviderAwareGitProxyFilter {
     public void applyRule(HttpServletRequest request) {
         var predicate = createPredicate(target, request);
         if (isMatched(predicate)) {
-            request.setAttribute(MATCHED_BY_ATTRIBUTE, this.toString());
+            if (access == AccessRule.Access.DENY) {
+                request.setAttribute(DENIED_BY_ATTRIBUTE, this.toString());
+            } else {
+                request.setAttribute(MATCHED_BY_ATTRIBUTE, this.toString());
+            }
         }
     }
 
     @Override
     public String toString() {
-        return "UrlRuleFilter{" + "entries=" + entries + ", target=" + target + '}';
+        return "UrlRuleFilter{" + "access=" + access + ", entries=" + entries + ", target=" + target + '}';
     }
 }

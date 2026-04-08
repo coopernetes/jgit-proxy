@@ -19,6 +19,10 @@ Two proxy modes, both configurable per-provider:
   servlet filter chain (`ParseGitRequestFilter` → `EnrichPushCommitsFilter` → validation filters) inspects the pack data
   before it reaches the upstream.
 
+Virtually all core features (validation rules, approval model, provider abstraction) must be shared between the two
+modes. The main difference is that store-and-forward can stream progress messages live to the client via JGit hooks,
+while transparent proxy must buffer everything and send one response at the end of the filter chain.
+
 ## Client output — streaming constraint
 
 **Store-and-forward** uses JGit `ReceivePack` pre-receive hooks. Each hook can call `rp.sendMessage()` at any point and

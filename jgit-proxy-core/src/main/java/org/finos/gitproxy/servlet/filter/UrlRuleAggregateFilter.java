@@ -2,6 +2,7 @@ package org.finos.gitproxy.servlet.filter;
 
 import static org.finos.gitproxy.git.GitClientUtils.SymbolCodes.*;
 import static org.finos.gitproxy.git.GitClientUtils.sym;
+import static org.finos.gitproxy.servlet.filter.UrlRuleFilter.DENIED_BY_ATTRIBUTE;
 import static org.finos.gitproxy.servlet.filter.UrlRuleFilter.MATCHED_BY_ATTRIBUTE;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,6 +13,7 @@ import java.util.Set;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.db.FetchStore;
+import org.finos.gitproxy.db.model.AccessRule;
 import org.finos.gitproxy.db.model.FetchRecord;
 import org.finos.gitproxy.git.GitClientUtils;
 import org.finos.gitproxy.git.GitRequestDetails;
@@ -92,15 +94,48 @@ public class UrlRuleAggregateFilter extends AbstractProviderAwareGitProxyFilter 
 
     @Override
     public void doHttpFilter(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        for (UrlRuleFilter filter : urlRuleFilters) {
+        List<UrlRuleFilter> denyFilters = urlRuleFilters.stream()
+                .filter(f -> f.getAccess() == AccessRule.Access.DENY)
+                .toList();
+        List<UrlRuleFilter> allowFilters = urlRuleFilters.stream()
+                .filter(f -> f.getAccess() == AccessRule.Access.ALLOW)
+                .toList();
+
+        // Deny rules evaluated first — deny overrides allow
+        for (UrlRuleFilter filter : denyFilters) {
+            filter.applyRule(request);
+        }
+        String deniedBy = (String) request.getAttribute(DENIED_BY_ATTRIBUTE);
+        if (deniedBy != null) {
+            log.debug("Blocked by deny rule: {}", deniedBy);
+            var operation = determineOperation(request);
+            if (operation == HttpOperation.FETCH && fetchStore != null) {
+                recordFetch(request, false);
+            }
+            String action = operation == HttpOperation.PUSH ? "Push" : "Fetch";
+            String title = sym(NO_ENTRY) + "  " + action + " Blocked - Repository Denied";
+            String verb = operation == HttpOperation.PUSH ? "Pushes to" : "Fetches from";
+            String message = verb + " this repository are not permitted.\n"
+                    + "\n"
+                    + "This repository has been explicitly denied by an administrator.";
+            rejectAndSendError(
+                    request,
+                    response,
+                    "Repository blocked by deny rule",
+                    GitClientUtils.formatForOperation(title, message, GitClientUtils.AnsiColor.RED, operation));
+            return;
+        }
+
+        // Allow rules evaluated next — open if no allow rules configured
+        for (UrlRuleFilter filter : allowFilters) {
             filter.applyRule(request);
         }
         String matchedBy = (String) request.getAttribute(MATCHED_BY_ATTRIBUTE);
         var operation = determineOperation(request);
-        boolean allowed = matchedBy != null;
+        boolean allowed = matchedBy != null || allowFilters.isEmpty();
 
         if (allowed) {
-            log.debug("Allowed by rule: {}", matchedBy);
+            log.debug("Allowed: {}", matchedBy != null ? "matched rule " + matchedBy : "no allow rules (open)");
         }
 
         if (operation == HttpOperation.FETCH && fetchStore != null) {

@@ -1,6 +1,7 @@
 package org.finos.gitproxy.servlet.filter;
 
 import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
+import static org.finos.gitproxy.servlet.filter.UrlRuleFilter.DENIED_BY_ATTRIBUTE;
 import static org.finos.gitproxy.servlet.filter.UrlRuleFilter.MATCHED_BY_ATTRIBUTE;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.finos.gitproxy.db.model.AccessRule;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
 import org.finos.gitproxy.provider.GitHubProvider;
@@ -100,6 +102,7 @@ class UrlRuleFilterTest {
                 .when(req)
                 .setAttribute(anyString(), any());
         when(req.getAttribute(MATCHED_BY_ATTRIBUTE)).thenAnswer(inv -> attrs.get(MATCHED_BY_ATTRIBUTE));
+        when(req.getAttribute(DENIED_BY_ATTRIBUTE)).thenAnswer(inv -> attrs.get(DENIED_BY_ATTRIBUTE));
         return req;
     }
 
@@ -320,13 +323,69 @@ class UrlRuleFilterTest {
     }
 
     @Test
-    void urlRuleAggregate_emptyRules_blocks() throws Exception {
+    void urlRuleAggregate_emptyRules_allows() throws Exception {
         var aggregate = new UrlRuleAggregateFilter(50, Set.of(HttpOperation.PUSH), GITHUB, List.of());
         GitRequestDetails details = makeDetails("owner", "repo", "/owner/repo");
         FakeResponse resp = new FakeResponse();
 
         aggregate.doHttpFilter(mockPushRequest(details), resp.mock);
 
-        assertTrue(resp.committed.get(), "Empty allow rules should block all requests");
+        assertFalse(resp.committed.get(), "Empty rules should allow all requests (open mode)");
+    }
+
+    @Test
+    void urlRule_denyAccess_applyRule_setsdeniedByAttribute() throws Exception {
+        var filter = new UrlRuleFilter(
+                100, GITHUB, List.of("blocked-owner"), UrlRuleFilter.Target.OWNER, AccessRule.Access.DENY);
+        GitRequestDetails details = makeDetails("blocked-owner", "repo", "blocked-owner/repo");
+        HttpServletRequest req = mockPushRequest(details);
+
+        filter.applyRule(req);
+
+        verify(req).setAttribute(eq(DENIED_BY_ATTRIBUTE), anyString());
+        verify(req, never()).setAttribute(eq(MATCHED_BY_ATTRIBUTE), anyString());
+    }
+
+    @Test
+    void urlRuleAggregate_denyRuleMatches_blocks() throws Exception {
+        var denyFilter = new UrlRuleFilter(
+                100, GITHUB, List.of("blocked-owner"), UrlRuleFilter.Target.OWNER, AccessRule.Access.DENY);
+        var allowFilter = new UrlRuleFilter(100, GITHUB, List.of("blocked-owner"), UrlRuleFilter.Target.OWNER);
+        var aggregate =
+                new UrlRuleAggregateFilter(50, Set.of(HttpOperation.PUSH), GITHUB, List.of(denyFilter, allowFilter));
+        GitRequestDetails details = makeDetails("blocked-owner", "repo", "/blocked-owner/repo");
+        FakeResponse resp = new FakeResponse();
+
+        aggregate.doHttpFilter(mockPushRequest(details), resp.mock);
+
+        assertTrue(resp.committed.get(), "Deny rule should block even when allow rule also matches");
+    }
+
+    @Test
+    void urlRuleAggregate_denyRuleNoMatch_allowRuleMatches_passes() throws Exception {
+        var denyFilter = new UrlRuleFilter(
+                100, GITHUB, List.of("blocked-owner"), UrlRuleFilter.Target.OWNER, AccessRule.Access.DENY);
+        var allowFilter = new UrlRuleFilter(100, GITHUB, List.of("allowed-owner"), UrlRuleFilter.Target.OWNER);
+        var aggregate =
+                new UrlRuleAggregateFilter(50, Set.of(HttpOperation.PUSH), GITHUB, List.of(denyFilter, allowFilter));
+        GitRequestDetails details = makeDetails("allowed-owner", "repo", "/allowed-owner/repo");
+        FakeResponse resp = new FakeResponse();
+
+        aggregate.doHttpFilter(mockPushRequest(details), resp.mock);
+
+        assertFalse(resp.committed.get(), "Non-denied, allowed request should pass");
+    }
+
+    @Test
+    void urlRuleAggregate_denyRulesOnly_nonMatchedPasses() throws Exception {
+        var denyFilter = new UrlRuleFilter(
+                100, GITHUB, List.of("blocked-owner"), UrlRuleFilter.Target.OWNER, AccessRule.Access.DENY);
+        var aggregate = new UrlRuleAggregateFilter(50, Set.of(HttpOperation.PUSH), GITHUB, List.of(denyFilter));
+        GitRequestDetails details = makeDetails("other-owner", "repo", "/other-owner/repo");
+        FakeResponse resp = new FakeResponse();
+
+        aggregate.doHttpFilter(mockPushRequest(details), resp.mock);
+
+        assertFalse(resp.committed.get(), "Request not matching any deny rule should pass when no allow rules exist");
     }
 }

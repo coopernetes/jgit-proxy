@@ -192,7 +192,15 @@ public final class GitProxyServletRegistrar {
         List<UrlRuleFilter> urlRuleFilters = configBuilder.buildUrlRuleFilters(provider);
         if (!urlRuleFilters.isEmpty()) {
             filters.add(new UrlRuleAggregateFilter(100, provider, urlRuleFilters, PROXY_PATH_PREFIX, fetchStore));
-            log.info("Registered {} URL allow rule(s) for provider {}", urlRuleFilters.size(), provider.getName());
+            long allowCount = urlRuleFilters.stream()
+                    .filter(f -> f.getAccess() == org.finos.gitproxy.db.model.AccessRule.Access.ALLOW)
+                    .count();
+            long denyCount = urlRuleFilters.size() - allowCount;
+            log.info(
+                    "Registered {} allow rule(s) and {} deny rule(s) for provider {}",
+                    allowCount,
+                    denyCount,
+                    provider.getName());
         }
 
         if (provider instanceof BitbucketProvider bitbucketProvider) {
