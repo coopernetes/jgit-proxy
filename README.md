@@ -3,11 +3,14 @@
 
 # git-proxy-java
 
-A Java-based git proxy implementing the same compliance and security controls as
-[finos/git-proxy](https://github.com/finos/git-proxy). Designed for OSS contribution gateways (employees in regulated
-industries contributing code to public upstream repos) and private-to-private code exchange (M&A scenarios between two
-or more git providers). Built on [JGit](https://github.com/eclipse-jgit/jgit),
-[Jetty](https://github.com/jetty/jetty.project) and [Spring](https://spring.io/).
+Enterprises in regulated industries need their developers to contribute to open-source — but every outbound push must be
+audited, validated, and approved before it leaves the building. git-proxy-java sits between the developer's `git push`
+and the upstream host, enforcing commit policies, scanning for secrets, verifying identities, and gating pushes behind a
+review workflow. It is a Java reimplementation of [finos/git-proxy](https://github.com/finos/git-proxy), built on
+[JGit](https://github.com/eclipse-jgit/jgit), [Jetty](https://github.com/jetty/jetty.project), and
+[Spring](https://spring.io/).
+
+![Store-and-forward — validation failure and fix](https://github.com/coopernetes/git-proxy-java/releases/download/demo-assets/demo-push-fix-message.gif)
 
 ## Getting Started
 
@@ -52,54 +55,27 @@ Open `http://localhost:8080/` in a browser to access the approval dashboard. Sto
 ./gradlew :git-proxy-java-dashboard:stop
 ```
 
-### Configure the proxy
+### Configure and test
 
-Configuration is YAML-based. Copy `git-proxy.yml` from `git-proxy-java-server/src/main/resources/` and create
-`git-proxy-local.yml` in the same directory (or `/app/conf/` for Docker). The local file takes priority over the bundled
-defaults.
+Configuration is YAML-based. See the [Configuration Reference](docs/CONFIGURATION.md) for the full schema, environment
+variable overrides, and provider settings.
 
-Minimal example — allow pushes to a specific GitHub repo:
-
-```yaml
-server:
-  port: 8080
-
-database:
-  type: h2-mem # default; data lost on restart
-
-git-proxy:
-  providers:
-    github:
-      enabled: true
-
-  filters:
-    whitelists:
-      - enabled: true
-        order: 1100
-        operations: [FETCH, PUSH]
-        providers: [github]
-        slugs:
-          - owner/repo
-```
-
-Environment variable overrides use the `GITPROXY_` prefix:
-
-- `GITPROXY_SERVER_PORT=9090`
-- `GITPROXY_PROVIDERS_GITHUB_ENABLED=false`
+To verify the proxy end-to-end against your own repo, follow the
+[Running tests against your own repo](CONTRIBUTING.md#running-tests-against-your-own-repo) guide in CONTRIBUTING.md — it
+walks through PAT setup, allow rules, permissions, and running the smoke test scripts.
 
 ## Proxy Modes
 
 ### URLs
 
-git-proxy-java is capable of proxying arbitrary & multiple upstream Git repositories over HTTPS. For each upstream
-provider (for example, <https://github.com> & <https://gitlab.com>), a distinct URL is mapped for proxying by hostname.
-The remainder of the URL is the specific git repository you wish to connect to. For example:
+git-proxy-java proxies arbitrary upstream Git repositories over HTTPS. For each upstream provider (e.g. `github.com`,
+`gitlab.com`), a distinct URL is mapped by hostname. The remainder of the URL is the repository path:
 
-- Original repository: <https://github.com/finos/git-proxy>
-- Proxy: http[s]://{git-proxy-java-server}/{proxy,push\*}/github.com/finos/git-proxy
+- Original repository: `https://github.com/finos/git-proxy`
+- Proxy: `http[s]://{git-proxy-java-server}/{proxy,push*}/github.com/finos/git-proxy`
 
-This makes it simple for a developer to simply add a new [git remote](https://git-scm.com/docs/git-remote) and start
-pushing code through git-proxy-java.
+This makes it simple for a developer to add a new [git remote](https://git-scm.com/docs/git-remote) and start pushing
+through the proxy:
 
 ```shell
 git clone https://github.com/finos/git-proxy && cd git-proxy
@@ -136,85 +112,61 @@ Both proxy modes enforce the same set of configurable validation rules:
 
 | Feature                                                             | Status      |
 | ------------------------------------------------------------------- | ----------- |
-| Repository allowlist (owner/slug)                                   | Implemented |
+| Repository URL allow/deny rules (owner, slug, glob patterns)        | Implemented |
 | Author email domain allow/block list                                | Implemented |
 | Commit message validation (literal + regex)                         | Implemented |
-| Diff generation                                                     | Implemented |
-| Diff content scanning                                               | Implemented |
-| Aggregate failure reporting (all errors at once)                    | Implemented |
+| Diff generation and content scanning                                | Implemented |
+| Secret scanning ([gitleaks](https://github.com/gitleaks/gitleaks))  | Implemented |
+| SCM identity verification (resolve token to SCM user)               | Implemented |
+| User push permissions (per-repo RBAC)                               | Implemented |
+| Hidden commit detection (force-push / history rewrite guard)        | Implemented |
+| Empty branch protection                                             | Implemented |
 | GPG/SSH commit signature verification                               | Implemented |
 | Approval gate with full lifecycle (RECEIVED → APPROVED → FORWARDED) | Implemented |
-| Real-time sideband progress with ANSI color                         | Implemented |
+| Aggregate failure reporting (all errors at once)                    | Implemented |
+| Real-time sideband progress with ANSI color (store-and-forward)     | Implemented |
+| Fetch auditing                                                      | Implemented |
 
-## Documentation
+## Supported Providers
 
-| Document                                           | Description                                                                                 |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| [Configuration Reference](docs/CONFIGURATION.md)   | YAML config structure, environment variable overrides, provider settings, validation rules  |
-| [JGit Infrastructure](docs/JGIT_INFRASTRUCTURE.md) | Store-and-forward architecture: ReceivePackFactory, hook chain, forwarding, credential flow |
-| [Git Internals](docs/GIT_INTERNALS.md)             | Wire-protocol edge cases: tags, new branches, force pushes, pack parsing                    |
+| Provider        | Identity resolution | Notes                                         |
+| --------------- | ------------------- | --------------------------------------------- |
+| GitHub          | Token → user        | github.com and GitHub Enterprise (custom URI) |
+| GitLab          | Token → user        | gitlab.com and self-hosted instances          |
+| Bitbucket       | Token → user        | bitbucket.org and Bitbucket Data Center       |
+| Forgejo / Gitea | Token → user        | Any Forgejo or Gitea instance                 |
 
-## Configuration
+Each provider can be pointed at a self-hosted instance via the `uri` config property. Multiple instances of the same
+provider type are supported.
 
-All validation and filtering is configurable via YAML. See the [Configuration Reference](docs/CONFIGURATION.md) for full
-details. The configuration system is still under active development.
+## Authentication
+
+The dashboard supports multiple authentication backends:
+
+| Provider         | Description                                                       |
+| ---------------- | ----------------------------------------------------------------- |
+| Static (default) | Usernames and password hashes defined in YAML config              |
+| LDAP             | Standard LDAP bind + optional group search                        |
+| Active Directory | UPN bind via Spring's `ActiveDirectoryLdapAuthenticationProvider` |
+| OIDC             | OpenID Connect authorization code flow                            |
+
+See the [Configuration Reference](docs/CONFIGURATION.md#authentication) for setup details. Docker Compose overlays are
+provided for [LDAP](docker-compose.ldap.yml) and [OIDC](docker-compose.oidc.yml).
 
 ## Push Audit Database
 
 All pushes through the store-and-forward path are recorded as an event log. Each state transition (RECEIVED → APPROVED →
 FORWARDED, or BLOCKED/ERROR) is written as a separate row, enabling full push history and audit reporting.
 
-### Supported backends
-
 | Type         | Config value | Notes                                      |
 | ------------ | ------------ | ------------------------------------------ |
-| In-memory    | `memory`     | No SQL schema, data lost on restart        |
 | H2 in-memory | `h2-mem`     | SQL schema, data lost on restart. Default. |
 | H2 file      | `h2-file`    | Persistent, zero external dependencies     |
 | SQLite       | `sqlite`     | Persistent, zero external dependencies     |
 | PostgreSQL   | `postgres`   | Production-grade                           |
 | MongoDB      | `mongo`      | Compatible with finos/git-proxy data model |
 
-### Database configuration
-
-```yaml
-# H2 in-memory (default)
-database:
-  type: h2-mem
-
-# H2 file
-database:
-  type: h2-file
-  path: ./.data/gitproxy   # H2 appends .mv.db
-
-# SQLite
-database:
-  type: sqlite
-  path: ./.data/gitproxy.db
-
-# PostgreSQL
-database:
-  type: postgres
-  host: localhost
-  port: 5432
-  name: gitproxy
-  username: gitproxy
-  password: gitproxy
-
-# MongoDB
-database:
-  type: mongo
-  url: mongodb://gitproxy:gitproxy@localhost:27017
-  name: gitproxy
-```
-
-A `docker-compose.yml` is provided for local development with PostgreSQL and MongoDB (includes Adminer and Mongo Express
-web UIs):
-
-```shell
-docker compose up -d postgres   # port 5432, Adminer on 8082
-docker compose up -d mongo      # port 27017, Mongo Express on 8081
-```
+See the [Configuration Reference](docs/CONFIGURATION.md#database) for connection settings and Docker Compose profiles.
 
 ## Project Structure
 
@@ -225,6 +177,15 @@ This is a multi-module Gradle project:
 | `git-proxy-java-core`      | Shared library: filter chain, JGit hooks, push store, provider model, approval abstraction |
 | `git-proxy-java-server`    | Standalone proxy-only server — no dashboard, no Spring                                     |
 | `git-proxy-java-dashboard` | Dashboard + REST API — Spring MVC, approval UI, depends on `git-proxy-java-server`         |
+
+## Documentation
+
+| Document                                           | Description                                                                                 |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| [Configuration Reference](docs/CONFIGURATION.md)   | YAML config structure, environment variable overrides, provider settings, validation rules  |
+| [Demo Gallery](DEMO.md)                            | Animated demos and screenshots of both proxy modes and the dashboard UI                     |
+| [JGit Infrastructure](docs/JGIT_INFRASTRUCTURE.md) | Store-and-forward architecture: ReceivePackFactory, hook chain, forwarding, credential flow |
+| [Git Internals](docs/GIT_INTERNALS.md)             | Wire-protocol edge cases: tags, new branches, force pushes, pack parsing                    |
 
 ## Roadmap
 
