@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
+import org.finos.gitproxy.jetty.config.AdAuthConfig;
 import org.finos.gitproxy.jetty.config.AuthConfig;
 import org.finos.gitproxy.jetty.config.GitProxyConfig;
 import org.finos.gitproxy.jetty.config.LdapAuthConfig;
@@ -80,7 +81,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  *
  * <ul>
  *   <li>{@code local} (default) — form login validated against BCrypt password hashes in {@code users:}
- *   <li>{@code ldap} — form login with LDAP bind authentication; settings in {@code auth.ldap}
+ *   <li>{@code ldap} — form login with generic LDAP bind authentication; settings in {@code auth.ldap}
+ *   <li>{@code ad} — form login with Active Directory UPN bind; settings in {@code auth.ad}
  *   <li>{@code oidc} — OpenID Connect authorization code flow; settings in {@code auth.oidc}
  * </ul>
  *
@@ -154,6 +156,7 @@ public class SecurityConfig {
         var successHandler = idpProvisioningSuccessHandler();
         switch (provider) {
             case "ldap" -> configureLdapAuth(http, authCfg.getLdap(), successHandler, authCfg.getRoleMappings());
+            case "ad" -> configureAdAuth(http, authCfg.getAd(), successHandler, authCfg.getRoleMappings());
             case "oidc" ->
                 configureOidcAuth(
                         http, authCfg.getOidc(), successHandler, authCfg.getRoleMappings(), authCfg.getGroupsClaim());
@@ -241,6 +244,58 @@ public class SecurityConfig {
                 "LDAP authentication configured: url={}, userDnPatterns={}",
                 ldapCfg.getUrl(),
                 ldapCfg.getUserDnPatterns());
+    }
+
+    // ── Active Directory ────────────────────────────────────────────────────────
+
+    private void configureAdAuth(
+            HttpSecurity http,
+            AdAuthConfig adCfg,
+            AuthenticationSuccessHandler successHandler,
+            Map<String, List<String>> roleMappings)
+            throws Exception {
+        if (adCfg.getDomain().isBlank()) {
+            throw new IllegalStateException("auth.provider=ad requires auth.ad.domain to be set in git-proxy.yml");
+        }
+
+        String adUrl = adCfg.getUrl().isBlank() ? null : adCfg.getUrl();
+        var adProvider =
+                new org.springframework.security.ldap.authentication.ad.ActiveDirectoryLdapAuthenticationProvider(
+                        adCfg.getDomain(), adUrl);
+
+        if (!adCfg.getGroupSearchBase().isBlank()) {
+            // Wire a DefaultLdapAuthoritiesPopulator for group-based role mapping.
+            // AD bind uses UPN so we construct a context source bound to the domain controller URL.
+            String contextUrl = adUrl != null ? adUrl : "ldap://" + adCfg.getDomain();
+            var contextSource = new DefaultSpringSecurityContextSource(contextUrl);
+            contextSource.afterPropertiesSet();
+
+            var populator = new DefaultLdapAuthoritiesPopulator(contextSource, adCfg.getGroupSearchBase());
+            populator.setGroupSearchFilter(adCfg.getGroupSearchFilter());
+            populator.setRolePrefix("");
+            populator.setConvertToUpperCase(false);
+            populator.setSearchSubtree(true);
+            adProvider.setAuthoritiesPopulator(populator);
+            adProvider.setAuthoritiesMapper(ldapAuthorities -> mapIdpGroupsToRoles(ldapAuthorities, roleMappings));
+            log.info(
+                    "AD group search enabled: base={}, filter={}",
+                    adCfg.getGroupSearchBase(),
+                    adCfg.getGroupSearchFilter());
+        }
+
+        adProvider.setUserDetailsContextMapper(new LdapEmailContextMapper());
+
+        http.authenticationProvider(adProvider)
+                .formLogin(form -> form.loginPage("/login.html")
+                        .loginProcessingUrl("/login")
+                        .successHandler(successHandler)
+                        .permitAll())
+                .csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
+                        .ignoringRequestMatchers("/login")
+                        .ignoringRequestMatchers(req -> req.getHeader("X-Api-Key") != null));
+
+        log.info("Active Directory authentication configured: domain={}, url={}", adCfg.getDomain(), adUrl);
     }
 
     // ── OIDC ────────────────────────────────────────────────────────────────────

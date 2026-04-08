@@ -142,11 +142,11 @@ database:
 
 ## Authentication
 
-The dashboard supports three authentication providers, selected via `auth.provider`.
+The dashboard supports four authentication providers, selected via `auth.provider`.
 
 ```yaml
 auth:
-  provider: local   # local | ldap | oidc (default: local)
+  provider: local   # local | ldap | ad | oidc (default: local)
 ```
 
 ### Local (default)
@@ -155,7 +155,7 @@ Usernames and BCrypt password hashes are defined directly in the `users:` block.
 
 ### LDAP
 
-Authenticates users against an LDAP or Active Directory server using a bind operation.
+Authenticates users against a generic LDAP directory using a bind operation.
 
 ```yaml
 auth:
@@ -186,6 +186,36 @@ auth:
       - security-team
 ```
 
+### Active Directory
+
+Authenticates users against an on-premises Active Directory domain using UPN bind (`user@domain.com`). Unlike the
+generic LDAP provider, no `user-dn-patterns` is required — Spring Security constructs the UPN automatically from the
+`domain` and the submitted username.
+
+```yaml
+auth:
+  provider: ad
+  ad:
+    # AD domain name — used to form user@domain UPN for bind.
+    domain: corp.example.com
+
+    # Domain controller URL. When omitted, Spring Security resolves the DC via DNS SRV records.
+    url: ldap://dc.corp.example.com:389
+
+    # Optional: base DN for group search. When set, group membership is used for role mapping.
+    group-search-base: DC=corp,DC=example,DC=com
+
+    # LDAP filter for group membership. {0} = user full DN.
+    group-search-filter: "(member={0})"
+
+  role-mappings:
+    ADMIN:
+      - CN=git-admins,OU=Groups,DC=corp,DC=example,DC=com
+```
+
+> **Tip:** The AD provider understands Active Directory error sub-codes on bind failure 49 (expired passwords, locked
+> accounts, etc.) and maps them to specific Spring Security exceptions.
+
 ### OIDC
 
 Authenticates users via OpenID Connect authorization code flow (Keycloak, Okta, Entra ID, Dex, etc.).
@@ -199,11 +229,6 @@ auth:
 
     client-id: gitproxy-client
     client-secret: gitproxy-secret
-
-    # Optional: skip OIDC discovery and issuer validation. Required for Entra ID,
-    # which issues tokens with iss=https://sts.windows.net/{tenant}/ regardless of
-    # the discovery URL. Set to https://login.microsoftonline.com/{tenant}/discovery/v2.0/keys.
-    # jwk-set-uri: https://...
 
     # Optional: path to a PKCS#8 PEM RSA private key for private_key_jwt client auth.
     # When set, client-secret is not required.
@@ -219,9 +244,42 @@ auth:
       - git-admins
 ```
 
+#### Entra ID (Azure AD)
+
+Entra ID requires two extra settings. The `jwk-set-uri` field is the key signal — when it is set, jgit-proxy skips OIDC
+discovery and issuer validation. This is necessary because Entra issues tokens with
+`iss=https://sts.windows.net/{tenant}/` rather than the discovery base URL, which would cause Spring Security to reject
+them otherwise.
+
+```yaml
+auth:
+  provider: oidc
+  oidc:
+    issuer-uri: https://login.microsoftonline.com/{tenant-id}/v2.0
+    client-id: <app-registration-client-id>
+    client-secret: <client-secret>
+
+    # Required for Entra ID — triggers issuer-validation bypass.
+    jwk-set-uri: https://login.microsoftonline.com/{tenant-id}/discovery/v2.0/keys
+
+  # Requires "Group claims" to be enabled in the app registration (Token configuration → Groups claim).
+  # Group values will be object IDs (GUIDs) unless "Group names" is selected in the manifest.
+  groups-claim: groups
+
+  role-mappings:
+    ADMIN:
+      - <object-id-of-admin-group>
+```
+
+> **App registration checklist:**
+>
+> 1. Platform: Web — redirect URI `https://<your-host>/login/oauth2/code/gitproxy`
+> 2. API permissions: `openid`, `profile`, `email` (delegated)
+> 3. Token configuration → add Groups claim → select "Security groups"
+
 ### Role mappings
 
-`auth.role-mappings` applies to both LDAP and OIDC. Keys are role names (without the `ROLE_` prefix); values are lists
+`auth.role-mappings` applies to LDAP, AD, and OIDC. Keys are role names (without the `ROLE_` prefix); values are lists
 of group names or claim values from the IdP. `ROLE_USER` is always granted to every authenticated user.
 
 | Role    | Dashboard access |
