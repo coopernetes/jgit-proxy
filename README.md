@@ -35,9 +35,23 @@ cd git-proxy-java
 ./gradlew build
 ```
 
-### Run the proxy server
+### Run the main application (UI + proxy)
 
-The standalone proxy server (no dashboard, no management API) listens on port 8080 by default:
+The full application includes the proxy, approval dashboard, and REST API:
+
+```shell
+./gradlew :git-proxy-java-dashboard:run
+```
+
+Open `http://localhost:8080/` in a browser to access the dashboard. Stop with:
+
+```shell
+./gradlew :git-proxy-java-dashboard:stop
+```
+
+### Run the proxy server (standalone, no UI or review gates)
+
+If you only need the proxy without the dashboard or management API:
 
 ```shell
 ./gradlew :git-proxy-java-server:run
@@ -47,20 +61,6 @@ Logs are written to `git-proxy-java-server/logs/application.log`. Stop with:
 
 ```shell
 ./gradlew :git-proxy-java-server:stop
-```
-
-### Run the dashboard application
-
-The dashboard module adds a Spring MVC web UI and REST API for reviewing and approving blocked pushes:
-
-```shell
-./gradlew :git-proxy-java-dashboard:run
-```
-
-Open `http://localhost:8080/` in a browser to access the approval dashboard. Stop with:
-
-```shell
-./gradlew :git-proxy-java-dashboard:stop
 ```
 
 ### Configure and test
