@@ -3,6 +3,7 @@ package org.finos.gitproxy.jetty.config;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +41,7 @@ import org.finos.gitproxy.service.JdbcScmTokenCache;
 import org.finos.gitproxy.service.PushIdentityResolver;
 import org.finos.gitproxy.service.TokenPushIdentityResolver;
 import org.finos.gitproxy.servlet.filter.UrlRuleFilter;
+import org.finos.gitproxy.tls.SslUtil;
 import org.finos.gitproxy.user.CompositeUserStore;
 import org.finos.gitproxy.user.JdbcUserStore;
 import org.finos.gitproxy.user.ScmIdentity;
@@ -286,7 +288,32 @@ public class JettyConfigurationBuilder {
                 getUpstreamConnectTimeoutSeconds(),
                 getProxyConnectTimeoutSeconds(),
                 storeForwardCache,
-                proxyCache);
+                proxyCache,
+                buildUpstreamTls());
+    }
+
+    /**
+     * Builds the upstream {@link SslUtil.UpstreamTls} from the configured CA bundle, or returns {@code null} if no
+     * custom trust is configured (JVM defaults will be used).
+     */
+    public SslUtil.UpstreamTls buildUpstreamTls() {
+        var tls = config.getServer().getTls();
+        if (!tls.isUpstreamTrustConfigured()) {
+            return null;
+        }
+        try {
+            Path bundle = Path.of(tls.getTrustCaBundle());
+            SslUtil.UpstreamTls result = SslUtil.buildUpstreamTls(bundle);
+            log.info("Loaded upstream CA trust bundle from {}", bundle);
+            return result;
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to load upstream CA bundle: " + tls.getTrustCaBundle(), e);
+        }
+    }
+
+    /** Returns the TLS config for the server listener. */
+    public TlsConfig getTlsConfig() {
+        return config.getServer().getTls();
     }
 
     /** Builds a {@link RepoPermissionStore} backed by the configured database. */

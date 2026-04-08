@@ -1,17 +1,23 @@
 package org.finos.gitproxy.jetty;
 
+import java.nio.file.Path;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.ee11.servlet.ServletContextHandler;
+import org.eclipse.jetty.server.HttpConnectionFactory;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.server.SslConnectionFactory;
 import org.eclipse.jetty.util.component.LifeCycle;
+import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.finos.gitproxy.jetty.config.GitProxyConfig;
 import org.finos.gitproxy.jetty.config.GitProxyConfigLoader;
 import org.finos.gitproxy.jetty.config.JettyConfigurationBuilder;
+import org.finos.gitproxy.jetty.config.TlsConfig;
 import org.finos.gitproxy.jetty.reload.LiveConfigLoader;
 import org.finos.gitproxy.provider.GitProxyProvider;
+import org.finos.gitproxy.tls.SslUtil;
 
 /**
  * Standalone Jetty server application for the JGit proxy. Registers two servlets per provider:
@@ -45,6 +51,12 @@ public class GitProxyJettyApplication {
         var connector = new ServerConnector(server);
         connector.setPort(configBuilder.getServerPort());
         server.addConnector(connector);
+
+        TlsConfig tls = configBuilder.getTlsConfig();
+        if (tls.isServerTlsConfigured()) {
+            server.addConnector(buildHttpsConnector(server, tls));
+            log.info("HTTPS listener configured on port {}", tls.getPort());
+        }
 
         GitProxyContext ctx = configBuilder.buildProxyContext();
         log.info("Push store initialized: {}", ctx.pushStore().getClass().getSimpleName());
@@ -82,6 +94,24 @@ public class GitProxyJettyApplication {
         }
 
         server.join();
+    }
+
+    public static ServerConnector buildHttpsConnector(Server server, TlsConfig tls) throws Exception {
+        var sslContextFactory = new SslContextFactory.Server();
+        if (tls.getCertificate() != null && tls.getKey() != null) {
+            sslContextFactory.setSslContext(
+                    SslUtil.buildServerSslContext(Path.of(tls.getCertificate()), Path.of(tls.getKey())));
+        } else {
+            TlsConfig.KeystoreConfig ks = tls.getKeystore();
+            sslContextFactory.setKeyStorePath(ks.getPath());
+            sslContextFactory.setKeyStorePassword(ks.getPassword());
+            sslContextFactory.setKeyStoreType(ks.getType());
+        }
+        var http = new HttpConnectionFactory();
+        var ssl = new SslConnectionFactory(sslContextFactory, http.getProtocol());
+        var connector = new ServerConnector(server, ssl, http);
+        connector.setPort(tls.getPort());
+        return connector;
     }
 
     /** Write PID file so {@code ./gradlew :jgit-proxy-server:stop} can find and kill this process. */

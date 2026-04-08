@@ -49,6 +49,13 @@ public final class GitProxyServletRegistrar {
             GitProxyContext gitProxyCtx,
             JettyConfigurationBuilder configBuilder,
             List<GitProxyProvider> providers) {
+        // Wire up JGit's HTTP transport factory once for all store-and-forward connections
+        if (gitProxyCtx.upstreamTls() != null) {
+            org.eclipse.jgit.transport.HttpTransport.setConnectionFactory(
+                    new org.finos.gitproxy.tls.SslAwareHttpConnectionFactory(
+                            gitProxyCtx.upstreamTls().trustManagers()));
+            log.info("Custom upstream SSL trust applied to JGit HTTP transport");
+        }
         // ForceGitClientFilter is registered once at the top-level proxy and push paths so it covers
         // any path with the right prefix, including paths that don't match a configured provider.
         var forceGitClientHolder = new FilterHolder(new ForceGitClientFilter());
@@ -74,7 +81,12 @@ public final class GitProxyServletRegistrar {
                     gitProxyCtx.heartbeatIntervalSeconds(),
                     gitProxyCtx.failFast(),
                     gitProxyCtx.upstreamConnectTimeoutSeconds());
-            registerProxyServlet(context, provider, gitProxyCtx.pushStore(), gitProxyCtx.proxyConnectTimeoutSeconds());
+            registerProxyServlet(
+                    context,
+                    provider,
+                    gitProxyCtx.pushStore(),
+                    gitProxyCtx.proxyConnectTimeoutSeconds(),
+                    gitProxyCtx.upstreamTls());
             registerCoreFilters(
                     context,
                     provider,
@@ -139,11 +151,15 @@ public final class GitProxyServletRegistrar {
     }
 
     public static void registerProxyServlet(
-            ServletContextHandler context, GitProxyProvider provider, PushStore pushStore, int connectTimeoutSeconds) {
+            ServletContextHandler context,
+            GitProxyProvider provider,
+            PushStore pushStore,
+            int connectTimeoutSeconds,
+            org.finos.gitproxy.tls.SslUtil.UpstreamTls upstreamTls) {
         String proxyPath = PROXY_PATH_PREFIX + provider.servletPath();
         String proxyMapping = proxyPath + "/*";
 
-        var proxyServlet = new GitProxyServlet(pushStore);
+        var proxyServlet = new GitProxyServlet(pushStore, upstreamTls != null ? upstreamTls.sslContext() : null);
         var proxyHolder = new ServletHolder(proxyServlet);
         proxyHolder.setName("proxy-" + provider.getName());
         proxyHolder.setInitParameter("proxyTo", provider.getUri().toString());

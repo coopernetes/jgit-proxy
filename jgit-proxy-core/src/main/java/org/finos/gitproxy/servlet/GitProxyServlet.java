@@ -4,11 +4,16 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import javax.net.ssl.SSLContext;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.client.BytesRequestContent;
+import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.client.Request;
 import org.eclipse.jetty.client.Response;
+import org.eclipse.jetty.client.transport.HttpClientTransportOverHTTP;
 import org.eclipse.jetty.ee11.proxy.AsyncProxyServlet;
+import org.eclipse.jetty.io.ClientConnector;
+import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.db.model.PushStatus;
 import org.finos.gitproxy.git.GitRequestDetails;
@@ -26,9 +31,27 @@ public class GitProxyServlet extends AsyncProxyServlet.Transparent {
     public static final String GITHUB_REQUEST_ID_HEADER = "X-Github-Request-Id";
 
     private final PushStore pushStore;
+    private final SSLContext upstreamSslContext;
 
     public GitProxyServlet(PushStore pushStore) {
+        this(pushStore, null);
+    }
+
+    public GitProxyServlet(PushStore pushStore, SSLContext upstreamSslContext) {
         this.pushStore = pushStore;
+        this.upstreamSslContext = upstreamSslContext;
+    }
+
+    @Override
+    protected HttpClient newHttpClient() {
+        if (upstreamSslContext != null) {
+            var sslFactory = new SslContextFactory.Client();
+            sslFactory.setSslContext(upstreamSslContext);
+            var connector = new ClientConnector();
+            connector.setSslContextFactory(sslFactory);
+            return new HttpClient(new HttpClientTransportOverHTTP(connector));
+        }
+        return super.newHttpClient();
     }
 
     @Override

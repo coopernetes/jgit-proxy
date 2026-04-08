@@ -60,6 +60,12 @@ public class GitProxyWithDashboardApplication {
         connector.setPort(configBuilder.getServerPort());
         server.addConnector(connector);
 
+        var tls = configBuilder.getTlsConfig();
+        if (tls.isServerTlsConfigured()) {
+            server.addConnector(GitProxyJettyApplication.buildHttpsConnector(server, tls));
+            log.info("HTTPS listener configured on port {}", tls.getPort());
+        }
+
         // buildPushStore() is called first so we can hand the same instance to UiApprovalGateway.
         // buildProxyContext() will reuse the cached instance internally.
         var pushStore = configBuilder.buildPushStore();

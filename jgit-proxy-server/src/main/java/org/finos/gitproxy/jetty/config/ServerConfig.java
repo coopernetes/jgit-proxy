@@ -54,4 +54,7 @@ public class ServerConfig {
      * connect timeout. Set to 0 to use Jetty's default (no timeout).
      */
     private int proxyConnectTimeoutSeconds = 0;
+
+    /** TLS configuration for the server listener and upstream trust. Omit entirely to use plain HTTP. */
+    private TlsConfig tls = new TlsConfig();
 }
