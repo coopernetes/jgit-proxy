@@ -15,11 +15,11 @@ export GIT_REPO=${GIT_REPO:-"github.com/coopernetes/test-repo.git"}
 GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-"Thomas Cooper"}
 
 PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${GIT_REPO}"
-REPO_DIR=$(mktemp -d /tmp/proxy-fail-all-XXXX)
+REPO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/proxy-fail-all-XXXX")
 BRANCH="test/fail-all-$(date +%s)"
 
 cleanup() {
-    rm -rf "${REPO_DIR}"
+    safe_rm_rf "${REPO_DIR}"
 }
 trap cleanup EXIT INT TERM
 

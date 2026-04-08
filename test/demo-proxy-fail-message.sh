@@ -17,11 +17,11 @@ fi
 
 PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${GIT_REPO}"
 TEST_BRANCH="test/proxy-fail-msg-$(date +%s)"
-REPO_DIR=$(mktemp -d /tmp/proxy-test-fail-msg-XXXX)
+REPO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/proxy-test-fail-msg-XXXX")
 
 cleanup() {
     git -C "${REPO_DIR}" remote set-url origin "http://${GIT_USERNAME}:${GIT_PASSWORD}@${GIT_REPO}" 2>/dev/null || true
-    rm -rf "${REPO_DIR}"
+    safe_rm_rf "${REPO_DIR}"
 }
 trap cleanup EXIT
 

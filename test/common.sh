@@ -15,7 +15,9 @@ CURRENT_REPO=""
 
 # Cleanup function — removes temp repo if it exists
 cleanup() {
-    [[ -n "${CURRENT_REPO}" && -d "${CURRENT_REPO}" ]] && rm -rf "${CURRENT_REPO}"
+    if [[ -n "${CURRENT_REPO}" && -d "${CURRENT_REPO}" ]]; then
+        safe_rm_rf "${CURRENT_REPO}"
+    fi
 }
 
 # Register cleanup on exit and signals
@@ -55,15 +57,15 @@ setup_repo() {
     local url="$1"
     local prefix="$2"
 
-    CURRENT_REPO=$(mktemp -d /tmp/test-${prefix}-XXXX)
+    CURRENT_REPO=$(mktemp -d "${TMPDIR:-/tmp}/test-${prefix}-XXXX")
     cd /tmp
     git clone "${url}" "${CURRENT_REPO}"
     cd "${CURRENT_REPO}"
 
     BRANCH="test/${prefix}-$(date +%s%N | tail -c 8)"
     git checkout -b "${BRANCH}"
-    git config user.name "Test Developer"
-    git config user.email "developer@example.com"
+    git config user.name "${GIT_AUTHOR_NAME}"
+    git config user.email "${GIT_EMAIL}"
 }
 
 # run_test_expect_failure() — run a test and expect it to fail (for failure test suites)
@@ -87,7 +89,7 @@ run_test_expect_failure() {
         ((++FAIL))
     fi
 
-    rm -rf "${CURRENT_REPO}"
+    safe_rm_rf "${CURRENT_REPO}"
     CURRENT_REPO=""
 }
 
@@ -112,7 +114,7 @@ run_test_expect_success() {
         ((++FAIL))
     fi
 
-    rm -rf "${CURRENT_REPO}"
+    safe_rm_rf "${CURRENT_REPO}"
     CURRENT_REPO=""
 }
 

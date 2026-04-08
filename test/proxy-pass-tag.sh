@@ -13,20 +13,20 @@ GITPROXY_API_KEY=${GITPROXY_API_KEY:-"change-me-in-production"}
 PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${GIT_REPO}"
 LIGHTWEIGHT_TAG="test/proxy-lw-tag-$(date +%s)"
 ANNOTATED_TAG="test/proxy-ann-tag-$(date +%s)"
-REPO_DIR=$(mktemp -d /tmp/proxy-test-pass-tag-XXXX)
+REPO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/proxy-test-pass-tag-XXXX")
 
 cleanup() {
     git -C "${REPO_DIR}" remote set-url origin "https://${GIT_USERNAME}:${GIT_PASSWORD}@${GIT_REPO}" 2>/dev/null || true
     git -C "${REPO_DIR}" push origin --delete "refs/tags/${LIGHTWEIGHT_TAG}" 2>/dev/null || true
     git -C "${REPO_DIR}" push origin --delete "refs/tags/${ANNOTATED_TAG}" 2>/dev/null || true
-    rm -rf "${REPO_DIR}"
+    safe_rm_rf "${REPO_DIR}"
 }
 trap cleanup EXIT
 
 git clone "${PROXY_URL}" "${REPO_DIR}"
 cd "${REPO_DIR}"
-git config user.name "Test Developer"
-git config user.email "developer@example.com"
+git config user.name "${GIT_AUTHOR_NAME}"
+git config user.email "${GIT_EMAIL}"
 
 # Tag the existing HEAD — commit already exists upstream, no approval needed
 git tag "${LIGHTWEIGHT_TAG}"
@@ -51,7 +51,7 @@ APPROVE_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
     -X POST "http://localhost:8080/api/push/${PUSH_ID}/authorise" \
     -H "Content-Type: application/json" \
     -H "X-Api-Key: ${GITPROXY_API_KEY}" \
-    -d '{"user":"test-script","comment":"auto-approved by proxy-pass.sh"}')
+    -d '{"user":"test-script","comment":"auto-approved by proxy-pass.sh","attestations":{"reviewed-content":"true","policy-compliance":"true"}}')
 if [ "${APPROVE_RESPONSE}" != "200" ]; then
     echo "ERROR: Approval API returned HTTP ${APPROVE_RESPONSE}"
     exit 1
@@ -77,7 +77,7 @@ APPROVE_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
     -X POST "http://localhost:8080/api/push/${PUSH_ID}/authorise" \
     -H "Content-Type: application/json" \
     -H "X-Api-Key: ${GITPROXY_API_KEY}" \
-    -d '{"user":"test-script","comment":"auto-approved by proxy-pass.sh"}')
+    -d '{"user":"test-script","comment":"auto-approved by proxy-pass.sh","attestations":{"reviewed-content":"true","policy-compliance":"true"}}')
 if [ "${APPROVE_RESPONSE}" != "200" ]; then
     echo "ERROR: Approval API returned HTTP ${APPROVE_RESPONSE}"
     exit 1

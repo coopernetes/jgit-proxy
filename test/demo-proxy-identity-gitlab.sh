@@ -5,7 +5,7 @@
 set -euo pipefail
 
 GIT_USERNAME=${GIT_USERNAME:-"me"}
-GIT_REPO=${GIT_REPO:-"gitlab.com/coopernetes/test-repo-gitlab.git"}
+GITLAB_REPO=${GITLAB_REPO:-"gitlab.com/coopernetes/test-repo-gitlab.git"}
 GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-"Thomas Cooper"}
 GIT_EMAIL=${GIT_EMAIL:-"unregistered@example.com"}
 GITPROXY_API_KEY=${GITPROXY_API_KEY:-"change-me-in-production"}
@@ -20,14 +20,14 @@ if [ -z "${GIT_PASSWORD}" ]; then
     exit 1
 fi
 
-PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${GIT_REPO}"
+PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${GITLAB_REPO}"
 TEST_BRANCH="test/proxy-identity-gitlab-$(date +%s)"
-REPO_DIR=$(mktemp -d /tmp/proxy-identity-gitlab-XXXX)
+REPO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/proxy-identity-gitlab-XXXX")
 
 cleanup() {
-    git -C "${REPO_DIR}" remote set-url origin "http://${GIT_USERNAME}:${GIT_PASSWORD}@${GIT_REPO}" 2>/dev/null || true
+    git -C "${REPO_DIR}" remote set-url origin "http://${GIT_USERNAME}:${GIT_PASSWORD}@${GITLAB_REPO}" 2>/dev/null || true
     git -C "${REPO_DIR}" push origin --delete "${TEST_BRANCH}" 2>/dev/null || true
-    rm -rf "${REPO_DIR}"
+    safe_rm_rf "${REPO_DIR}"
 }
 trap cleanup EXIT
 

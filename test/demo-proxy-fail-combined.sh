@@ -10,10 +10,10 @@ GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-"Thomas Cooper"}
 
 PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${GIT_REPO}"
 TEST_BRANCH="test/proxy-fail-combined-$(date +%s)"
-REPO_DIR=$(mktemp -d /tmp/proxy-fail-combined-XXXX)
+REPO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/proxy-fail-combined-XXXX")
 
 cleanup() {
-    rm -rf "${REPO_DIR}"
+    safe_rm_rf "${REPO_DIR}"
 }
 trap cleanup EXIT
 

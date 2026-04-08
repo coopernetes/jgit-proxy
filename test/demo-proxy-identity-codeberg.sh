@@ -5,7 +5,7 @@
 set -euo pipefail
 
 GIT_USERNAME=${GIT_USERNAME:-"me"}
-GIT_REPO=${GIT_REPO:-"codeberg.org/coopernetes/test-repo-codeberg.git"}
+CODEBERG_REPO=${CODEBERG_REPO:-"codeberg.org/coopernetes/test-repo-codeberg.git"}
 GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-"Thomas Cooper"}
 GIT_EMAIL=${GIT_EMAIL:-"unregistered@example.com"}
 
@@ -19,17 +19,17 @@ if [ -z "${GIT_PASSWORD}" ]; then
     exit 1
 fi
 
-PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${GIT_REPO}"
+PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${CODEBERG_REPO}"
 TEST_BRANCH="test/proxy-identity-codeberg-$(date +%s)"
-REPO_DIR=$(mktemp -d /tmp/proxy-identity-codeberg-XXXX)
+REPO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/proxy-identity-codeberg-XXXX")
 
 cleanup() {
-    rm -rf "${REPO_DIR}"
+    safe_rm_rf "${REPO_DIR}"
 }
 trap cleanup EXIT
 
 echo "→ Cloning repository (${PROXY_URL//${GIT_PASSWORD}/***}) via git-proxy..."
-git clone "https://${GIT_USERNAME}:${GIT_PASSWORD}@${GIT_REPO}" "${REPO_DIR}"
+git clone "https://${GIT_USERNAME}:${GIT_PASSWORD}@${CODEBERG_REPO}" "${REPO_DIR}"
 sleep 2
 
 cd "${REPO_DIR}"

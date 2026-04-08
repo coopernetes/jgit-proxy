@@ -9,7 +9,7 @@ resolve_gitea_pat
 GIT_REPO="gitea/test-owner/test-repo.git"
 PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${GIT_REPO}"
 TEST_BRANCH="test/gitea-proxy-pass-$(date +%s)"
-REPO_DIR=$(mktemp -d /tmp/gitea-proxy-pass-XXXX)
+REPO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/gitea-proxy-pass-XXXX")
 
 cleanup() {
     git -C "${REPO_DIR}" remote set-url origin "http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:3000/test-owner/test-repo.git" 2>/dev/null || true

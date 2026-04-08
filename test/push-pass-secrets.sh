@@ -75,7 +75,7 @@ run_test() {
 
     # Cleanup remote ref (run_test_expect_success doesn't do this)
     git remote set-url origin "http://${GIT_USERNAME}:${GIT_PASSWORD}@${GIT_REPO}" 2>/dev/null || true
-    git push origin --delete "${branch}" 2>/dev/null || true
+    git push origin --delete "${BRANCH}" 2>/dev/null || true
 }
 
 run_test "PASS: npm package-lock.json with sha512 integrity hashes"  test_package_lock_sha512

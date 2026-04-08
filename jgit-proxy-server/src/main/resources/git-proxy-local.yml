@@ -55,18 +55,6 @@ users:
   - username: reviewer
     password-hash: "{noop}password"
 
-auth:
-  provider: ldap
-  ldap:
-    url: ldap://localhost:3389/dc=example,dc=com
-    user-dn-patterns: cn={0},ou=users
-    bind-dn: cn=admin,dc=example,dc=com
-    bind-password: adminpassword
-    group-search-base: ou=groups
-  role-mappings:
-    ADMIN:
-      - jgit_proxy_admins
-
 commit:
   author:
     email:
@@ -120,6 +108,10 @@ permissions:
     path: /coopernetes/test-repo
     operations: PUSH
   - username: thomas-cooper
+    provider: github
+    path: /coopernetes/testing-123
+    operations: PUSH
+  - username: thomas-cooper
     provider: gitlab
     path: /coopernetes/*
     path-type: GLOB
@@ -136,6 +128,10 @@ permissions:
   - username: reviewer
     provider: github
     path: /coopernetes/test-repo
+    operations: APPROVE
+  - username: reviewer
+    provider: github
+    path: /coopernetes/testing-123
     operations: APPROVE
   - username: reviewer
     provider: gitlab
@@ -160,6 +156,7 @@ rules:
       slugs:
         - /finos/git-proxy
         - /coopernetes/test-repo
+        - /coopernetes/testing-123
     - enabled: true
       order: 111
       operations:

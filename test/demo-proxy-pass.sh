@@ -18,12 +18,12 @@ fi
 
 PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${GIT_REPO}"
 TEST_BRANCH="test/proxy-pass-$(date +%s)"
-REPO_DIR=$(mktemp -d /tmp/proxy-test-pass-XXXX)
+REPO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/proxy-test-pass-XXXX")
 
 cleanup() {
     git -C "${REPO_DIR}" remote set-url origin "http://${GIT_USERNAME}:${GIT_PASSWORD}@${GIT_REPO}" 2>/dev/null || true
     git -C "${REPO_DIR}" push origin --delete "${TEST_BRANCH}" 2>/dev/null || true
-    rm -rf "${REPO_DIR}"
+    safe_rm_rf "${REPO_DIR}"
 }
 trap cleanup EXIT
 
@@ -69,7 +69,7 @@ APPROVE_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
     -X POST "http://localhost:8080/api/push/${PUSH_ID}/authorise" \
     -H "Content-Type: application/json" \
     -H "X-Api-Key: ${GITPROXY_API_KEY}" \
-    -d '{"user":"demo-script","comment":"auto-approved"}')
+    -d '{"user":"demo-script","comment":"auto-approved","attestations":{"reviewed-content":"true","policy-compliance":"true"}}')
 if [ "${APPROVE_RESPONSE}" != "200" ]; then
     echo "ERROR: Approval API returned HTTP ${APPROVE_RESPONSE}"
     exit 1

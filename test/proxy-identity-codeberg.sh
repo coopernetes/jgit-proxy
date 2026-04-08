@@ -11,20 +11,20 @@ set -euo pipefail
 GIT_USERNAME=${GIT_USERNAME:-"me"}
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 resolve_pat ~/.codeberg-pat
-GIT_REPO=${GIT_REPO:-"codeberg.org/coopernetes/test-repo-codeberg.git"}
+CODEBERG_REPO=${CODEBERG_REPO:-"codeberg.org/coopernetes/test-repo-codeberg.git"}
 GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-"Thomas Cooper"}
 GIT_EMAIL=${GIT_EMAIL:-"unregistered@example.com"}
-PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${GIT_REPO}"
+PROXY_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/proxy/${CODEBERG_REPO}"
 TEST_BRANCH="test/proxy-identity-codeberg-$(date +%s)"
-REPO_DIR=$(mktemp -d /tmp/proxy-identity-codeberg-XXXX)
+REPO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/proxy-identity-codeberg-XXXX")
 
 cleanup() {
-    rm -rf "${REPO_DIR}"
+    safe_rm_rf "${REPO_DIR}"
 }
 trap cleanup EXIT
 
 # Clone directly from Codeberg (proxy would block the clone too for unregistered user)
-git clone "https://${GIT_USERNAME}:${GIT_PASSWORD}@${GIT_REPO}" "${REPO_DIR}"
+git clone "https://${GIT_USERNAME}:${GIT_PASSWORD}@${CODEBERG_REPO}" "${REPO_DIR}"
 cd "${REPO_DIR}"
 git checkout -b "${TEST_BRANCH}"
 git config user.name "${GIT_AUTHOR_NAME}"

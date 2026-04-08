@@ -26,7 +26,7 @@ PASS=0
 FAIL=0
 
 CURRENT_REPO=""
-cleanup() { [[ -n "${CURRENT_REPO}" && -d "${CURRENT_REPO}" ]] && rm -rf "${CURRENT_REPO}"; }
+cleanup() { [[ -n "${CURRENT_REPO}" && -d "${CURRENT_REPO}" ]] && safe_rm_rf "${CURRENT_REPO}"; }
 trap cleanup EXIT INT TERM
 
 echo "=========================================================="
@@ -41,7 +41,7 @@ echo ""
 echo "============================================="
 echo "  PASS: fetch from whitelisted repo"
 echo "============================================="
-CURRENT_REPO=$(mktemp -d /tmp/proxy-test-fetch-XXXX)
+CURRENT_REPO=$(mktemp -d "${TMPDIR:-/tmp}/proxy-test-fetch-XXXX")
 clone_exit=0
 git clone --depth 1 "${WHITELISTED_URL}" "${CURRENT_REPO}" 2>&1 || clone_exit=$?
 if [[ ${clone_exit} -eq 0 ]]; then
@@ -51,7 +51,7 @@ else
     echo ">>> PASS: fetch from whitelisted repo: FAILED (clone should have succeeded, exit=${clone_exit})"
     ((++FAIL))
 fi
-rm -rf "${CURRENT_REPO}"
+safe_rm_rf "${CURRENT_REPO}"
 CURRENT_REPO=""
 
 # --- Test 2: blocked fetch should fail with a clean error ---
@@ -60,7 +60,7 @@ echo ""
 echo "============================================="
 echo "  FAIL: fetch from non-whitelisted repo"
 echo "============================================="
-CURRENT_REPO=$(mktemp -d /tmp/proxy-test-fetch-XXXX)
+CURRENT_REPO=$(mktemp -d "${TMPDIR:-/tmp}/proxy-test-fetch-XXXX")
 clone_output=""
 clone_exit=0
 clone_output=$(git clone --depth 1 "${BLOCKED_URL}" "${CURRENT_REPO}" 2>&1) || clone_exit=$?
@@ -75,7 +75,7 @@ else
     echo ">>> FAIL: fetch from non-whitelisted repo: PASSED (correctly rejected with clean error)"
     ((++PASS))
 fi
-rm -rf "${CURRENT_REPO}"
+safe_rm_rf "${CURRENT_REPO}"
 CURRENT_REPO=""
 
 echo ""

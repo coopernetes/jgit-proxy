@@ -25,7 +25,7 @@ fi
 GITEA_REPO="localhost:3000/test-owner/test-repo.git"
 PUSH_URL="http://me:${GITEA_TOKEN}@localhost:8080/push/gitea/test-owner/test-repo.git"
 TEST_BRANCH="test/gitea-unlinked-$(date +%s)"
-REPO_DIR=$(mktemp -d /tmp/gitea-unlinked-XXXX)
+REPO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/gitea-unlinked-XXXX")
 
 cleanup() {
     rm -rf "${REPO_DIR}"

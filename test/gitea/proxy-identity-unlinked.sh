@@ -18,7 +18,7 @@ fi
 GITEA_REPO="localhost:3000/test-owner/test-repo.git"
 PUSH_URL="http://me:${GITEA_TOKEN}@localhost:8080/proxy/gitea/test-owner/test-repo.git"
 TEST_BRANCH="test/proxy-unlinked-$(date +%s)"
-REPO_DIR=$(mktemp -d /tmp/proxy-unlinked-XXXX)
+REPO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/proxy-unlinked-XXXX")
 
 cleanup() { rm -rf "${REPO_DIR}"; }
 trap cleanup EXIT

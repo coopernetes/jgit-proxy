@@ -44,7 +44,7 @@ print_results() {
 setup_repo() {
     local url="$1"
     local prefix="$2"
-    CURRENT_REPO=$(mktemp -d "/tmp/gitea-${prefix}-XXXX")
+    CURRENT_REPO=$(mktemp -d "${TMPDIR:-/tmp}/gitea-${prefix}-XXXX")
     cd /tmp
     git clone "${url}" "${CURRENT_REPO}"
     cd "${CURRENT_REPO}"

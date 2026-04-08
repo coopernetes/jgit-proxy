@@ -286,6 +286,7 @@ public class PushStorePersistenceHook {
         return PushRecord.builder()
                 .url(source.getUrl())
                 .upstreamUrl(source.getUpstreamUrl())
+                .provider(source.getProvider())
                 .project(source.getProject())
                 .repoName(source.getRepoName())
                 .branch(source.getBranch())
@@ -298,6 +299,8 @@ public class PushStorePersistenceHook {
                 .committerEmail(source.getCommitterEmail())
                 .user(source.getUser())
                 .userEmail(source.getUserEmail())
+                .resolvedUser(source.getResolvedUser())
+                .scmUsername(source.getScmUsername())
                 .method(source.getMethod())
                 .commits(source.getCommits())
                 .build();
@@ -309,6 +312,7 @@ public class PushStorePersistenceHook {
         PushRecord.PushRecordBuilder builder = PushRecord.builder()
                 .id(pushId)
                 .status(PushStatus.RECEIVED)
+                .provider(provider.getName())
                 .url(providerUri)
                 .project(provider.getUri().getHost());
 
@@ -339,6 +343,7 @@ public class PushStorePersistenceHook {
                 String withoutScheme = path.replaceFirst("https?://[^/]+/", "");
                 if (withoutScheme.contains("/")) {
                     builder.project(withoutScheme.substring(0, withoutScheme.indexOf('/')));
+                    builder.url("/" + withoutScheme);
                 }
             }
         }

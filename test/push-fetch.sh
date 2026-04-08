@@ -13,9 +13,9 @@ GIT_REPO=${GIT_REPO:-"github.com/coopernetes/test-repo.git"}
 
 
 PUSH_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/push/${GIT_REPO}"
-REPO_DIR=$(mktemp -d /tmp/push-test-fetch-XXXX)
+REPO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/push-test-fetch-XXXX")
 
-cleanup() { rm -rf "${REPO_DIR}"; }
+cleanup() { safe_rm_rf "${REPO_DIR}"; }
 trap cleanup EXIT INT TERM
 
 echo "=========================================================="

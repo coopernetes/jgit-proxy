@@ -56,22 +56,24 @@ to auto-approve.
 
 ### Local config override
 
-Copy `jgit-proxy-server/src/main/resources/git-proxy.yml` to `git-proxy-local.yml` in the same directory. The local file
-takes priority. At minimum, add a provider and an allowlisted repo slug:
+Place overrides in `jgit-proxy-server/src/main/resources/git-proxy-local.yml`. The local file takes priority over
+`git-proxy.yml`. At minimum, add an allow rule for your test repo and a permission entry for your proxy user:
 
 ```yaml
-git-proxy:
-  providers:
-    github:
-      enabled: true
-  filters:
-    whitelists:
-      - enabled: true
-        order: 1100
-        operations: [FETCH, PUSH]
-        providers: [github]
-        slugs:
-          - owner/repo
+rules:
+  allow:
+    - enabled: true
+      order: 110
+      operations: [FETCH, PUSH]
+      providers: [github]
+      slugs:
+        - /your-org/your-repo
+
+permissions:
+  - username: your-proxy-user
+    provider: github
+    path: /your-org/your-repo
+    operations: PUSH
 ```
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full reference.
@@ -107,12 +109,23 @@ are organized into logical groupings by test outcome (pass/fail) and proxy mode 
 
 All scripts share these variables:
 
-| Variable           | Default                                | Description                          |
-| ------------------ | -------------------------------------- | ------------------------------------ |
-| `GIT_USERNAME`     | `me`                                   | Git credential username              |
-| `GIT_PASSWORD`     | _(required)_                           | Git credential password              |
-| `GIT_REPO`         | `github.com/coopernetes/test-repo.git` | `<provider>/<owner>/<repo>.git` path |
-| `GITPROXY_API_KEY` | _(optional)_                           | API key for approval scripts         |
+| Variable           | Default                                           | Description                                        |
+| ------------------ | ------------------------------------------------- | -------------------------------------------------- |
+| `GIT_USERNAME`     | `me`                                              | HTTP Basic-auth username (arbitrary for the proxy) |
+| `GIT_PASSWORD`     | _(read from PAT file, see below)_                 | Personal access token for the upstream SCM         |
+| `GIT_REPO`         | `github.com/coopernetes/test-repo.git`            | Target repo for GitHub pass/fail scripts           |
+| `GITHUB_REPO`      | `github.com/coopernetes/test-repo.git`            | Target repo for GitHub identity scripts            |
+| `GITLAB_REPO`      | `gitlab.com/coopernetes/test-repo-gitlab.git`     | Target repo for GitLab identity scripts            |
+| `CODEBERG_REPO`    | `codeberg.org/coopernetes/test-repo-codeberg.git` | Target repo for Codeberg identity scripts          |
+| `GITPROXY_API_KEY` | `change-me-in-production`                         | API key used by approval scripts                   |
+
+Scripts read the upstream PAT from a file if `GIT_PASSWORD` is not set:
+
+| Script group     | PAT file          |
+| ---------------- | ----------------- |
+| GitHub scripts   | `~/.github-pat`   |
+| GitLab scripts   | `~/.gitlab-pat`   |
+| Codeberg scripts | `~/.codeberg-pat` |
 
 #### Test entry points
 
@@ -152,15 +165,47 @@ for approval, then auto-approves | | `proxy-pass-tag.sh` | Pass | Lightweight an
 Commit message validation (WIP, fixup, DO NOT MERGE) | | `proxy-fail-diff.sh` | Fail | Diff content scanning (internal
 URLs, patterns) | | `proxy-fail-secrets.sh` | Fail | Gitleaks detecting secrets in diff (AWS, GitHub, PEM) |
 
+#### Running tests against your own repo
+
+The scripts default to repos owned by the project maintainer. To run them against your own repos you need:
+
+1. **A test repo** you can push to on GitHub (and optionally GitLab/Codeberg for identity tests).
+
+2. **PAT files** for each provider you want to test:
+
+   ```shell
+   echo "ghp_yourtoken" > ~/.github-pat
+   echo "glpat-yourtoken" > ~/.gitlab-pat   # optional
+   echo "yourtoken" > ~/.codeberg-pat       # optional
+   chmod 600 ~/.github-pat ~/.gitlab-pat ~/.codeberg-pat
+   ```
+
+3. **Allow rules and permissions** in `git-proxy-local.yml` — add your repo slug to the `rules.allow` slugs list and add
+   `PUSH`/`APPROVE` permission entries for your proxy user. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the
+   full reference.
+
+4. **Run with your repo** — single scripts accept an inline override; orchestrators need an export:
+
+   ```shell
+   # Single script — inline is fine:
+   GIT_REPO=github.com/your-org/your-repo.git bash test/push-pass.sh
+
+   # Orchestrators (call subscripts via bash) — must export:
+   export GIT_REPO=github.com/your-org/your-repo.git
+   bash test/push-pass-all.sh
+   bash test/proxy-pass-all.sh
+
+   # Provider-specific identity tests use separate variables:
+   export GITHUB_REPO=github.com/your-org/your-repo.git
+   export GITLAB_REPO=gitlab.com/your-org/your-repo.git
+   bash test/push-identity-all.sh
+   ```
+
 #### Running tests manually
 
 Make sure the server is running first (see above), then:
 
 ```shell
-export GIT_USERNAME=your-github-username
-export GIT_PASSWORD=your-github-pat
-export GIT_REPO=github.com/your-org/your-repo.git
-
 # Run all passing push tests:
 bash test/push-pass-all.sh
 

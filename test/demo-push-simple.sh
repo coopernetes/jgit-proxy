@@ -17,12 +17,12 @@ fi
 
 PUSH_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@localhost:8080/push/${GIT_REPO}"
 TEST_BRANCH="test/push-simple-$(date +%s)"
-REPO_DIR=$(mktemp -d /tmp/push-simple-XXXX)
+REPO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/push-simple-XXXX")
 
 cleanup() {
     git -C "${REPO_DIR}" remote set-url origin "http://${GIT_USERNAME}:${GIT_PASSWORD}@${GIT_REPO}" 2>/dev/null || true
     git -C "${REPO_DIR}" push origin --delete "${TEST_BRANCH}" 2>/dev/null || true
-    rm -rf "${REPO_DIR}"
+    safe_rm_rf "${REPO_DIR}"
 }
 trap cleanup EXIT
 
