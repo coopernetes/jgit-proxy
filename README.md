@@ -106,8 +106,9 @@ git push http://localhost:8080/proxy/github.com/owner/repo.git
 ### Store-and-forward (`/push/<host>/...`)
 
 Push objects are received locally using JGit's `ReceivePack`. A hook chain validates commits and streams real-time
-progress via git sideband (with real-time feedback and a nicer UX in the terminal with emoji & ANSI color support)
-before forwarding to the upstream. Each state transition is persisted as an event-log entry in the configured database.
+progress via git sideband before forwarding to the upstream. Because the proxy owns the full push lifecycle, each step
+can be extended — custom validation, external approval workflows, third-party integrations — without touching the
+upstream. Each state transition is persisted as an event-log entry in the configured database.
 
 ```shell
 git clone http://localhost:8080/push/github.com/owner/repo.git
@@ -118,22 +119,20 @@ git push http://localhost:8080/push/github.com/owner/repo.git
 
 Both proxy modes enforce the same set of configurable validation rules:
 
-| Feature                                                             | Status      |
-| ------------------------------------------------------------------- | ----------- |
-| Repository URL allow/deny rules (owner, slug, glob patterns)        | Implemented |
-| Author email domain allow/block list                                | Implemented |
-| Commit message validation (literal + regex)                         | Implemented |
-| Diff generation and content scanning                                | Implemented |
-| Secret scanning ([gitleaks](https://github.com/gitleaks/gitleaks))  | Implemented |
-| SCM identity verification (resolve token to SCM user)               | Implemented |
-| User push permissions (per-repo RBAC)                               | Implemented |
-| Hidden commit detection (force-push / history rewrite guard)        | Implemented |
-| Empty branch protection                                             | Implemented |
-| GPG/SSH commit signature verification                               | Implemented |
-| Approval gate with full lifecycle (RECEIVED → APPROVED → FORWARDED) | Implemented |
-| Aggregate failure reporting (all errors at once)                    | Implemented |
-| Real-time sideband progress with ANSI color (store-and-forward)     | Implemented |
-| Fetch auditing                                                      | Implemented |
+- 🔒 Repository URL allow/deny rules (literal, glob, and regex)
+- ✉️ Author email domain allow/block list
+- 📝 Commit message validation (literal + regex)
+- 🔍 Diff generation and content scanning
+- 🔑 Secret scanning ([gitleaks](https://github.com/gitleaks/gitleaks))
+- 🪪 SCM identity verification (resolve token → SCM user)
+- 🛡️ User push permissions (per-repo RBAC)
+- 🕵️ Hidden commit detection (force-push / history rewrite guard)
+- 🌿 Empty branch protection
+- ✍️ GPG/SSH commit signature verification
+- ✅ Approval gate with full lifecycle (RECEIVED → APPROVED → FORWARDED)
+- 📋 Aggregate failure reporting (all errors surfaced at once)
+- 📡 Real-time sideband progress (store-and-forward)
+- 📊 Fetch auditing
 
 ## Supported Providers
 
