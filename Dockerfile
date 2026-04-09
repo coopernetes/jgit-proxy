@@ -7,8 +7,14 @@ FROM docker.io/eclipse-temurin:21-jdk AS builder
 # To update: download the new tarball, verify against nodejs.org/dist/vX.Y.Z/SHASUMS256.txt,
 # and update both NODE_VERSION and NODE_SHA256 below.
 ARG NODE_VERSION=24.11.1
-ARG NODE_SHA256=58a5ff5cc8f2200e458bea22e329d5c1994aa1b111d499ca46ec2411d58239ca
-RUN curl -fsSL https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.gz \
+ARG NODE_SHA256_AMD64=58a5ff5cc8f2200e458bea22e329d5c1994aa1b111d499ca46ec2411d58239ca
+ARG NODE_SHA256_ARM64=0dc93ec5c798b0d347f068db6d205d03dea9a71765e6a53922b682b91265d71f
+ARG TARGETARCH
+RUN case "${TARGETARCH}" in \
+      arm64) NODE_ARCH=linux-arm64; NODE_SHA256="${NODE_SHA256_ARM64}" ;; \
+      *)     NODE_ARCH=linux-x64;   NODE_SHA256="${NODE_SHA256_AMD64}" ;; \
+    esac \
+    && curl -fsSL https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-${NODE_ARCH}.tar.gz \
        -o /tmp/node.tar.gz \
     && echo "${NODE_SHA256}  /tmp/node.tar.gz" | sha256sum --check \
     && tar -xzf /tmp/node.tar.gz -C /usr/local --strip-components=1 \
