@@ -39,6 +39,29 @@ public class OidcAuthConfig {
     private String jwkSetUri = "";
 
     /**
+     * Override for the token endpoint URL. When blank, defaults to {@code {issuerUri}/token}. Useful in local
+     * development when the server-side token exchange must reach the OIDC provider via a different hostname than the
+     * browser-facing authorization URL (e.g. Podman injects the host {@code /etc/hosts} into containers, so
+     * {@code host.containers.internal} can be used to reach a port-mapped provider from inside a container).
+     */
+    private String tokenUri = "";
+
+    /**
+     * Override for the UserInfo endpoint URL. When blank, defaults to {@code {issuerUri}/userinfo}. See
+     * {@code token-uri} for when this override is needed.
+     */
+    private String userInfoUri = "";
+
+    /**
+     * JWT claim used as the principal name (username). Defaults to {@code sub}, which is always present in OIDC tokens.
+     * Set to {@code preferred_username} for providers that populate it (e.g. Entra ID, Keycloak).
+     *
+     * <p>Only applies when {@code jwk-set-uri} is set (manual endpoint registration). When using auto-discovery via
+     * {@code issuer-uri} alone, the claim is determined from the provider's discovery document.
+     */
+    private String userNameAttribute = "sub";
+
+    /**
      * Path to a PKCS#8 PEM-encoded RSA private key file for {@code private_key_jwt} client authentication. When set,
      * the client presents a signed JWT assertion to the token endpoint instead of a {@code client_secret}. This is the
      * preferred authentication method for confidential applications (no shared secret, less frequent rotation).

@@ -24,10 +24,9 @@ application {
 // Build the React frontend and copy the output into resources/static so Spring serves it.
 // Runs automatically before processResources (and therefore before `run` and `build`).
 node {
-    // Pin Node version so Gradle uses the same version regardless of what is on PATH.
-    // The binary is cached in ~/.gradle/nodejs/ after the first download.
-    version = '24.11.1'
-    download = true
+    // Use Node.js from PATH (managed by mise locally, installed via NodeSource in Docker).
+    // Setting download=false avoids the dependency on repo.eclipse.org.
+    download = false
     nodeProjectDir = file('frontend')
 }
 

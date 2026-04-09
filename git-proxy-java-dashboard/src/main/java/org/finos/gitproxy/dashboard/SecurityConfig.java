@@ -327,10 +327,14 @@ public class SecurityConfig {
                     .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                     .clientId(oidcCfg.getClientId())
                     .authorizationUri(oidcCfg.getIssuerUri() + "/authorize")
-                    .tokenUri(oidcCfg.getIssuerUri() + "/token")
+                    .tokenUri(
+                            oidcCfg.getTokenUri().isBlank() ? oidcCfg.getIssuerUri() + "/token" : oidcCfg.getTokenUri())
                     .jwkSetUri(oidcCfg.getJwkSetUri())
-                    .userInfoUri(oidcCfg.getIssuerUri() + "/userinfo")
-                    .userNameAttributeName("preferred_username")
+                    .userInfoUri(
+                            oidcCfg.getUserInfoUri().isBlank()
+                                    ? oidcCfg.getIssuerUri() + "/userinfo"
+                                    : oidcCfg.getUserInfoUri())
+                    .userNameAttributeName(oidcCfg.getUserNameAttribute())
                     .scope("openid", "profile", "email")
                     .redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
                     .clientAuthenticationMethod(authMethod);

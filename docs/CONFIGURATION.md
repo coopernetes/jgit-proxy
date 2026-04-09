@@ -615,3 +615,25 @@ GITPROXY_SERVER_PORT=9090 ./gradlew :git-proxy-java-server:run
 ```
 
 Logs: `git-proxy-java-server/logs/application.log`
+
+## Logging
+
+git-proxy-java ships a default `logback.xml` (console + rolling file, INFO level). To override it without
+rebuilding the image, point the JVM at an external Logback config file:
+
+```bash
+# Local run
+JAVA_TOOL_OPTIONS=-Dlogback.configurationFile=/path/to/logback.xml ./gradlew :git-proxy-java-dashboard:run
+
+# Docker — mount your config and set the env var
+volumes:
+  - ./my-logback.xml:/app/conf/logback.xml:ro
+environment:
+  JAVA_TOOL_OPTIONS: -Dlogback.configurationFile=/app/conf/logback.xml
+```
+
+`JAVA_TOOL_OPTIONS` is read directly by the JVM, so it works regardless of how the application is launched.
+
+A ready-made debug config (`docker/logback-debug.xml`) is included for diagnosing OIDC and Spring Security
+issues — it enables `DEBUG` on `org.springframework.security` and `org.springframework.web.client`. See the
+comments in that file for how to activate it.

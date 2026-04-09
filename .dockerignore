@@ -1,0 +1,18 @@
+# Gradle build outputs and caches — must not be copied into the Docker build context.
+# Without this, Gradle reuses host-side cached class files and skips recompilation.
+.gradle/
+build/
+*/build/
+node_modules/
+*/node_modules/
+
+# Local config overrides
+docker/logback-debug.xml
+docker/git-proxy-local.yml
+docker/git-proxy-postgres.yml
+docker/git-proxy-mongo.yml
+
+# Dev artifacts
+*.log
+logs/
+.data/

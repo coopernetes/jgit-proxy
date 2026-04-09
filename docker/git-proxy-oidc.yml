@@ -16,11 +16,17 @@
 auth:
   provider: oidc
   oidc:
+    # issuer-uri drives the browser-facing authorization redirect only.
     issuer-uri: http://mock-oauth2:9090/default
     client-id: gitproxy-client
     client-secret: gitproxy-secret
-    # No jwk-set-uri needed: mock-oauth2-server mirrors the request hostname in its
-    # discovery document so the issuer Spring Security sees matches the iss claim.
+    # Server-side endpoints use host.containers.internal (Podman's automatic host alias)
+    # to reach the port-mapped mock-oauth2 container. This avoids the Podman /etc/hosts
+    # injection problem where mock-oauth2 resolves to 127.0.0.1 inside containers.
+    # jwk-set-uri also skips OIDC discovery at startup (no eager connection on boot).
+    jwk-set-uri: http://host.containers.internal:9090/default/jwks
+    token-uri: http://host.containers.internal:9090/default/token
+    user-info-uri: http://host.containers.internal:9090/default/userinfo
   groups-claim: groups
   role-mappings:
     ADMIN:

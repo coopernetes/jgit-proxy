@@ -3,13 +3,25 @@
 # ── Build stage ──────────────────────────────────────────────────────────────
 FROM docker.io/eclipse-temurin:21-jdk AS builder
 
+# Install Node.js directly from the official distribution with SHA256 verification.
+# To update: download the new tarball, verify against nodejs.org/dist/vX.Y.Z/SHASUMS256.txt,
+# and update both NODE_VERSION and NODE_SHA256 below.
+ARG NODE_VERSION=24.11.1
+ARG NODE_SHA256=58a5ff5cc8f2200e458bea22e329d5c1994aa1b111d499ca46ec2411d58239ca
+RUN curl -fsSL https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.gz \
+       -o /tmp/node.tar.gz \
+    && echo "${NODE_SHA256}  /tmp/node.tar.gz" | sha256sum --check \
+    && tar -xzf /tmp/node.tar.gz -C /usr/local --strip-components=1 \
+    && rm /tmp/node.tar.gz \
+    && node --version \
+    && npm --version
+
 WORKDIR /workspace
 COPY . .
 
 # Build the distribution (all deps bundled in lib/).
-# The dashboard build also compiles the React frontend via the node-gradle plugin
-# (Node is downloaded automatically; no separate Node stage needed).
-RUN ./gradlew :git-proxy-java-dashboard:installDist --no-daemon -q
+# Node.js is installed above; the node-gradle plugin uses it from PATH (download=false).
+RUN ./gradlew clean :git-proxy-java-dashboard:installDist --no-daemon -q
 
 # Prepend a conf/ directory to the classpath so that a mounted git-proxy-local.yml
 # is picked up by JettyConfigurationLoader at runtime.

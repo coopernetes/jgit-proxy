@@ -30,7 +30,7 @@
           Invalid username or password.
         </div>
 
-        <form method="post" action="/login" class="space-y-4">
+        <form id="login-form" method="post" action="/login" class="space-y-4">
           <div>
             <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Username</label>
             <input
@@ -61,6 +61,9 @@
             Sign in
           </button>
         </form>
+        <a id="oidc-btn" href="/oauth2/authorization/gitproxy" class="hidden w-full block text-center px-4 py-2 text-sm font-medium rounded bg-slate-800 text-white hover:bg-slate-700 transition-colors">
+          Sign in with SSO
+        </a>
       </div>
     </main>
 
@@ -83,6 +86,16 @@
       const p = new URLSearchParams(window.location.search);
       if (p.has("logout")) document.getElementById("msg-logout").classList.remove("hidden");
       if (p.has("error"))  document.getElementById("msg-error").classList.remove("hidden");
+
+      fetch('/api/runtime-config')
+        .then(r => r.json())
+        .then(cfg => {
+          if (cfg.authProvider === 'oidc') {
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('oidc-btn').classList.remove('hidden');
+          }
+        })
+        .catch(() => {});
     </script>
   </body>
 </html>
