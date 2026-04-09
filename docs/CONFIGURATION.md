@@ -74,6 +74,7 @@ Strip the `GITPROXY_` prefix, lowercase, and replace `_` with `.` to get the con
 | `GITPROXY_SERVER_PORT`              | `server.port`               | `9090`                    |
 | `GITPROXY_SERVER_APPROVAL_MODE`     | `server.approvalMode`       | `ui`                      |
 | `GITPROXY_DATABASE_TYPE`            | `database.type`             | `postgres`                |
+| `GITPROXY_DATABASE_URL`             | `database.url`              | `jdbc:postgresql://...`   |
 | `GITPROXY_DATABASE_HOST`            | `database.host`             | `db.internal`             |
 | `GITPROXY_PROVIDERS_GITHUB_ENABLED` | `providers.github.enabled`  | `false`                   |
 | `GITPROXY_PROVIDERS_<NAME>_URI`     | `providers.<name>.uri`      | `https://gitlab.corp.com` |
@@ -165,22 +166,24 @@ This applies to both proxy modes:
 
 ```yaml
 database:
-  type: h2-mem # memory | h2-mem | h2-file | sqlite | postgres | mongo
+  type: h2-mem # h2-mem | h2-file | postgres | mongo
 ```
 
 ### Database backends
 
-| Type       | Description                 | Extra keys                                     |
-| ---------- | --------------------------- | ---------------------------------------------- |
-| `memory`   | In-process, lost on restart | —                                              |
-| `h2-mem`   | H2 in-memory (default)      | `name` (default: `gitproxy`)                   |
-| `h2-file`  | H2 persisted to disk        | `path` (default: `./.data/gitproxy`)           |
-| `sqlite`   | SQLite file                 | `path` (default: `./.data/gitproxy.db`)        |
-| `postgres` | PostgreSQL                  | `host`, `port`, `name`, `username`, `password` |
-| `mongo`    | MongoDB                     | `url`, `name`                                  |
+| Type       | Description                 | Extra keys                                                              |
+| ---------- | --------------------------- | ----------------------------------------------------------------------- |
+| `h2-mem`   | H2 in-memory (default)      | `name` (default: `gitproxy`)                                            |
+| `h2-file`  | H2 persisted to disk        | `path` (default: `./.data/gitproxy`)                                    |
+| `sqlite`   | SQLite file                 | `path` (default: `./.data/gitproxy.db`)                                 |
+| `postgres` | PostgreSQL                  | `url` **or** `host`, `port`, `name`, `username`, `password`             |
+| `mongo`    | MongoDB                     | `url` (required); `name` optional if the database is in the URI path    |
+
+For both `postgres` and `mongo`, setting `url` to a full connection string is the recommended approach when you need
+driver-specific options (TLS, SSL certificates, connection parameters) that are not exposed as individual config fields.
 
 ```yaml
-# Postgres example
+# Postgres — individual fields
 database:
   type: postgres
   host: db.internal
@@ -189,10 +192,22 @@ database:
   username: gitproxy
   password: secret
 
-# Mongo example
+# Postgres — connection string (use this for sslmode, certificates, etc.)
+database:
+  type: postgres
+  url: jdbc:postgresql://db.internal:5432/gitproxy?sslmode=verify-full&sslrootcert=/certs/ca.crt
+  username: gitproxy
+  password: secret
+
+# Mongo — connection string (name extracted from URI path)
 database:
   type: mongo
-  url: mongodb://gitproxy:secret@localhost:27017
+  url: mongodb://gitproxy:secret@mongo.internal:27017/gitproxy?tls=true&tlsCAFile=/certs/ca.crt
+
+# Mongo — connection string with separate name field
+database:
+  type: mongo
+  url: mongodb://gitproxy:secret@mongo.internal:27017
   name: gitproxy
 ```
 

@@ -6,10 +6,7 @@ import lombok.Data;
 @Data
 public class DatabaseConfig {
 
-    /**
-     * Storage backend. Values: {@code memory}, {@code h2-mem} (default), {@code h2-file}, {@code postgres},
-     * {@code mongo}.
-     */
+    /** Storage backend. Values: {@code h2-mem} (default), {@code h2-file}, {@code postgres}, {@code mongo}. */
     private String type = "h2-mem";
 
     /** Database name. Used by h2-mem, h2-file, postgres, mongo. */
@@ -24,6 +21,17 @@ public class DatabaseConfig {
     private String username = "";
     private String password = "";
 
-    // --- mongo ---
-    private String url = "mongodb://gitproxy:gitproxy@localhost:27017";
+    /**
+     * Full connection string. When non-blank, takes precedence over individual {@code host}/{@code port}/{@code name}
+     * fields.
+     *
+     * <ul>
+     *   <li><b>postgres</b> — JDBC URL, e.g. {@code jdbc:postgresql://host:5432/db?sslmode=verify-full}
+     *   <li><b>mongo</b> — MongoDB connection URI, e.g. {@code mongodb://user:pass@host:27017/db?tls=true}
+     * </ul>
+     *
+     * For mongo, the database name can be embedded in the URI path; the {@code name} field is used as a fallback when
+     * the URI contains no path component.
+     */
+    private String url = "";
 }

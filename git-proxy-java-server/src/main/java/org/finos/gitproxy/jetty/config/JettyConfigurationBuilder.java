@@ -319,7 +319,7 @@ public class JettyConfigurationBuilder {
     /** Builds a {@link RepoPermissionStore} backed by the configured database. */
     public RepoPermissionStore buildRepoPermissionStore() {
         String type = config.getDatabase().getType();
-        if ("memory".equals(type) || "mongo".equals(type)) {
+        if ("mongo".equals(type)) {
             return new org.finos.gitproxy.permission.InMemoryRepoPermissionStore();
         }
         return new JdbcRepoPermissionStore(requireJdbcDataSource());
@@ -392,12 +392,11 @@ public class JettyConfigurationBuilder {
         DatabaseConfig db = config.getDatabase();
         log.info("Initializing push store: type={}", db.getType());
         cachedPushStore = switch (db.getType()) {
-            case "memory" -> PushStoreFactory.inMemory();
             case "h2-mem", "h2-file", "postgres" -> PushStoreFactory.fromDataSource(requireJdbcDataSource());
-            case "mongo" -> PushStoreFactory.mongo(db.getUrl(), db.getName());
+            case "mongo" -> PushStoreFactory.mongo(db.getUrl(), mongoDbName(db));
             default ->
-                throw new IllegalArgumentException("Unknown database type: " + db.getType()
-                        + ". Supported: memory, h2-mem, h2-file, postgres, mongo");
+                throw new IllegalArgumentException(
+                        "Unknown database type: " + db.getType() + ". Supported: h2-mem, h2-file, postgres, mongo");
         };
         return cachedPushStore;
     }
@@ -414,7 +413,7 @@ public class JettyConfigurationBuilder {
 
         String type = config.getDatabase().getType();
         RepoRegistry dbRegistry;
-        if ("memory".equals(type) || "mongo".equals(type)) {
+        if ("mongo".equals(type)) {
             dbRegistry = new InMemoryRepoRegistry();
         } else {
             dbRegistry = new JdbcRepoRegistry(requireJdbcDataSource());
@@ -434,7 +433,7 @@ public class JettyConfigurationBuilder {
         if (cachedFetchStore != null) return cachedFetchStore;
         String type = config.getDatabase().getType();
         FetchStore store;
-        if ("memory".equals(type) || "mongo".equals(type)) {
+        if ("mongo".equals(type)) {
             store = new InMemoryFetchStore();
         } else {
             store = new JdbcFetchStore(requireJdbcDataSource());
@@ -528,7 +527,7 @@ public class JettyConfigurationBuilder {
                 .toList();
 
         String type = config.getDatabase().getType();
-        if ("memory".equals(type) || "mongo".equals(type)) {
+        if ("mongo".equals(type)) {
             log.info("Using in-memory user store ({} users)", staticUsers.size());
             cachedUserStore = new StaticUserStore(staticUsers);
         } else {
@@ -560,7 +559,7 @@ public class JettyConfigurationBuilder {
         PushIdentityResolver tokenResolver = new TokenPushIdentityResolver(userStore);
 
         String dbType = config.getDatabase().getType();
-        if (!"memory".equals(dbType) && !"mongo".equals(dbType)) {
+        if (!"mongo".equals(dbType)) {
             JdbcScmTokenCache tokenCache = cachedTokenCache != null ? cachedTokenCache : buildTokenCache();
             tokenResolver = new CachingTokenPushIdentityResolver(tokenResolver, tokenCache, userStore);
         }
@@ -583,13 +582,38 @@ public class JettyConfigurationBuilder {
                 case "h2-mem" -> DataSourceFactory.h2InMemory(db.getName());
                 case "h2-file" ->
                     DataSourceFactory.h2File(db.getPath().isBlank() ? "./.data/" + db.getName() : db.getPath());
-                case "postgres" ->
-                    DataSourceFactory.postgres(
+                case "postgres" -> {
+                    if (!db.getUrl().isBlank()) {
+                        log.info("Postgres: using connection URL (individual host/port/name fields ignored)");
+                        yield DataSourceFactory.fromUrl(db.getUrl(), db.getUsername(), db.getPassword());
+                    }
+                    yield DataSourceFactory.postgres(
                             db.getHost(), db.getPort(), db.getName(), db.getUsername(), db.getPassword());
+                }
                 default -> throw new IllegalStateException("No JDBC DataSource for db type: " + db.getType());
             };
         }
         return cachedDataSource;
+    }
+
+    /**
+     * Resolves the MongoDB database name. If {@code name} is non-blank, uses it directly. Otherwise attempts to extract
+     * the database name from the URI path (e.g. {@code mongodb://host/mydb} → {@code mydb}), falling back to
+     * {@code "gitproxy"}.
+     */
+    private static String mongoDbName(DatabaseConfig db) {
+        String name = db.getName();
+        if (!name.isBlank()) return name;
+        try {
+            String path = URI.create(db.getUrl()).getPath();
+            if (path != null && path.length() > 1) {
+                String extracted = path.substring(1);
+                int q = extracted.indexOf('?');
+                return q >= 0 ? extracted.substring(0, q) : extracted;
+            }
+        } catch (Exception ignored) {
+        }
+        return "gitproxy";
     }
 
     private GitProxyProvider createProvider(String name, ProviderConfig providerConfig) {

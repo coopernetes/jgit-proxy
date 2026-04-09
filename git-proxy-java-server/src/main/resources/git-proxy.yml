@@ -19,7 +19,7 @@ server:
   #   - https://dashboard.example.com
 
 # Database configuration for push audit storage.
-# Supported types: memory, h2-mem, h2-file, postgres, mongo
+# Supported types: h2-mem, h2-file, postgres, mongo
 # h2-file persists to ./.data/gitproxy.mv.db relative to the working directory.
 # Use h2-mem for ephemeral/CI environments, or override with GITPROXY_DATABASE_TYPE=h2-mem.
 database:
