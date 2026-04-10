@@ -209,8 +209,8 @@ class IdentityResolutionE2ETest {
 
             GitHelper git = new GitHelper(tempDir);
             Path repo = git.clone(url, "ident-wrong-email");
-            // Commit with an email NOT registered to TEST_USER
-            git.setAuthor(repo, "Test Dev", "wrong-email@other-domain.com");
+            // Commit with a valid-domain email that is NOT registered to TEST_USER
+            git.setAuthor(repo, "Test Dev", "someone-else@example.com");
             git.writeAndStage(repo, "test-file.txt", "email mismatch test - " + Instant.now());
             git.commit(repo, "feat: commit from mismatched email");
 
