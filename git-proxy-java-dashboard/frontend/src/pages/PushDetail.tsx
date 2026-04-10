@@ -789,11 +789,13 @@ export function PushDetail({ currentUser }: PushDetailProps) {
           {record.status === 'PENDING' &&
             (() => {
               const isAdmin = currentUser?.authorities?.includes('ROLE_ADMIN') ?? false
+              const isSelfCertifier =
+                currentUser?.authorities?.includes('ROLE_SELF_CERTIFY') ?? false
               const isPusher =
                 !!currentUser?.username &&
                 !!record.resolvedUser &&
                 currentUser.username === record.resolvedUser
-              const isSelfReview = isPusher && !isAdmin
+              const isSelfReview = isPusher && !isAdmin && !isSelfCertifier
               const canCancel = isAdmin || isPusher
               const attestationsComplete = attestationQuestions
                 .filter((q) => q.required)
@@ -828,6 +830,15 @@ export function PushDetail({ currentUser }: PushDetailProps) {
                       <span>
                         Self-approval is not permitted — you pushed these commits. Another reviewer
                         must approve or reject this push.
+                      </span>
+                    </div>
+                  )}
+                  {isSelfCertifier && isPusher && !isAdmin && (
+                    <div className="flex gap-2 text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded px-3 py-2 mb-3">
+                      <span>ℹ</span>
+                      <span>
+                        You are self-certifying your own push. This approval will be permanently
+                        recorded in the audit log.
                       </span>
                     </div>
                   )}

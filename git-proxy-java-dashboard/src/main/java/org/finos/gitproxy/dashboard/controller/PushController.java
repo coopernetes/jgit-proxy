@@ -235,9 +235,11 @@ public class PushController {
      *
      * <ol>
      *   <li>ROLE_ADMIN bypasses all identity checks — admins may approve/reject any push.
-     *   <li>When {@link RepoPermissionService} is configured the reviewer must have APPROVE permission for the repo.
-     *   <li>The pusher must have been resolved to a proxy user — if not, we cannot guarantee no self-approval.
-     *   <li>The reviewer must not be the same proxy user as the pusher.
+     *   <li>The pusher must have been resolved to a proxy user — if not, we cannot guarantee identity.
+     *   <li>Self-review: allowed only when the reviewer has both {@code ROLE_SELF_CERTIFY} and a
+     *       {@link org.finos.gitproxy.permission.RepoPermission.Operations#SELF_CERTIFY} grant for the repo.
+     *   <li>Non-self reviewer: must have a REVIEW (or PUSH_AND_REVIEW) permission for the repo when
+     *       {@link RepoPermissionService} is configured.
      * </ol>
      *
      * @return a 403 response if the check fails, {@code null} if the reviewer is permitted to proceed
@@ -246,17 +248,9 @@ public class PushController {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (isAdmin(auth)) return null;
 
-        // Repo-level permission check — only enforced when the service is wired up.
-        if (repoPermissionService != null && record.getProvider() != null && record.getUrl() != null) {
-            String reviewer = auth != null ? auth.getName() : null;
-            if (reviewer != null
-                    && !repoPermissionService.isAllowedToReview(reviewer, record.getProvider(), record.getUrl())) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(Map.of("error", "You do not have permission to approve pushes for this repository"));
-            }
-        }
-
+        String reviewer = auth != null ? auth.getName() : null;
         String pusherProxyUser = record.getResolvedUser();
+
         if (pusherProxyUser == null) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(
@@ -264,10 +258,30 @@ public class PushController {
                                     "error",
                                     "Pusher identity has not been resolved to a proxy user; approval requires verified identity"));
         }
-        String reviewer = auth != null ? auth.getName() : null;
+
         if (pusherProxyUser.equals(reviewer)) {
+            // Self-review: permitted only with ROLE_SELF_CERTIFY + a SELF_CERTIFY repo permission.
+            boolean hasSelfCertifyRole = auth != null
+                    && auth.getAuthorities().stream().anyMatch(a -> "ROLE_SELF_CERTIFY".equals(a.getAuthority()));
+            boolean hasSelfCertifyPerm = repoPermissionService != null
+                    && record.getProvider() != null
+                    && record.getUrl() != null
+                    && repoPermissionService.isBypassReviewAllowed(reviewer, record.getProvider(), record.getUrl());
+            if (hasSelfCertifyRole && hasSelfCertifyPerm) {
+                return null;
+            }
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Self-approval is not permitted"));
         }
+
+        // Non-self reviewer: check REVIEW permission — only enforced when the service is wired up.
+        if (repoPermissionService != null && record.getProvider() != null && record.getUrl() != null) {
+            if (reviewer != null
+                    && !repoPermissionService.isAllowedToReview(reviewer, record.getProvider(), record.getUrl())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "You do not have permission to approve pushes for this repository"));
+            }
+        }
+
         return null;
     }
 
@@ -308,6 +322,6 @@ public class PushController {
     private static boolean isSelfApproval(PushRecord record, Authentication auth) {
         String pusher = record.getResolvedUser();
         String reviewer = auth != null ? auth.getName() : null;
-        return isAdmin(auth) && pusher != null && pusher.equals(reviewer);
+        return pusher != null && pusher.equals(reviewer);
     }
 }
