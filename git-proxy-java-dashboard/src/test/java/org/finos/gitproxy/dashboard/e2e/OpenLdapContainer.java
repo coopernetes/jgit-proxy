@@ -30,6 +30,15 @@ class OpenLdapContainer extends GenericContainer<OpenLdapContainer> {
     static final String BASE_DN = "dc=example,dc=com";
     static final String USER_DN_PATTERN = "cn={0},ou=users";
 
+    /**
+     * LDAP search filter for the search-first authentication path (analogous to {@code (sAMAccountName={0})} on Active
+     * Directory). {@code {0}} is substituted with the login username by Spring Security.
+     */
+    static final String USER_SEARCH_FILTER = "(cn={0})";
+
+    /** Base DN (relative to {@link #BASE_DN}) to scope user searches. */
+    static final String USER_SEARCH_BASE = "ou=users";
+
     /** Base DN for group search (relative to {@link #BASE_DN}). */
     static final String GROUP_SEARCH_BASE = "ou=groups";
 

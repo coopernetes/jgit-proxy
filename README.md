@@ -186,12 +186,13 @@ This is a multi-module Gradle project:
 
 ## Documentation
 
-| Document                                           | Description                                                                                 |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| [Configuration Reference](docs/CONFIGURATION.md)   | YAML config structure, environment variable overrides, provider settings, validation rules  |
-| [Demo Gallery](DEMO.md)                            | Animated demos and screenshots of both proxy modes and the dashboard UI                     |
-| [JGit Infrastructure](docs/JGIT_INFRASTRUCTURE.md) | Store-and-forward architecture: ReceivePackFactory, hook chain, forwarding, credential flow |
-| [Git Internals](docs/GIT_INTERNALS.md)             | Wire-protocol edge cases: tags, new branches, force pushes, pack parsing                    |
+| Document                                           | Description                                                                                      |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| [Architecture](docs/ARCHITECTURE.md)               | How the proxy works: two proxy modes, validation pipeline, core abstractions, advanced use cases |
+| [Configuration Reference](docs/CONFIGURATION.md)   | YAML config structure, environment variable overrides, provider settings, validation rules       |
+| [Demo Gallery](DEMO.md)                            | Animated demos and screenshots of both proxy modes and the dashboard UI                          |
+| [JGit Infrastructure](docs/JGIT_INFRASTRUCTURE.md) | Store-and-forward architecture: ReceivePackFactory, hook chain, forwarding, credential flow      |
+| [Git Internals](docs/GIT_INTERNALS.md)             | Wire-protocol edge cases: tags, new branches, force pushes, pack parsing                         |
 
 ## Roadmap
 

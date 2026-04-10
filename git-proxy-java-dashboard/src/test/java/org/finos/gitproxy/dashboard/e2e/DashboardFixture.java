@@ -14,7 +14,13 @@ import org.finos.gitproxy.config.InMemoryProviderConfigurationSource;
 import org.finos.gitproxy.dashboard.SecurityConfig;
 import org.finos.gitproxy.dashboard.SpringWebConfig;
 import org.finos.gitproxy.db.PushStoreFactory;
+import org.finos.gitproxy.db.memory.InMemoryFetchStore;
+import org.finos.gitproxy.db.memory.InMemoryRepoRegistry;
 import org.finos.gitproxy.jetty.config.GitProxyConfig;
+import org.finos.gitproxy.jetty.config.JettyConfigurationBuilder;
+import org.finos.gitproxy.jetty.reload.LiveConfigLoader;
+import org.finos.gitproxy.permission.InMemoryRepoPermissionStore;
+import org.finos.gitproxy.permission.RepoPermissionService;
 import org.finos.gitproxy.user.ReadOnlyUserStore;
 import org.finos.gitproxy.user.StaticUserStore;
 import org.finos.gitproxy.user.UserEntry;
@@ -61,11 +67,20 @@ class DashboardFixture implements AutoCloseable {
     DashboardFixture(GitProxyConfig config, ReadOnlyUserStore userStore) throws Exception {
         var appContext = new AnnotationConfigWebApplicationContext();
         appContext.register(SpringWebConfig.class, SecurityConfig.class);
+        var configBuilder = new JettyConfigurationBuilder(config);
+        var configHolder = configBuilder.buildConfigHolder();
+        var liveConfigLoader = new LiveConfigLoader(configHolder, config, config.getReload());
+
         appContext.addBeanFactoryPostProcessor(bf -> {
             bf.registerSingleton("userStore", userStore);
             bf.registerSingleton("gitProxyConfig", config);
             bf.registerSingleton("pushStore", PushStoreFactory.inMemory());
             bf.registerSingleton("providers", new InMemoryProviderConfigurationSource(List.of()));
+            bf.registerSingleton("configHolder", configHolder);
+            bf.registerSingleton("liveConfigLoader", liveConfigLoader);
+            bf.registerSingleton("repoRegistry", new InMemoryRepoRegistry());
+            bf.registerSingleton("fetchStore", new InMemoryFetchStore());
+            bf.registerSingleton("repoPermissionService", new RepoPermissionService(new InMemoryRepoPermissionStore()));
         });
 
         server = new Server();
