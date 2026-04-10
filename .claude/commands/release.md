@@ -50,7 +50,9 @@ and used for the git tag. It should follow semver or semver-pre format, e.g. `1.
    git tag -a v<new-version> -m "Release v<new-version>"
    ```
 
-8. **Confirm.** Show the user:
+8. **Confirm and push.** Show the user:
    - The new version in `build.gradle`
    - The tag just created (`git show v<new-version> --stat`)
-   - A reminder: `git push && git push --tags` to publish (don't push automatically)
+
+   Then ask: "Ready to push? This will run `git push && git push --tags` and trigger the Docker publish workflow."
+   If they confirm, run both commands. If they decline, remind them to run `git push && git push --tags` manually.
