@@ -29,8 +29,7 @@
 <!--    <logger name="org.eclipse.jgit.http.server" level="DEBUG"/>-->
 
     <!-- Application logs -->
-    <logger name="org.finos.gitproxy" level="DEBUG"/>
-    <logger name="org.finos.gitproxy.servlet.GitProxyServlet" level="INFO"/>
+    <logger name="org.finos.gitproxy" level="INFO"/>
 
 
     <root level="INFO">

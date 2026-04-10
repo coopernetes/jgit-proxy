@@ -91,9 +91,9 @@ userPassword: testpass123
 
 # --- Groups ---
 
-dn: cn=jgit_proxy_admins,ou=groups,dc=example,dc=com
+dn: cn=git_proxy_admins,ou=groups,dc=example,dc=com
 objectClass: groupOfNames
-cn: jgit_proxy_admins
+cn: git_proxy_admins
 member: cn=admin,ou=users,dc=example,dc=com
 member: cn=user2,ou=users,dc=example,dc=com
 member: cn=user5,ou=users,dc=example,dc=com

@@ -30,7 +30,7 @@ auth:
   groups-claim: groups
   role-mappings:
     ADMIN:
-      - jgit_proxy_admins
+      - git_proxy_admins
 
 # OIDC users do not need to be pre-seeded; /api/me returns the authenticated username
 # even if the user has no DB record yet.  Pre-seed here to get scm-identities in place

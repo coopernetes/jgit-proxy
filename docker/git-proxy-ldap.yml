@@ -21,7 +21,7 @@ auth:
     group-search-base: ou=groups
   role-mappings:
     ADMIN:
-      - jgit_proxy_admins
+      - git_proxy_admins
 
 users:
   - username: testuser

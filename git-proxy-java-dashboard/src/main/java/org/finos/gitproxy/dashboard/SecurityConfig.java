@@ -425,6 +425,7 @@ public class SecurityConfig {
                 oidcCfg.getClientId(),
                 oidcCfg.getJwkSetUri().isBlank() ? "(discovered)" : oidcCfg.getJwkSetUri(),
                 authMethod.getValue());
+        log.info("OIDC role-mappings: {}, groups-claim: {}", roleMappings, groupsClaim);
     }
 
     // ── IdP user provisioning ────────────────────────────────────────────────────
