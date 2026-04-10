@@ -123,6 +123,6 @@ export interface RepoPermission {
   provider: string
   path: string
   pathType: 'LITERAL' | 'GLOB' | 'REGEX'
-  operations: 'PUSH' | 'APPROVE' | 'ALL'
+  operations: 'PUSH' | 'REVIEW' | 'PUSH_AND_REVIEW' | 'SELF_CERTIFY'
   source: 'CONFIG' | 'DB'
 }

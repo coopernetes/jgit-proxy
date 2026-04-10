@@ -34,6 +34,9 @@ public class PermissionConfig {
     /** How {@code path} is matched. {@code LITERAL} (default) or {@code GLOB}. */
     private String pathType = "LITERAL";
 
-    /** Which operations are granted. {@code PUSH}, {@code APPROVE}, or {@code ALL} (default). */
-    private String operations = "ALL";
+    /**
+     * Which operations are granted. {@code PUSH}, {@code REVIEW}, {@code PUSH_AND_REVIEW}, or {@code SELF_CERTIFY}
+     * (default: {@code PUSH_AND_REVIEW}).
+     */
+    private String operations = "PUSH_AND_REVIEW";
 }

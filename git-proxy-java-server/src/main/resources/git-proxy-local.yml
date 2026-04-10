@@ -128,25 +128,25 @@ permissions:
   - username: reviewer
     provider: github
     path: /finos/git-proxy
-    operations: APPROVE
+    operations: REVIEW
   - username: reviewer
     provider: github
     path: /coopernetes/test-repo
-    operations: APPROVE
+    operations: REVIEW
   - username: reviewer
     provider: github
     path: /coopernetes/testing-123
-    operations: APPROVE
+    operations: REVIEW
   - username: reviewer
     provider: gitlab
     path: /coopernetes/*
     path-type: GLOB
-    operations: APPROVE
+    operations: REVIEW
   - username: reviewer
     provider: codeberg
     path: /coopernetes/test-repo-codeberg
     path-type: REGEX
-    operations: APPROVE
+    operations: REVIEW
 
 rules:
   allow:

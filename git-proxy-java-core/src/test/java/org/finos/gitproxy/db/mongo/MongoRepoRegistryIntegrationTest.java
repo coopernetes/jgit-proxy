@@ -35,7 +35,7 @@ class MongoRepoRegistryIntegrationTest {
                 .owner(owner)
                 .name(name)
                 .access(AccessRule.Access.ALLOW)
-                .operations(AccessRule.Operations.ALL)
+                .operations(AccessRule.Operations.BOTH)
                 .enabled(true)
                 .build();
     }
@@ -83,7 +83,7 @@ class MongoRepoRegistryIntegrationTest {
                 .name("repo")
                 .ruleOrder(10)
                 .access(AccessRule.Access.ALLOW)
-                .operations(AccessRule.Operations.ALL)
+                .operations(AccessRule.Operations.BOTH)
                 .build();
         AccessRule low = AccessRule.builder()
                 .id("zzz")
@@ -91,7 +91,7 @@ class MongoRepoRegistryIntegrationTest {
                 .name("repo2")
                 .ruleOrder(200)
                 .access(AccessRule.Access.ALLOW)
-                .operations(AccessRule.Operations.ALL)
+                .operations(AccessRule.Operations.BOTH)
                 .build();
         registry.save(low);
         registry.save(high);
@@ -140,7 +140,7 @@ class MongoRepoRegistryIntegrationTest {
                 .owner("org")
                 .name("global-repo")
                 .access(AccessRule.Access.ALLOW)
-                .operations(AccessRule.Operations.ALL)
+                .operations(AccessRule.Operations.BOTH)
                 .enabled(true)
                 .build();
         AccessRule disabledRule = AccessRule.builder()
@@ -148,7 +148,7 @@ class MongoRepoRegistryIntegrationTest {
                 .owner("org")
                 .name("disabled-repo")
                 .access(AccessRule.Access.DENY)
-                .operations(AccessRule.Operations.ALL)
+                .operations(AccessRule.Operations.BOTH)
                 .enabled(false)
                 .build();
         registry.save(githubRule);

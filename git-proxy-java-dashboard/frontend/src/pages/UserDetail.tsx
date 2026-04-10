@@ -558,7 +558,7 @@ function AddPermissionModal({
   const [provider, setProvider] = useState('')
   const [path, setPath] = useState('')
   const [pathType, setPathType] = useState<'LITERAL' | 'GLOB' | 'REGEX'>('LITERAL')
-  const [operations, setOperations] = useState<'PUSH' | 'APPROVE' | 'ALL'>('ALL')
+  const [operations, setOperations] = useState<RepoPermission['operations']>('PUSH_AND_REVIEW')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [regexError, setRegexError] = useState<string | null>(null)
@@ -672,9 +672,10 @@ function AddPermissionModal({
               onChange={(e) => setOperations(e.target.value as typeof operations)}
               className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
             >
-              <option value="ALL">All (push + approve)</option>
+              <option value="PUSH_AND_REVIEW">Push and review</option>
               <option value="PUSH">Push only</option>
-              <option value="APPROVE">Approve only</option>
+              <option value="REVIEW">Review only</option>
+              <option value="SELF_CERTIFY">Self-certify</option>
             </select>
           </div>
           {error && <p className="text-xs text-red-500">{error}</p>}

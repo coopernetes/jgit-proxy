@@ -39,7 +39,7 @@ public class AccessRule {
 
     /** Which git operations this rule applies to. */
     @Builder.Default
-    private Operations operations = Operations.ALL;
+    private Operations operations = Operations.BOTH;
 
     private String description;
 
@@ -63,7 +63,7 @@ public class AccessRule {
     public enum Operations {
         FETCH,
         PUSH,
-        ALL
+        BOTH
     }
 
     public enum Source {

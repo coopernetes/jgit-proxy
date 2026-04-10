@@ -181,7 +181,7 @@ The scripts default to repos owned by the project maintainer. To run them agains
    ```
 
 3. **Allow rules and permissions** in `git-proxy-local.yml` — add your repo slug to the `rules.allow` slugs list and add
-   `PUSH`/`APPROVE` permission entries for your proxy user. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the
+   `PUSH`/`REVIEW` permission entries for your proxy user. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the
    full reference.
 
 4. **Run with your repo** — single scripts accept an inline override; orchestrators need an export:

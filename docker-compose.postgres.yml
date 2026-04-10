@@ -19,9 +19,7 @@ services:
   git-proxy-java:
     environment:
       GITPROXY_DATABASE_TYPE: postgres
-      GITPROXY_DATABASE_HOST: postgres
-      GITPROXY_DATABASE_PORT: "5432"
-      GITPROXY_DATABASE_NAME: gitproxy
+      GITPROXY_DATABASE_URL: "jdbc:postgresql://postgres:5432/gitproxy?sslmode=disable"
       GITPROXY_DATABASE_USERNAME: gitproxy
       GITPROXY_DATABASE_PASSWORD: gitproxy
     depends_on:

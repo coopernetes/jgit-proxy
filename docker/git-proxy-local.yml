@@ -19,12 +19,12 @@ permissions:
   - username: admin
     provider: gitea
     path: /test-owner/test-repo
-    operations: ALL
+    operations: PUSH_AND_REVIEW
   - username: admin
     provider: gitea
     path: /otherorg/*
     path-type: GLOB
-    operations: ALL
+    operations: PUSH_AND_REVIEW
 
 providers:
   # Disable the default cloud providers; we only need the local Gitea instance.

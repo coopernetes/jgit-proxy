@@ -19,7 +19,7 @@ class DbModelTest {
 
         assertNotNull(rule.getId());
         assertEquals(AccessRule.Access.ALLOW, rule.getAccess());
-        assertEquals(AccessRule.Operations.ALL, rule.getOperations());
+        assertEquals(AccessRule.Operations.BOTH, rule.getOperations());
         assertTrue(rule.isEnabled());
         assertEquals(100, rule.getRuleOrder());
         assertEquals(AccessRule.Source.DB, rule.getSource());
@@ -69,7 +69,7 @@ class DbModelTest {
     void accessRule_allOperationsEnumValues() {
         assertNotNull(AccessRule.Operations.valueOf("FETCH"));
         assertNotNull(AccessRule.Operations.valueOf("PUSH"));
-        assertNotNull(AccessRule.Operations.valueOf("ALL"));
+        assertNotNull(AccessRule.Operations.valueOf("BOTH"));
     }
 
     @Test

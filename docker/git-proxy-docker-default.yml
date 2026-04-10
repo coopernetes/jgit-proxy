@@ -69,12 +69,12 @@ permissions:
   - username: reviewer
     provider: gitea
     path: /test-owner/test-repo
-    operations: APPROVE
+    operations: REVIEW
   - username: reviewer
     provider: gitea
     path: /otherorg/*
     path-type: GLOB
-    operations: APPROVE
+    operations: REVIEW
 
   # LDAP testuser (maps to gitea/test-user): same literal grant as test-user above.
   # When docker-default,ldap profiles are combined, GITEA_TESTUSER_TOKEN resolves to
@@ -89,12 +89,12 @@ permissions:
   - username: admin
     provider: gitea
     path: /test-owner/test-repo
-    operations: APPROVE
+    operations: REVIEW
   - username: admin
     provider: gitea
     path: /otherorg/*
     path-type: GLOB
-    operations: APPROVE
+    operations: REVIEW
 
 providers:
   # Local gitea included in docker compose setup

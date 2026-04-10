@@ -493,11 +493,11 @@ public class JettyConfigurationBuilder {
     }
 
     private static AccessRule.Operations toOperations(List<String> ops) {
-        if (ops == null || ops.isEmpty() || ops.size() > 1) return AccessRule.Operations.ALL;
+        if (ops == null || ops.isEmpty() || ops.size() > 1) return AccessRule.Operations.BOTH;
         return switch (ops.get(0).toUpperCase()) {
             case "FETCH" -> AccessRule.Operations.FETCH;
             case "PUSH" -> AccessRule.Operations.PUSH;
-            default -> AccessRule.Operations.ALL;
+            default -> AccessRule.Operations.BOTH;
         };
     }
 

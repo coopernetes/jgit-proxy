@@ -54,7 +54,7 @@ class RowMapperTest {
         when(rs.getString("owner")).thenReturn(null);
         when(rs.getString("name")).thenReturn(null);
         when(rs.getString("access")).thenReturn("ALLOW");
-        when(rs.getString("operations")).thenReturn("ALL");
+        when(rs.getString("operations")).thenReturn("BOTH");
         when(rs.getString("description")).thenReturn(null);
         when(rs.getBoolean("enabled")).thenReturn(false);
         when(rs.getInt("rule_order")).thenReturn(100);
@@ -68,7 +68,7 @@ class RowMapperTest {
         assertNull(rule.getName());
         assertNull(rule.getDescription());
         assertEquals(AccessRule.Access.ALLOW, rule.getAccess());
-        assertEquals(AccessRule.Operations.ALL, rule.getOperations());
+        assertEquals(AccessRule.Operations.BOTH, rule.getOperations());
         assertEquals(AccessRule.Source.DB, rule.getSource());
         assertFalse(rule.isEnabled());
     }

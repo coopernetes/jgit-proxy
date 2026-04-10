@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS access_rules (
     owner       VARCHAR(255),               -- owner/org glob pattern; NULL = not used
     name        VARCHAR(255),               -- repo name glob pattern; NULL = not used
     access      VARCHAR(10)  NOT NULL DEFAULT 'ALLOW',  -- ALLOW or DENY
-    operations  VARCHAR(10)  NOT NULL DEFAULT 'ALL',    -- FETCH, PUSH, or ALL
+    operations  VARCHAR(10)  NOT NULL DEFAULT 'BOTH',    -- FETCH, PUSH, or BOTH
     description TEXT,
     enabled     BOOLEAN      NOT NULL DEFAULT TRUE,
     rule_order  INT          NOT NULL DEFAULT 100,

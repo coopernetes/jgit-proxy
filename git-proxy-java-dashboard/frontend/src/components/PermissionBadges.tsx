@@ -16,10 +16,11 @@ export function PathTypeBadge({ pathType }: { pathType: RepoPermission['pathType
 }
 
 export function OperationsBadge({ operations }: { operations: RepoPermission['operations'] }) {
-  const styles = {
+  const styles: Record<RepoPermission['operations'], string> = {
     PUSH: 'bg-blue-50 text-blue-700',
-    APPROVE: 'bg-green-50 text-green-700',
-    ALL: 'bg-slate-100 text-slate-700',
+    REVIEW: 'bg-green-50 text-green-700',
+    PUSH_AND_REVIEW: 'bg-teal-50 text-teal-700',
+    SELF_CERTIFY: 'bg-yellow-50 text-yellow-700',
   }
   return (
     <span

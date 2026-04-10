@@ -68,9 +68,9 @@ permissions:
   - username: admin
     provider: gitea
     path: /test-owner/test-repo
-    operations: APPROVE
+    operations: REVIEW
   - username: admin
     provider: gitea
     path: /otherorg/*
     path-type: GLOB
-    operations: APPROVE
+    operations: REVIEW
