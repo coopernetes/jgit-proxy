@@ -23,6 +23,13 @@ RUN case "${TARGETARCH}" in \
     && npm --version
 
 WORKDIR /workspace
+
+# Download the Gradle wrapper JARs in a dedicated layer so they are cached
+# independently of source changes.
+COPY gradle/ gradle/
+COPY gradlew gradlew.bat ./
+RUN ./gradlew --version --no-daemon -q
+
 COPY . .
 
 # Build the distribution (all deps bundled in lib/).
@@ -49,7 +56,7 @@ COPY --from=builder \
 RUN mkdir -p /app/conf
 
 # Data directory for file-based databases (h2-file, sqlite)
-RUN mkdir -p /app/.data && chown 1000:1000 /app/.data
+RUN mkdir -p /app/.data /app/logs && chown 1000:1000 /app/.data /app/logs
 
 EXPOSE 8080
 
