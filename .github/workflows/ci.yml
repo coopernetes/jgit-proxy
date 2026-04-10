@@ -10,6 +10,7 @@ on:
 
 jobs:
   build-and-test:
+    name: CI / Build & Test
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -56,6 +57,7 @@ jobs:
           retention-days: 14
 
   e2e-test:
+    name: CI / E2E Test
     runs-on: ubuntu-latest
     # E2E tests spin up containers; only run on push/PR to the main branches
     # to avoid burning minutes on every feature branch commit.

@@ -41,18 +41,16 @@ and used for the git tag. It should follow semver or semver-pre format, e.g. `1.
    ```
    No `closes #N`, no co-author trailer needed for version bumps.
 
-7. **Create the signed annotated tag.** Attempt a signed tag first:
-   ```
-   git tag -s v<new-version> -m "Release v<new-version>"
-   ```
-   If signing fails (no GPG/SSH key configured), fall back to an unsigned annotated tag and note that signing was skipped:
-   ```
-   git tag -a v<new-version> -m "Release v<new-version>"
-   ```
+7. **Push the commit.** Run `git push` to push the version bump commit to main. This triggers CI, CodeQL, and CVE
+   workflows on the new commit SHA.
 
-8. **Confirm and push.** Show the user:
-   - The new version in `build.gradle`
-   - The tag just created (`git show v<new-version> --stat`)
+8. **Wait for checks.** Tell the user:
 
-   Then ask: "Ready to push? This will run `git push && git push --tags` and trigger the Docker publish workflow."
-   If they confirm, run both commands. If they decline, remind them to run `git push && git push --tags` manually.
+   > Version bump pushed to main. CI, CodeQL, and CVE checks are now running on this commit.
+   >
+   > **When all checks are green**, run `/release-tag <new-version>` to create and push the tag.
+   >
+   > Monitor check status: `gh run list --branch main --limit 4`
+
+   **Stop here.** Do NOT create a tag or push tags. The tag ruleset on GitHub will reject the tag push
+   if the required status checks haven't passed yet.
