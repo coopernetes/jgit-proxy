@@ -128,7 +128,7 @@ public class SecurityConfig {
                 : new String[] {"/api/**", "/login", "/logout"};
 
         http.securityMatcher(protectedPaths)
-                .authorizeHttpRequests(auth -> auth.requestMatchers("/api/runtime-config")
+                .authorizeHttpRequests(auth -> auth.requestMatchers("/api/runtime-config", "/api/health")
                         .permitAll()
                         .requestMatchers(
                                 org.springframework.http.HttpMethod.POST,
@@ -260,6 +260,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
                         .ignoringRequestMatchers("/login")
+                        .ignoringRequestMatchers("/api/health", "/api/")
                         .ignoringRequestMatchers(req -> req.getHeader("X-Api-Key") != null));
 
         if (!ldapCfg.getUserSearchFilter().isBlank()) {
@@ -327,6 +328,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
                         .ignoringRequestMatchers("/login")
+                        .ignoringRequestMatchers("/api/health", "/api/")
                         .ignoringRequestMatchers(req -> req.getHeader("X-Api-Key") != null));
 
         log.info("Active Directory authentication configured: domain={}, url={}", adCfg.getDomain(), adUrl);
@@ -414,6 +416,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
                         .ignoringRequestMatchers("/login/oauth2/code/**")
+                        .ignoringRequestMatchers("/api/health", "/api/")
                         .ignoringRequestMatchers(req -> req.getHeader("X-Api-Key") != null));
 
         log.info(
