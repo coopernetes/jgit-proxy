@@ -18,22 +18,30 @@ Examples: `/release 1.0.0-alpha.3`, `/release 1.0.0-beta.1`, `/release 1.0.0`
 
 Arguments passed: `$ARGUMENTS`
 
-`$ARGUMENTS` is a semantic version string (without the `v` prefix) that will be set as the new version in `build.gradle`
-and used for the git tag. It should follow semver or semver-pre format, e.g. `1.0.0`, `1.0.0-alpha.3`, `1.0.0-beta.1`.
+`$ARGUMENTS` is an optional semantic version string (without the `v` prefix). If omitted, the next version is
+inferred automatically by incrementing the last numeric component of the current version:
+- `1.0.0-alpha.9` → `1.0.0-alpha.10`
+- `1.0.0-beta.2` → `1.0.0-beta.3`
+- `1.0.0-rc.1` → `1.0.0-rc.2`
+- `1.2.3` → `1.2.4` (patch)
 
 ---
 
 ## Steps
 
-1. **Validate the argument.** The argument is the new version string (no `v` prefix). If it's blank or doesn't look like a semver/semver-pre string, stop and ask the user to provide one.
+1. **Determine the new version.**
+   - Read the current version from `build.gradle` (line containing `version = '...'` in the `allprojects` block).
+   - If `$ARGUMENTS` is provided and looks like a valid semver/semver-pre string, use it as-is.
+   - If `$ARGUMENTS` is blank, auto-increment: for pre-release suffixes (`-alpha.N`, `-beta.N`, `-rc.N`) increment N; otherwise increment the patch component. Show the user the inferred version and confirm before proceeding.
+   - If `$ARGUMENTS` is provided but doesn't look like a valid version string, stop and ask the user to correct it.
 
-2. **Show the current state.** Run `git tag --sort=-version:refname | head -5` and read `build.gradle` to show the user the current version (line containing `version = '...'` in the `allprojects` block) and the most recent tags.
+2. **Show the current state.** Run `git tag --sort=-version:refname | head -5` and show the user the current version and the inferred/provided new version alongside the most recent tags.
 
 3. **Update `build.gradle`.** In the `allprojects { ... }` block, replace the existing `version = '...'` line with `version = '<new-version>'`. Use the Edit tool.
 
 4. **Run `./gradlew spotlessApply`** to ensure formatting is clean before committing.
 
-5. **Ask about additional changes.** Before committing, ask the user: "Any other changes to include in this commit?" Wait for their response. If they say yes, apply those changes before staging. If no, proceed.
+5. **Ask about additional changes.** Run `git diff --stat` and show the output to the user, then ask: "Any other changes to include in this commit?" Wait for their response. If they say yes, apply those changes before staging. If no, proceed.
 
 6. **Commit the version bump.** Stage `build.gradle` plus any additional files the user specified and commit:
    ```
