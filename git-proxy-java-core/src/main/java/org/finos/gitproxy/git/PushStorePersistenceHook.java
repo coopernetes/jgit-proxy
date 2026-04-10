@@ -251,22 +251,25 @@ public class PushStorePersistenceHook {
                         return;
                     }
 
-                    boolean allOk = commands.stream().allMatch(cmd -> cmd.getResult() == ReceiveCommand.Result.OK);
-                    boolean anyTransportFailed = commands.stream()
-                            .anyMatch(cmd -> cmd.getResult() != ReceiveCommand.Result.OK
-                                    && cmd.getResult() != ReceiveCommand.Result.NOT_ATTEMPTED);
+                    // Check if the forwarding step failed (upstream rejected the push).
+                    // Command results stay OK in post-receive even when the upstream push fails,
+                    // because JGit already accepted the objects locally. The forwarding outcome
+                    // is recorded in pushContext by ForwardingPostReceiveHook.
+                    boolean forwardFailed = pushContext != null
+                            && pushContext.getSteps().stream()
+                                    .anyMatch(step -> "forward".equals(step.getStepName())
+                                            && step.getStatus() == StepStatus.FAIL);
 
                     PushRecord record = copyBase(initial);
-                    if (allOk) {
-                        record.setStatus(PushStatus.FORWARDED);
-                    } else if (anyTransportFailed) {
+                    if (forwardFailed) {
                         record.setStatus(PushStatus.ERROR);
-                        commands.stream()
-                                .filter(cmd -> cmd.getResult() != ReceiveCommand.Result.OK
-                                        && cmd.getResult() != ReceiveCommand.Result.NOT_ATTEMPTED)
+                        pushContext.getSteps().stream()
+                                .filter(step ->
+                                        "forward".equals(step.getStepName()) && step.getStatus() == StepStatus.FAIL)
                                 .findFirst()
-                                .ifPresent(cmd -> record.setErrorMessage(
-                                        cmd.getRefName() + ": " + cmd.getResult() + " - " + cmd.getMessage()));
+                                .ifPresent(step -> record.setErrorMessage(step.getErrorMessage()));
+                    } else {
+                        record.setStatus(PushStatus.FORWARDED);
                     }
 
                     pushStore.save(record);

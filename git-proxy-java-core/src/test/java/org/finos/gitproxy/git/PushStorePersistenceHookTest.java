@@ -18,6 +18,8 @@ import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.db.memory.InMemoryPushStore;
 import org.finos.gitproxy.db.model.PushStatus;
+import org.finos.gitproxy.db.model.PushStep;
+import org.finos.gitproxy.db.model.StepStatus;
 import org.finos.gitproxy.provider.GitHubProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -238,6 +240,61 @@ class PushStorePersistenceHookTest {
                 .status(PushStatus.PENDING)
                 .build());
         assertFalse(records.isEmpty(), "should have a PENDING record");
+    }
+
+    // ---- post-receive hook: forwarding outcome ----
+
+    @Test
+    void postReceiveHook_forwardFailed_savesErrorStatus() {
+        var pushContext = new PushContext();
+        hook.setPushContext(pushContext);
+
+        ReceivePack rp = makeReceivePack();
+        ReceiveCommand cmd = newBranchCommand(commitId);
+
+        // Pre-receive creates the initial RECEIVED record
+        hook.preReceiveHook().onPreReceive(rp, List.of(cmd));
+
+        // Simulate a failed forward step (upstream rejected the push)
+        pushContext.addStep(PushStep.builder()
+                .stepName("forward")
+                .status(StepStatus.FAIL)
+                .errorMessage("REJECTED_OTHER_REASON (pre-receive hook declined)")
+                .build());
+
+        // Mark command as OK (JGit accepted locally) — post-receive only sees OK commands
+        cmd.setResult(ReceiveCommand.Result.OK);
+
+        hook.postReceiveHook().onPostReceive(rp, List.of(cmd));
+
+        var records = pushStore.find(org.finos.gitproxy.db.model.PushQuery.builder()
+                .status(PushStatus.ERROR)
+                .build());
+        assertFalse(records.isEmpty(), "a failed forward should produce an ERROR record");
+        assertNotNull(records.get(0).getErrorMessage(), "ERROR record should have an error message");
+    }
+
+    @Test
+    void postReceiveHook_forwardSucceeded_savesForwardedStatus() {
+        var pushContext = new PushContext();
+        hook.setPushContext(pushContext);
+
+        ReceivePack rp = makeReceivePack();
+        ReceiveCommand cmd = newBranchCommand(commitId);
+
+        hook.preReceiveHook().onPreReceive(rp, List.of(cmd));
+
+        pushContext.addStep(
+                PushStep.builder().stepName("forward").status(StepStatus.PASS).build());
+
+        cmd.setResult(ReceiveCommand.Result.OK);
+
+        hook.postReceiveHook().onPostReceive(rp, List.of(cmd));
+
+        var records = pushStore.find(org.finos.gitproxy.db.model.PushQuery.builder()
+                .status(PushStatus.FORWARDED)
+                .build());
+        assertFalse(records.isEmpty(), "a successful forward should produce a FORWARDED record");
     }
 
     // ---- email validation config ----
