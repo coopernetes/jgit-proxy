@@ -17,6 +17,7 @@ import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.config.GpgConfig;
 import org.finos.gitproxy.db.FetchStore;
 import org.finos.gitproxy.db.PushStore;
+import org.finos.gitproxy.db.RepoRegistry;
 import org.finos.gitproxy.git.*;
 import org.finos.gitproxy.jetty.config.JettyConfigurationBuilder;
 import org.finos.gitproxy.jetty.reload.ConfigHolder;
@@ -98,7 +99,8 @@ public final class GitProxyServletRegistrar {
                     gitProxyCtx.approvalGateway(),
                     gitProxyCtx.pushIdentityResolver(),
                     gitProxyCtx.repoPermissionService(),
-                    gitProxyCtx.fetchStore());
+                    gitProxyCtx.fetchStore(),
+                    gitProxyCtx.repoRegistry());
         }
     }
 
@@ -190,7 +192,8 @@ public final class GitProxyServletRegistrar {
             ApprovalGateway approvalGateway,
             PushIdentityResolver pushIdentityResolver,
             RepoPermissionService repoPermissionService,
-            FetchStore fetchStore) {
+            FetchStore fetchStore,
+            RepoRegistry repoRegistry) {
         String urlPattern = PROXY_PATH_PREFIX + provider.servletPath() + "/*";
 
         // PushStoreAuditFilter wraps the entire chain via try-finally; must be registered first.
@@ -206,18 +209,17 @@ public final class GitProxyServletRegistrar {
         filters.add(new AllowApprovedPushFilter(pushStore, serviceUrl));
 
         List<UrlRuleFilter> urlRuleFilters = configBuilder.buildUrlRuleFilters(provider);
-        if (!urlRuleFilters.isEmpty()) {
-            filters.add(new UrlRuleAggregateFilter(100, provider, urlRuleFilters, PROXY_PATH_PREFIX, fetchStore));
-            long allowCount = urlRuleFilters.stream()
-                    .filter(f -> f.getAccess() == org.finos.gitproxy.db.model.AccessRule.Access.ALLOW)
-                    .count();
-            long denyCount = urlRuleFilters.size() - allowCount;
-            log.info(
-                    "Registered {} allow rule(s) and {} deny rule(s) for provider {}",
-                    allowCount,
-                    denyCount,
-                    provider.getName());
-        }
+        filters.add(
+                new UrlRuleAggregateFilter(100, provider, urlRuleFilters, PROXY_PATH_PREFIX, fetchStore, repoRegistry));
+        long allowCount = urlRuleFilters.stream()
+                .filter(f -> f.getAccess() == org.finos.gitproxy.db.model.AccessRule.Access.ALLOW)
+                .count();
+        long denyCount = urlRuleFilters.size() - allowCount;
+        log.info(
+                "Registered {} YAML allow rule(s) and {} YAML deny rule(s) for provider {} (DB rules evaluated dynamically)",
+                allowCount,
+                denyCount,
+                provider.getName());
 
         if (provider instanceof BitbucketProvider bitbucketProvider) {
             filters.add(new BitbucketIdentityFilter(bitbucketProvider));

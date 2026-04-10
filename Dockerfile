@@ -49,8 +49,10 @@ COPY --from=builder \
 RUN mkdir -p /app/conf
 
 # Data directory for file-based databases (h2-file, sqlite)
-RUN mkdir -p /app/.data
+RUN mkdir -p /app/.data && chown 1000:1000 /app/.data
 
 EXPOSE 8080
+
+USER 1000
 
 ENTRYPOINT ["/app/bin/git-proxy-java-dashboard"]

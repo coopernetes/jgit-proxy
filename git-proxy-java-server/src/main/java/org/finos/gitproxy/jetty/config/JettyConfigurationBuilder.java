@@ -66,6 +66,7 @@ public class JettyConfigurationBuilder {
     private UserStore cachedUserStore;
     private JdbcScmTokenCache cachedTokenCache;
     private RepoPermissionService cachedRepoPermissionService;
+    private RepoRegistry cachedRepoRegistry;
     private ConfigHolder cachedConfigHolder;
 
     public JettyConfigurationBuilder(GitProxyConfig config) {
@@ -272,6 +273,7 @@ public class JettyConfigurationBuilder {
         PushStore ps = buildPushStore();
         FetchStore fs = buildFetchStore();
         UserStore us = buildUserStore();
+        RepoRegistry rr = buildRepoRegistry();
         var storeForwardCache = new LocalRepositoryCache(Files.createTempDirectory("git-proxy-java-sf-"), 0, true);
         log.info("Initialized store-and-forward LocalRepositoryCache (full clone)");
         var proxyCache = new LocalRepositoryCache();
@@ -280,6 +282,7 @@ public class JettyConfigurationBuilder {
                 ps,
                 fs,
                 us,
+                rr,
                 buildRepoPermissionService(),
                 buildPushIdentityResolver(us),
                 approvalGateway,
@@ -408,6 +411,7 @@ public class JettyConfigurationBuilder {
      * backends share the same {@link DataSource} as the push store.
      */
     public RepoRegistry buildRepoRegistry() {
+        if (cachedRepoRegistry != null) return cachedRepoRegistry;
         // CONFIG rules live only in memory — never written to DB, no stale duplicates on restart.
         InMemoryRepoRegistry configRegistry = new InMemoryRepoRegistry();
         seedRulesIntoRegistry(configRegistry, config.getRules().getAllow(), AccessRule.Access.ALLOW);
@@ -421,13 +425,13 @@ public class JettyConfigurationBuilder {
             dbRegistry = new JdbcRepoRegistry(requireJdbcDataSource());
         }
 
-        RepoRegistry registry = new CompositeRepoRegistry(configRegistry, dbRegistry);
-        registry.initialize();
+        cachedRepoRegistry = new CompositeRepoRegistry(configRegistry, dbRegistry);
+        cachedRepoRegistry.initialize();
         log.info(
                 "RepoRegistry initialized ({} config rules, {} db rules)",
                 configRegistry.findAll().size(),
                 dbRegistry.findAll().size());
-        return registry;
+        return cachedRepoRegistry;
     }
 
     /** Builds a {@link FetchStore}. JDBC backends share the same {@link DataSource} as the push store. */

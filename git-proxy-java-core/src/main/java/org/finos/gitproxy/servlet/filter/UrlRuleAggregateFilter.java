@@ -8,11 +8,16 @@ import static org.finos.gitproxy.servlet.filter.UrlRuleFilter.MATCHED_BY_ATTRIBU
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.nio.file.FileSystems;
+import java.nio.file.PathMatcher;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.db.FetchStore;
+import org.finos.gitproxy.db.RepoRegistry;
 import org.finos.gitproxy.db.model.AccessRule;
 import org.finos.gitproxy.db.model.FetchRecord;
 import org.finos.gitproxy.git.GitClientUtils;
@@ -30,6 +35,7 @@ public class UrlRuleAggregateFilter extends AbstractProviderAwareGitProxyFilter 
 
     private final List<UrlRuleFilter> urlRuleFilters;
     private final FetchStore fetchStore;
+    private final RepoRegistry repoRegistry;
 
     // URL rule aggregate filters must be in the authorization range 50-199
     private static final int MIN_ORDER = 50;
@@ -40,16 +46,16 @@ public class UrlRuleAggregateFilter extends AbstractProviderAwareGitProxyFilter 
             Set<HttpOperation> applicableOperations,
             GitProxyProvider provider,
             List<UrlRuleFilter> urlRuleFilters) {
-        this(order, applicableOperations, provider, urlRuleFilters, null, null);
+        this(order, applicableOperations, provider, urlRuleFilters, null, null, null);
     }
 
     public UrlRuleAggregateFilter(int order, GitProxyProvider provider, List<UrlRuleFilter> urlRuleFilters) {
-        this(order, DEFAULT_OPERATIONS, provider, urlRuleFilters, null, null);
+        this(order, DEFAULT_OPERATIONS, provider, urlRuleFilters, null, null, null);
     }
 
     public UrlRuleAggregateFilter(
             int order, GitProxyProvider provider, List<UrlRuleFilter> urlRuleFilters, String pathPrefix) {
-        this(order, DEFAULT_OPERATIONS, provider, urlRuleFilters, pathPrefix, null);
+        this(order, DEFAULT_OPERATIONS, provider, urlRuleFilters, pathPrefix, null, null);
     }
 
     public UrlRuleAggregateFilter(
@@ -58,7 +64,17 @@ public class UrlRuleAggregateFilter extends AbstractProviderAwareGitProxyFilter 
             List<UrlRuleFilter> urlRuleFilters,
             String pathPrefix,
             FetchStore fetchStore) {
-        this(order, DEFAULT_OPERATIONS, provider, urlRuleFilters, pathPrefix, fetchStore);
+        this(order, DEFAULT_OPERATIONS, provider, urlRuleFilters, pathPrefix, fetchStore, null);
+    }
+
+    public UrlRuleAggregateFilter(
+            int order,
+            GitProxyProvider provider,
+            List<UrlRuleFilter> urlRuleFilters,
+            String pathPrefix,
+            FetchStore fetchStore,
+            RepoRegistry repoRegistry) {
+        this(order, DEFAULT_OPERATIONS, provider, urlRuleFilters, pathPrefix, fetchStore, repoRegistry);
     }
 
     public UrlRuleAggregateFilter(
@@ -68,9 +84,21 @@ public class UrlRuleAggregateFilter extends AbstractProviderAwareGitProxyFilter 
             List<UrlRuleFilter> urlRuleFilters,
             String pathPrefix,
             FetchStore fetchStore) {
+        this(order, applicableOperations, provider, urlRuleFilters, pathPrefix, fetchStore, null);
+    }
+
+    public UrlRuleAggregateFilter(
+            int order,
+            Set<HttpOperation> applicableOperations,
+            GitProxyProvider provider,
+            List<UrlRuleFilter> urlRuleFilters,
+            String pathPrefix,
+            FetchStore fetchStore,
+            RepoRegistry repoRegistry) {
         super(validateOrder(order), applicableOperations, provider, pathPrefix != null ? pathPrefix : "");
         this.urlRuleFilters = urlRuleFilters;
         this.fetchStore = fetchStore;
+        this.repoRegistry = repoRegistry;
     }
 
     private static int validateOrder(int order) {
@@ -94,6 +122,10 @@ public class UrlRuleAggregateFilter extends AbstractProviderAwareGitProxyFilter 
 
     @Override
     public void doHttpFilter(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        var operation = determineOperation(request);
+        var details =
+                (GitRequestDetails) request.getAttribute(org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR);
+
         List<UrlRuleFilter> denyFilters = urlRuleFilters.stream()
                 .filter(f -> f.getAccess() == AccessRule.Access.DENY)
                 .toList();
@@ -105,10 +137,22 @@ public class UrlRuleAggregateFilter extends AbstractProviderAwareGitProxyFilter 
         for (UrlRuleFilter filter : denyFilters) {
             filter.applyRule(request);
         }
+        // Also evaluate DB deny rules
+        if (repoRegistry != null && details != null && request.getAttribute(DENIED_BY_ATTRIBUTE) == null) {
+            List<AccessRule> dbRules = repoRegistry.findEnabledForProvider(provider.getName());
+            for (AccessRule rule : dbRules) {
+                if (rule.getAccess() == AccessRule.Access.DENY
+                        && matchesDbRule(rule, details.getRepoRef(), operation)) {
+                    request.setAttribute(DENIED_BY_ATTRIBUTE, rule.getId());
+                    log.debug("Blocked by DB deny rule: id={}", rule.getId());
+                    break;
+                }
+            }
+        }
+
         String deniedBy = (String) request.getAttribute(DENIED_BY_ATTRIBUTE);
         if (deniedBy != null) {
             log.debug("Blocked by deny rule: {}", deniedBy);
-            var operation = determineOperation(request);
             if (operation == HttpOperation.FETCH && fetchStore != null) {
                 recordFetch(request, false);
             }
@@ -130,8 +174,20 @@ public class UrlRuleAggregateFilter extends AbstractProviderAwareGitProxyFilter 
         for (UrlRuleFilter filter : allowFilters) {
             filter.applyRule(request);
         }
+        // Also evaluate DB allow rules
+        if (repoRegistry != null && details != null && request.getAttribute(MATCHED_BY_ATTRIBUTE) == null) {
+            List<AccessRule> dbRules = repoRegistry.findEnabledForProvider(provider.getName());
+            for (AccessRule rule : dbRules) {
+                if (rule.getAccess() == AccessRule.Access.ALLOW
+                        && matchesDbRule(rule, details.getRepoRef(), operation)) {
+                    request.setAttribute(MATCHED_BY_ATTRIBUTE, rule.getId());
+                    log.debug("Allowed by DB allow rule: id={}", rule.getId());
+                    break;
+                }
+            }
+        }
+
         String matchedBy = (String) request.getAttribute(MATCHED_BY_ATTRIBUTE);
-        var operation = determineOperation(request);
         boolean allowed = matchedBy != null;
 
         if (allowed) {
@@ -156,6 +212,46 @@ public class UrlRuleAggregateFilter extends AbstractProviderAwareGitProxyFilter 
                     "Repository not in allow rules",
                     GitClientUtils.formatForOperation(title, message, GitClientUtils.AnsiColor.RED, operation));
         }
+    }
+
+    /**
+     * Returns true if the given {@link AccessRule} matches the repo reference and operation. Slug/owner/name
+     * comparisons strip any leading {@code /} so that stored values like {@code coopernetes/repo} and
+     * {@code /coopernetes/repo} both match the request regardless of how the rule was saved.
+     */
+    static boolean matchesDbRule(AccessRule rule, GitRequestDetails.RepoRef ref, HttpOperation operation) {
+        // Filter by operation
+        if (rule.getOperations() == AccessRule.Operations.PUSH && operation == HttpOperation.FETCH) return false;
+        if (rule.getOperations() == AccessRule.Operations.FETCH && operation == HttpOperation.PUSH) return false;
+
+        // Match by whichever field is set (slug takes priority, then owner, then name)
+        if (rule.getSlug() != null) {
+            return matchPattern(stripLeadingSlash(rule.getSlug()), stripLeadingSlash(ref.getSlug()));
+        }
+        if (rule.getOwner() != null) {
+            return matchPattern(stripLeadingSlash(rule.getOwner()), ref.getOwner());
+        }
+        if (rule.getName() != null) {
+            return matchPattern(stripLeadingSlash(rule.getName()), ref.getName());
+        }
+        return false;
+    }
+
+    private static String stripLeadingSlash(String s) {
+        return (s != null && s.startsWith("/")) ? s.substring(1) : s;
+    }
+
+    private static boolean matchPattern(String pattern, String value) {
+        if (pattern == null || value == null) return false;
+        if (pattern.equals(value)) return true;
+        if (pattern.startsWith("regex:")) {
+            return Pattern.compile(pattern.substring(6)).matcher(value).matches();
+        }
+        if (pattern.contains("*") || pattern.contains("?") || pattern.contains("[")) {
+            PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + pattern);
+            return matcher.matches(Paths.get(value));
+        }
+        return false;
     }
 
     private void recordFetch(HttpServletRequest request, boolean allowed) {

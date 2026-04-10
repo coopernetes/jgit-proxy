@@ -8,7 +8,7 @@
           "requestParam": "sub",
           "match": "admin",
           "claims": {
-            "groups": ["jgit_proxy_admins"]
+            "groups": ["git_proxy_admins"]
           }
         }
       ]
