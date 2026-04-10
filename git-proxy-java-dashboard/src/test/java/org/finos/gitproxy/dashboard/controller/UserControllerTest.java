@@ -11,9 +11,9 @@ import java.util.List;
 import java.util.Optional;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.user.LockedByConfigException;
-import org.finos.gitproxy.user.MutableUserStore;
 import org.finos.gitproxy.user.ScmIdentityConflictException;
 import org.finos.gitproxy.user.UserEntry;
+import org.finos.gitproxy.user.UserStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -29,7 +29,7 @@ class UserControllerTest {
     UserController controller;
 
     @Mock
-    MutableUserStore userStore;
+    UserStore userStore;
 
     @Mock
     PushStore pushStore;

@@ -44,6 +44,7 @@ import org.finos.gitproxy.servlet.filter.UrlRuleFilter;
 import org.finos.gitproxy.tls.SslUtil;
 import org.finos.gitproxy.user.CompositeUserStore;
 import org.finos.gitproxy.user.JdbcUserStore;
+import org.finos.gitproxy.user.ReadOnlyUserStore;
 import org.finos.gitproxy.user.ScmIdentity;
 import org.finos.gitproxy.user.StaticUserStore;
 import org.finos.gitproxy.user.UserEntry;
@@ -321,7 +322,7 @@ public class JettyConfigurationBuilder {
     public RepoPermissionStore buildRepoPermissionStore() {
         String type = config.getDatabase().getType();
         if ("mongo".equals(type)) {
-            return new org.finos.gitproxy.permission.InMemoryRepoPermissionStore();
+            return requireMongoStoreFactory().repoPermissionStore();
         }
         return new JdbcRepoPermissionStore(requireJdbcDataSource());
     }
@@ -415,7 +416,7 @@ public class JettyConfigurationBuilder {
         String type = config.getDatabase().getType();
         RepoRegistry dbRegistry;
         if ("mongo".equals(type)) {
-            dbRegistry = new InMemoryRepoRegistry();
+            dbRegistry = requireMongoStoreFactory().repoRegistry();
         } else {
             dbRegistry = new JdbcRepoRegistry(requireJdbcDataSource());
         }
@@ -529,8 +530,10 @@ public class JettyConfigurationBuilder {
 
         String type = config.getDatabase().getType();
         if ("mongo".equals(type)) {
-            log.info("Using in-memory user store ({} users)", staticUsers.size());
-            cachedUserStore = new StaticUserStore(staticUsers);
+            var mongoStore = requireMongoStoreFactory().userStore();
+            var configStore = new StaticUserStore(staticUsers);
+            log.info("Using composite user store ({} config users + MongoDB)", staticUsers.size());
+            cachedUserStore = new CompositeUserStore(configStore, mongoStore);
         } else {
             cachedTokenCache = buildTokenCache();
             var jdbcStore = new JdbcUserStore(requireJdbcDataSource(), cachedTokenCache);
@@ -554,7 +557,7 @@ public class JettyConfigurationBuilder {
      * repeated SCM API calls for the same token. The cache max age defaults to 7 days and can be overridden via the
      * {@code GITPROXY_SCM_CACHE_MAX_AGE_DAYS} environment variable.
      */
-    public PushIdentityResolver buildPushIdentityResolver(UserStore userStore) {
+    public PushIdentityResolver buildPushIdentityResolver(ReadOnlyUserStore userStore) {
         if (config.getUsers().isEmpty()) return null;
 
         PushIdentityResolver tokenResolver = new TokenPushIdentityResolver(userStore);

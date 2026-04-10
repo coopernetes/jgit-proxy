@@ -17,7 +17,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
  * <p>Users are loaded from the YAML config into this store on startup via {@link #upsertAll(List)}. Passwords set in
  * the DB after initial seeding are preserved (upsert is INSERT … ON CONFLICT DO NOTHING for the password column).
  */
-public class JdbcUserStore implements MutableUserStore {
+public class JdbcUserStore implements UserStore {
 
     private static final Logger log = LoggerFactory.getLogger(JdbcUserStore.class);
 

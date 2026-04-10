@@ -2,7 +2,7 @@ package org.finos.gitproxy.dashboard.controller;
 
 import java.util.List;
 import java.util.Map;
-import org.finos.gitproxy.user.MutableUserStore;
+import org.finos.gitproxy.user.ReadOnlyUserStore;
 import org.finos.gitproxy.user.UserEntry;
 import org.finos.gitproxy.user.UserStore;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     @Autowired
-    private UserStore userStore;
+    private ReadOnlyUserStore userStore;
 
     /**
      * Returns the currently authenticated user's full profile: username, emails (with verified flag), and SCM
@@ -33,7 +33,7 @@ public class AuthController {
         List<Map<String, Object>> emails;
         List<Map<String, Object>> scmIdentities;
 
-        if (userStore instanceof MutableUserStore jdbc && user != null) {
+        if (userStore instanceof UserStore jdbc && user != null) {
             emails = jdbc.findEmailsWithVerified(username);
             scmIdentities = jdbc.findScmIdentitiesWithVerified(username);
         } else if (user != null) {

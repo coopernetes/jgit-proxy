@@ -7,7 +7,7 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.finos.gitproxy.user.MutableUserStore;
+import org.finos.gitproxy.user.ReadOnlyUserStore;
 import org.finos.gitproxy.user.ScmIdentity;
 import org.finos.gitproxy.user.UserEntry;
 import org.finos.gitproxy.user.UserStore;
@@ -36,7 +36,7 @@ class AuthControllerTest {
                         username, null, List.of(new SimpleGrantedAuthority("ROLE_USER"))));
     }
 
-    // ── MutableUserStore (CompositeUserStore / JdbcUserStore) ────────────────────
+    // ── UserStore (CompositeUserStore / JdbcUserStore / MongoUserStore) ─────────
 
     @Nested
     class WithMutableStore {
@@ -45,7 +45,7 @@ class AuthControllerTest {
         AuthController controller;
 
         @Mock
-        MutableUserStore userStore; // injected into the UserStore field
+        UserStore userStore; // injected into the ReadOnlyUserStore field
 
         @Test
         void mutableStore_returnsVerifiedEmailsAndIdentities() {
@@ -113,9 +113,9 @@ class AuthControllerTest {
         @InjectMocks
         AuthController controller;
 
-        // Plain UserStore (not MutableUserStore) — simulates StaticUserStore
+        // ReadOnlyUserStore — simulates StaticUserStore
         @Mock
-        UserStore userStore;
+        ReadOnlyUserStore userStore;
 
         @Test
         void staticStore_emailsUnverifiedAndLocal() {

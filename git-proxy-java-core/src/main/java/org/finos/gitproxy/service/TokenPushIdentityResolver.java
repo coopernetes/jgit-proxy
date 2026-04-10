@@ -5,8 +5,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.provider.TokenIdentityProvider;
+import org.finos.gitproxy.user.ReadOnlyUserStore;
 import org.finos.gitproxy.user.UserEntry;
-import org.finos.gitproxy.user.UserStore;
 
 /**
  * Resolves push identity by calling the provider's user API with the token, then matching the returned SCM username
@@ -30,7 +30,7 @@ import org.finos.gitproxy.user.UserStore;
 @Slf4j
 public class TokenPushIdentityResolver implements PushIdentityResolver {
 
-    private final UserStore userStore;
+    private final ReadOnlyUserStore userStore;
 
     @Override
     public Optional<UserEntry> resolve(GitProxyProvider provider, String pushUsername, String token) {

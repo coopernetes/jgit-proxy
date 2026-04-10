@@ -28,7 +28,7 @@ import org.finos.gitproxy.jetty.config.AuthConfig;
 import org.finos.gitproxy.jetty.config.GitProxyConfig;
 import org.finos.gitproxy.jetty.config.LdapAuthConfig;
 import org.finos.gitproxy.jetty.config.OidcAuthConfig;
-import org.finos.gitproxy.user.MutableUserStore;
+import org.finos.gitproxy.user.ReadOnlyUserStore;
 import org.finos.gitproxy.user.UserStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -95,7 +95,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
     @Autowired
-    private UserStore userStore;
+    private ReadOnlyUserStore userStore;
 
     @Autowired
     private GitProxyConfig gitProxyConfig;
@@ -412,7 +412,7 @@ public class SecurityConfig {
     }
 
     private void provisionIdpUser(Authentication auth) {
-        if (!(userStore instanceof MutableUserStore jdbc)) return;
+        if (!(userStore instanceof UserStore jdbc)) return;
 
         String username = auth.getName();
         String email = null;

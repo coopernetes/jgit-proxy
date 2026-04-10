@@ -8,8 +8,8 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.provider.GitProxyProvider;
+import org.finos.gitproxy.user.ReadOnlyUserStore;
 import org.finos.gitproxy.user.UserEntry;
-import org.finos.gitproxy.user.UserStore;
 
 /**
  * A {@link PushIdentityResolver} that caches successful token-based identity resolutions to avoid repeated SCM API
@@ -28,7 +28,7 @@ public class CachingTokenPushIdentityResolver implements PushIdentityResolver {
 
     private final PushIdentityResolver delegate;
     private final JdbcScmTokenCache cache;
-    private final UserStore userStore;
+    private final ReadOnlyUserStore userStore;
 
     @Override
     public Optional<UserEntry> resolve(GitProxyProvider provider, String pushUsername, String token) {

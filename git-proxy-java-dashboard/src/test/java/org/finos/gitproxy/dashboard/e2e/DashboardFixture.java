@@ -15,9 +15,9 @@ import org.finos.gitproxy.dashboard.SecurityConfig;
 import org.finos.gitproxy.dashboard.SpringWebConfig;
 import org.finos.gitproxy.db.PushStoreFactory;
 import org.finos.gitproxy.jetty.config.GitProxyConfig;
+import org.finos.gitproxy.user.ReadOnlyUserStore;
 import org.finos.gitproxy.user.StaticUserStore;
 import org.finos.gitproxy.user.UserEntry;
-import org.finos.gitproxy.user.UserStore;
 import org.springframework.security.web.context.AbstractSecurityWebApplicationInitializer;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.filter.DelegatingFilterProxy;
@@ -48,7 +48,7 @@ class DashboardFixture implements AutoCloseable {
 
     /**
      * Creates and starts a dashboard server with the given config. An empty {@link StaticUserStore} is used; seed users
-     * via {@link #DashboardFixture(GitProxyConfig, UserStore)} if the test needs them.
+     * via {@link #DashboardFixture(GitProxyConfig, ReadOnlyUserStore)} if the test needs them.
      */
     DashboardFixture(GitProxyConfig config) throws Exception {
         this(config, new StaticUserStore(List.of()));
@@ -58,7 +58,7 @@ class DashboardFixture implements AutoCloseable {
      * Creates and starts a dashboard server with the given config and a pre-populated user store. Use this when testing
      * the static auth provider or when the API response needs user profile data.
      */
-    DashboardFixture(GitProxyConfig config, UserStore userStore) throws Exception {
+    DashboardFixture(GitProxyConfig config, ReadOnlyUserStore userStore) throws Exception {
         var appContext = new AnnotationConfigWebApplicationContext();
         appContext.register(SpringWebConfig.class, SecurityConfig.class);
         appContext.addBeanFactoryPostProcessor(bf -> {

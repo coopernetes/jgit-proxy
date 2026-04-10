@@ -7,8 +7,8 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/** In-memory {@link UserStore} backed by a static list — suitable for YAML-configured users. */
-public class StaticUserStore implements UserStore {
+/** In-memory {@link ReadOnlyUserStore} backed by a static list — suitable for YAML-configured users. */
+public class StaticUserStore implements ReadOnlyUserStore {
 
     private final Map<String, UserEntry> byUsername;
     private final Map<String, String> emailIndex;

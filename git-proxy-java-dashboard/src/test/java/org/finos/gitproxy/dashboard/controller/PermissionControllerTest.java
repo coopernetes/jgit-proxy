@@ -10,8 +10,8 @@ import java.util.List;
 import java.util.Optional;
 import org.finos.gitproxy.permission.RepoPermission;
 import org.finos.gitproxy.permission.RepoPermissionService;
+import org.finos.gitproxy.user.ReadOnlyUserStore;
 import org.finos.gitproxy.user.UserEntry;
-import org.finos.gitproxy.user.UserStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -30,7 +30,7 @@ class PermissionControllerTest {
     RepoPermissionService permissionService;
 
     @Mock
-    UserStore userStore;
+    ReadOnlyUserStore userStore;
 
     private static final UserEntry ALICE = UserEntry.builder()
             .username("alice")

@@ -12,8 +12,8 @@ import java.util.Map;
 import java.util.Optional;
 import org.finos.gitproxy.user.LockedByConfigException;
 import org.finos.gitproxy.user.LockedEmailException;
-import org.finos.gitproxy.user.MutableUserStore;
 import org.finos.gitproxy.user.ScmIdentityConflictException;
+import org.finos.gitproxy.user.UserStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,10 +32,8 @@ class ProfileControllerTest {
     @InjectMocks
     ProfileController controller;
 
-    // MutableUserStore extends UserStore — injected into the UserStore field;
-    // the instanceof pattern in the controller will match.
     @Mock
-    MutableUserStore userStore;
+    UserStore userStore;
 
     @BeforeEach
     void setupSecurityContext() {

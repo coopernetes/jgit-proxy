@@ -3,7 +3,7 @@ package org.finos.gitproxy.dashboard.controller;
 import java.util.Map;
 import org.finos.gitproxy.user.LockedByConfigException;
 import org.finos.gitproxy.user.LockedEmailException;
-import org.finos.gitproxy.user.MutableUserStore;
+import org.finos.gitproxy.user.ReadOnlyUserStore;
 import org.finos.gitproxy.user.ScmIdentityConflictException;
 import org.finos.gitproxy.user.UserStore;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,13 +38,13 @@ public class ProfileController {
             .body(Map.of("error", "This profile is defined in configuration and cannot be modified at runtime"));
 
     @Autowired
-    private UserStore userStore;
+    private ReadOnlyUserStore userStore;
 
     // ---- email claims ----
 
     @PostMapping("/emails")
     public ResponseEntity<?> addEmail(@RequestBody Map<String, String> body) {
-        if (!(userStore instanceof MutableUserStore mutable)) return NOT_MUTABLE;
+        if (!(userStore instanceof UserStore mutable)) return NOT_MUTABLE;
         String email = body.get("email");
         if (email == null || email.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "email is required"));
@@ -73,7 +73,7 @@ public class ProfileController {
 
     @DeleteMapping("/emails/{email}")
     public ResponseEntity<?> removeEmail(@PathVariable String email) {
-        if (!(userStore instanceof MutableUserStore mutable)) return NOT_MUTABLE;
+        if (!(userStore instanceof UserStore mutable)) return NOT_MUTABLE;
         try {
             mutable.removeEmail(currentUsername(), email.toLowerCase());
         } catch (LockedByConfigException e) {
@@ -89,7 +89,7 @@ public class ProfileController {
 
     @PostMapping("/identities")
     public ResponseEntity<?> addScmIdentity(@RequestBody Map<String, String> body) {
-        if (!(userStore instanceof MutableUserStore mutable)) return NOT_MUTABLE;
+        if (!(userStore instanceof UserStore mutable)) return NOT_MUTABLE;
         String provider = body.get("provider");
         String scmUsername = body.get("username");
         if (provider == null || provider.isBlank() || scmUsername == null || scmUsername.isBlank()) {
@@ -112,7 +112,7 @@ public class ProfileController {
 
     @DeleteMapping("/identities/{provider}/{scmUsername}")
     public ResponseEntity<?> removeScmIdentity(@PathVariable String provider, @PathVariable String scmUsername) {
-        if (!(userStore instanceof MutableUserStore mutable)) return NOT_MUTABLE;
+        if (!(userStore instanceof UserStore mutable)) return NOT_MUTABLE;
         try {
             mutable.removeScmIdentity(currentUsername(), provider, scmUsername);
         } catch (LockedByConfigException e) {

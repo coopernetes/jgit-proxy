@@ -9,9 +9,9 @@ import java.util.Optional;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.provider.ScmUserInfo;
 import org.finos.gitproxy.provider.TokenIdentityProvider;
+import org.finos.gitproxy.user.ReadOnlyUserStore;
 import org.finos.gitproxy.user.ScmIdentity;
 import org.finos.gitproxy.user.UserEntry;
-import org.finos.gitproxy.user.UserStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -26,13 +26,13 @@ class TokenPushIdentityResolverTest {
     /** Combined interface so Mockito can mock a provider that supports token identity lookup. */
     interface TokenProvider extends GitProxyProvider, TokenIdentityProvider {}
 
-    UserStore store;
+    ReadOnlyUserStore store;
     TokenPushIdentityResolver resolver;
     TokenProvider provider;
 
     @BeforeEach
     void setUp() {
-        store = mock(UserStore.class);
+        store = mock(ReadOnlyUserStore.class);
         provider = mock(TokenProvider.class);
         when(provider.getName()).thenReturn("github");
         when(provider.getUri()).thenReturn(URI.create("https://github.com"));

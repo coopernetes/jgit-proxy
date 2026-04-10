@@ -3,7 +3,7 @@ package org.finos.gitproxy.dashboard.controller;
 import java.util.Map;
 import org.finos.gitproxy.permission.RepoPermission;
 import org.finos.gitproxy.permission.RepoPermissionService;
-import org.finos.gitproxy.user.UserStore;
+import org.finos.gitproxy.user.ReadOnlyUserStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,7 +17,7 @@ public class PermissionController {
     private RepoPermissionService permissionService;
 
     @Autowired
-    private UserStore userStore;
+    private ReadOnlyUserStore userStore;
 
     /** List all permissions for a user. Requires authentication. */
     @GetMapping
