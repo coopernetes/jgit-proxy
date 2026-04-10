@@ -59,8 +59,14 @@ COPY --from=builder \
 # Example: -v ./docker/git-proxy-local.yml:/app/conf/git-proxy-local.yml:ro
 RUN mkdir -p /app/conf
 
-# Data directory for file-based databases (h2-file, sqlite)
-RUN mkdir -p /app/.data /app/logs && chown 1000:1000 /app/.data /app/logs
+# Data directory for file-based databases (h2-file, sqlite), log output, and
+# JGit home (used for lock files and system config). Owned by GID 0 with
+# group-write so the image works under OpenShift's arbitrary-UID security model.
+RUN mkdir -p /app/.data /app/logs /app/home \
+    && chown -R 1000:0 /app/.data /app/logs /app/home \
+    && chmod -R g+rwX /app/.data /app/logs /app/home
+
+ENV HOME=/app/home
 
 EXPOSE 8080
 
