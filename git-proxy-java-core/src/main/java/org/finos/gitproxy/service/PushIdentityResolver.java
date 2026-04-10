@@ -14,14 +14,11 @@ import org.finos.gitproxy.user.UserEntry;
  * <p>Built-in implementations:
  *
  * <ul>
- *   <li>{@link ConfigPushIdentityResolver} — resolves via {@code push-usernames} in the static user config. Suitable
- *       for environments without token-based identity lookup.
- *   <li>{@link TokenPushIdentityResolver} — resolves by calling the provider API ({@code /user}) with the token, then
- *       matching the returned SCM username against {@code user_scm_identities}. Not yet implemented.
+ *   <li>{@link TokenPushIdentityResolver} — resolves by calling the provider's user API with the token, then matching
+ *       the returned SCM login against {@code user_scm_identities}.
+ *   <li>{@link ChainedPushIdentityResolver} — tries a list of resolvers in order; intended for multi-SCM environments
+ *       where different identity sources must be consulted (see coopernetes/git-proxy-java#125).
  * </ul>
- *
- * <p>Future: OAuth will add a third path where the SCM identity is obtained from the OAuth token at link-time, making
- * per-push API calls unnecessary.
  */
 public interface PushIdentityResolver {
 

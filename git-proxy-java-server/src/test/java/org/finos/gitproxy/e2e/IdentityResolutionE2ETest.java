@@ -8,14 +8,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import org.finos.gitproxy.approval.UiApprovalGateway;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.db.model.Attestation;
 import org.finos.gitproxy.permission.InMemoryRepoPermissionStore;
 import org.finos.gitproxy.permission.RepoPermission;
 import org.finos.gitproxy.permission.RepoPermissionService;
-import org.finos.gitproxy.service.ConfigPushIdentityResolver;
+import org.finos.gitproxy.service.PushIdentityResolver;
 import org.finos.gitproxy.servlet.filter.IdentityVerificationFilter;
+import org.finos.gitproxy.user.ReadOnlyUserStore;
 import org.finos.gitproxy.user.StaticUserStore;
 import org.finos.gitproxy.user.UserEntry;
 import org.junit.jupiter.api.*;
@@ -35,8 +37,8 @@ import org.junit.jupiter.api.*;
  * <p>A third scenario validates {@link IdentityVerificationFilter} in STRICT mode: commit email must match a registered
  * email for the push user, otherwise the push is rejected.
  *
- * <p>Uses {@link ConfigPushIdentityResolver} which maps the HTTP Basic-auth username directly to a proxy user — no
- * external SCM API calls required. Credentials in the clone URL must be valid Gitea credentials: the linked user is
+ * <p>Uses a simple username-lookup resolver (no external SCM API calls) to map HTTP Basic-auth usernames to proxy
+ * users. Credentials in the clone URL must be valid Gitea credentials: the linked user is
  * {@link GiteaContainer#TEST_USER} (a real Gitea user with collaborator access). The unlinked user uses admin
  * credentials — valid for Gitea but not registered in the proxy user store.
  */
@@ -73,7 +75,7 @@ class IdentityResolutionE2ETest {
                 .emails(List.of(GiteaContainer.TEST_USER_EMAIL))
                 .scmIdentities(List.of())
                 .build()));
-        var identityResolver = new ConfigPushIdentityResolver(userStore);
+        var identityResolver = usernameResolver(userStore);
 
         proxy = new JettyProxyFixture(
                 gitea.getBaseUri(),
@@ -90,6 +92,12 @@ class IdentityResolutionE2ETest {
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────────
+
+    /** Test-only resolver: maps HTTP Basic-auth username directly to a proxy user (no SCM API call). */
+    private static PushIdentityResolver usernameResolver(ReadOnlyUserStore store) {
+        return (provider, pushUsername, token) ->
+                pushUsername != null && !pushUsername.isBlank() ? store.findByUsername(pushUsername) : Optional.empty();
+    }
 
     private String linkedUrl() {
         String creds = URLEncoder.encode(GiteaContainer.TEST_USER, StandardCharsets.UTF_8)
@@ -183,7 +191,7 @@ class IdentityResolutionE2ETest {
                 .emails(List.of(GiteaContainer.TEST_USER_EMAIL))
                 .scmIdentities(List.of())
                 .build()));
-        var strictResolver = new ConfigPushIdentityResolver(strictUserStore);
+        var strictResolver = usernameResolver(strictUserStore);
 
         try (var strictProxy = new JettyProxyFixture(
                 gitea.getBaseUri(),

@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.security.MessageDigest;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -35,7 +36,8 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         if (expectedKey != null) {
             String provided = request.getHeader(HEADER);
-            if (expectedKey.equals(provided)
+            if (provided != null
+                    && MessageDigest.isEqual(expectedKey.getBytes(), provided.getBytes())
                     && SecurityContextHolder.getContext().getAuthentication() == null) {
                 var auth = new UsernamePasswordAuthenticationToken(
                         "api-key",

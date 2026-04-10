@@ -69,10 +69,10 @@ class CheckUserPushPermissionHookTest {
                 .build();
     }
 
-    // ---- no pushUser in repo config → skip ----
+    // ---- no pushUser in repo config → fail-closed ----
 
     @Test
-    void noPushUser_skipsCheck_recordsPass() throws Exception {
+    void noPushUser_failsClosed() throws Exception {
         RevCommit c1 = createCommit("init");
         RevCommit c2 = createCommit("second");
         ReceivePack rp = new ReceivePack(repo);
@@ -82,9 +82,11 @@ class CheckUserPushPermissionHookTest {
 
         hook(validationContext, pushContext).onPreReceive(rp, List.of(cmd));
 
-        assertFalse(pushContext.getSteps().isEmpty());
-        assertEquals(StepStatus.PASS, pushContext.getSteps().get(0).getStatus());
-        assertFalse(validationContext.hasIssues());
+        assertTrue(validationContext.hasIssues(), "Missing pushUser must produce a validation issue");
+        assertEquals(
+                "CheckUserPushPermissionHook",
+                validationContext.getIssues().get(0).hookName());
+        assertTrue(pushContext.getSteps().isEmpty(), "No PASS step should be recorded when check fails");
         verifyNoInteractions(resolver, permService);
     }
 

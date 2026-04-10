@@ -181,6 +181,22 @@ class RepoPermissionServiceTest {
         assertFalse(svc.isAllowedToPush("alice", "github", "/owner/repo"));
     }
 
+    @Test
+    void regexGrant_patternCompiledOnce_multipleEvaluations() {
+        // Verifies that repeated evaluation of the same regex pattern does not throw and returns
+        // consistent results — a proxy for the cache being exercised rather than recompiling.
+        svc.save(grant(
+                "alice",
+                "github",
+                "/org/repo-.*",
+                RepoPermission.PathType.REGEX,
+                RepoPermission.Operations.PUSH_AND_REVIEW));
+        for (int i = 0; i < 10; i++) {
+            assertTrue(svc.isAllowedToPush("alice", "github", "/org/repo-" + i));
+            assertFalse(svc.isAllowedToPush("alice", "github", "/org/other"));
+        }
+    }
+
     // ---- seedFromConfig ----
 
     @Test

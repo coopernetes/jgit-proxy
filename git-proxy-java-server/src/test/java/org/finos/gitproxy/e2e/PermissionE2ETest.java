@@ -8,11 +8,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import org.finos.gitproxy.approval.UiApprovalGateway;
 import org.finos.gitproxy.permission.InMemoryRepoPermissionStore;
 import org.finos.gitproxy.permission.RepoPermission;
 import org.finos.gitproxy.permission.RepoPermissionService;
-import org.finos.gitproxy.service.ConfigPushIdentityResolver;
+import org.finos.gitproxy.service.PushIdentityResolver;
+import org.finos.gitproxy.user.ReadOnlyUserStore;
 import org.finos.gitproxy.user.StaticUserStore;
 import org.finos.gitproxy.user.UserEntry;
 import org.junit.jupiter.api.*;
@@ -20,9 +22,9 @@ import org.junit.jupiter.api.*;
 /**
  * End-to-end tests for the repository permission system in transparent proxy mode.
  *
- * <p>Uses {@link ConfigPushIdentityResolver} (maps HTTP Basic-auth username directly to a proxy user) paired with
- * {@link InMemoryRepoPermissionStore} to exercise
- * {@link org.finos.gitproxy.servlet.filter.CheckUserPushPermissionFilter} without any external SCM API calls.
+ * <p>Uses a simple username-lookup resolver (no external SCM API calls) paired with {@link InMemoryRepoPermissionStore}
+ * to exercise {@link org.finos.gitproxy.servlet.filter.CheckUserPushPermissionFilter} without any external SCM API
+ * calls.
  *
  * <p>Credentials in the clone/push URL are forwarded to upstream Gitea, so they must be valid Gitea credentials. The
  * "authorized" user is {@link GiteaContainer#TEST_USER} (created in Gitea and added as a collaborator). The "unlinked"
@@ -66,7 +68,7 @@ class PermissionE2ETest {
                 .emails(List.of(GiteaContainer.VALID_AUTHOR_EMAIL))
                 .scmIdentities(List.of())
                 .build()));
-        var identityResolver = new ConfigPushIdentityResolver(userStore);
+        var identityResolver = usernameResolver(userStore);
 
         proxy = new JettyProxyFixture(gitea.getBaseUri(), UiApprovalGateway::new, identityResolver, permissionService);
         tempDir = Files.createTempDirectory("git-proxy-java-perm-e2e-");
@@ -79,6 +81,12 @@ class PermissionE2ETest {
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────
+
+    /** Test-only resolver: maps HTTP Basic-auth username directly to a proxy user (no SCM API call). */
+    private static PushIdentityResolver usernameResolver(ReadOnlyUserStore store) {
+        return (provider, pushUsername, token) ->
+                pushUsername != null && !pushUsername.isBlank() ? store.findByUsername(pushUsername) : Optional.empty();
+    }
 
     /** URL with {@link GiteaContainer#TEST_USER} credentials — the registered proxy user. */
     private String authorisedUrl() {

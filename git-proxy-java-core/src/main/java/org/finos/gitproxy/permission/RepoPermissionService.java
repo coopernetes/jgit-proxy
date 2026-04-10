@@ -5,6 +5,7 @@ import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 public class RepoPermissionService {
 
     private final RepoPermissionStore store;
+    private final ConcurrentHashMap<String, Pattern> patternCache = new ConcurrentHashMap<>();
 
     public RepoPermissionService(RepoPermissionStore store) {
         this.store = store;
@@ -170,7 +172,10 @@ public class RepoPermissionService {
 
     private boolean matchesRegex(String pattern, String value) {
         try {
-            return Pattern.compile(pattern).matcher(value).matches();
+            return patternCache
+                    .computeIfAbsent(pattern, Pattern::compile)
+                    .matcher(value)
+                    .matches();
         } catch (PatternSyntaxException e) {
             log.warn("Invalid regex pattern '{}': {}", pattern, e.getMessage());
             return false;

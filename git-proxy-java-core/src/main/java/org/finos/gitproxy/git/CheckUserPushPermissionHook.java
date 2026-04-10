@@ -80,12 +80,9 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
         }
 
         if (pushUser == null || pushUser.isEmpty()) {
-            log.debug("No push user found in repo config, skipping permission check");
-            pushContext.addStep(PushStep.builder()
-                    .stepName("checkUserPermission")
-                    .stepOrder(ORDER)
-                    .status(StepStatus.PASS)
-                    .build());
+            log.warn("No authenticated push user in repo config — push denied (fail-closed)");
+            validationContext.addIssue(
+                    "CheckUserPushPermissionHook", "No authenticated user", "Push rejected: no authenticated user.");
             return;
         }
 

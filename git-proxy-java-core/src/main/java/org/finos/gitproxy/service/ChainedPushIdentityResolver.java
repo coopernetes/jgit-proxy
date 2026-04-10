@@ -11,10 +11,9 @@ import org.finos.gitproxy.user.UserEntry;
  * Resolves push identity by trying a list of {@link PushIdentityResolver}s in order, returning the first non-empty
  * result.
  *
- * <p>The standard chain is: {@link TokenPushIdentityResolver} (provider API lookup) →
- * {@link ConfigPushIdentityResolver} (static push-username aliases). Token resolution is authoritative when the
- * provider supports it; config aliases are the fallback for providers without token identity support or when the API
- * call fails.
+ * <p>Intended for multi-SCM environments where identity must be verified against different upstream sources depending
+ * on the user — for example, subsidiary developers whose tokens belong to a separate SCM instance (see
+ * coopernetes/git-proxy-java#125). Token resolution via the upstream provider is always the implicit default.
  */
 @Slf4j
 @RequiredArgsConstructor

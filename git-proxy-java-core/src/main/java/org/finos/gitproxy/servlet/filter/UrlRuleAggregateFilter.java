@@ -13,6 +13,7 @@ import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +41,7 @@ public class UrlRuleAggregateFilter extends AbstractProviderAwareGitProxyFilter 
     // URL rule aggregate filters must be in the authorization range 50-199
     private static final int MIN_ORDER = 50;
     private static final int MAX_ORDER = 199;
+    private static final ConcurrentHashMap<String, Pattern> PATTERN_CACHE = new ConcurrentHashMap<>();
 
     public UrlRuleAggregateFilter(
             int order,
@@ -245,7 +247,10 @@ public class UrlRuleAggregateFilter extends AbstractProviderAwareGitProxyFilter 
         if (pattern == null || value == null) return false;
         if (pattern.equals(value)) return true;
         if (pattern.startsWith("regex:")) {
-            return Pattern.compile(pattern.substring(6)).matcher(value).matches();
+            return PATTERN_CACHE
+                    .computeIfAbsent(pattern.substring(6), Pattern::compile)
+                    .matcher(value)
+                    .matches();
         }
         if (pattern.contains("*") || pattern.contains("?") || pattern.contains("[")) {
             PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + pattern);
