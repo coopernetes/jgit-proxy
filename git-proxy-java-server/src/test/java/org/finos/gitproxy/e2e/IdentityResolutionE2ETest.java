@@ -59,16 +59,6 @@ class IdentityResolutionE2ETest {
         gitea.createTestUser();
         gitea.addTestUserAsCollaborator();
 
-        var permissionStore = new InMemoryRepoPermissionStore();
-        // Seed permission grant for the linked user
-        permissionStore.save(RepoPermission.builder()
-                .username(GiteaContainer.TEST_USER)
-                .provider("gitea-e2e")
-                .path("/" + GiteaContainer.TEST_ORG + "/" + GiteaContainer.TEST_REPO)
-                .pathType(RepoPermission.PathType.LITERAL)
-                .operations(RepoPermission.Operations.PUSH)
-                .build());
-
         // Only TEST_USER is in the proxy store — admin is intentionally absent (unlinked)
         var userStore = new StaticUserStore(List.of(UserEntry.builder()
                 .username(GiteaContainer.TEST_USER)
@@ -77,11 +67,22 @@ class IdentityResolutionE2ETest {
                 .build()));
         var identityResolver = usernameResolver(userStore);
 
+        var permissionStore = new InMemoryRepoPermissionStore();
         proxy = new JettyProxyFixture(
                 gitea.getBaseUri(),
                 UiApprovalGateway::new,
                 identityResolver,
                 new RepoPermissionService(permissionStore));
+
+        // Seed permission grant after creating the fixture so we can use the real providerId
+        permissionStore.save(RepoPermission.builder()
+                .username(GiteaContainer.TEST_USER)
+                .provider(proxy.getProviderId())
+                .path("/" + GiteaContainer.TEST_ORG + "/" + GiteaContainer.TEST_REPO)
+                .pathType(RepoPermission.PathType.LITERAL)
+                .operations(RepoPermission.Operations.PUSH)
+                .build());
+
         tempDir = Files.createTempDirectory("git-proxy-java-ident-e2e-");
     }
 
@@ -179,13 +180,6 @@ class IdentityResolutionE2ETest {
     @Order(3)
     void linkedUser_wrongCommitEmail_strictMode_rejected() throws Exception {
         var strictPermissionStore = new InMemoryRepoPermissionStore();
-        strictPermissionStore.save(RepoPermission.builder()
-                .username(GiteaContainer.TEST_USER)
-                .provider("gitea-e2e")
-                .path("/" + GiteaContainer.TEST_ORG + "/" + GiteaContainer.TEST_REPO)
-                .pathType(RepoPermission.PathType.LITERAL)
-                .operations(RepoPermission.Operations.PUSH)
-                .build());
         var strictUserStore = new StaticUserStore(List.of(UserEntry.builder()
                 .username(GiteaContainer.TEST_USER)
                 .emails(List.of(GiteaContainer.TEST_USER_EMAIL))
@@ -199,6 +193,14 @@ class IdentityResolutionE2ETest {
                 strictResolver,
                 new RepoPermissionService(strictPermissionStore),
                 CommitConfig.IdentityVerificationMode.STRICT)) {
+
+            strictPermissionStore.save(RepoPermission.builder()
+                    .username(GiteaContainer.TEST_USER)
+                    .provider(strictProxy.getProviderId())
+                    .path("/" + GiteaContainer.TEST_ORG + "/" + GiteaContainer.TEST_REPO)
+                    .pathType(RepoPermission.PathType.LITERAL)
+                    .operations(RepoPermission.Operations.PUSH)
+                    .build());
 
             String url = URLEncoder.encode(GiteaContainer.TEST_USER, StandardCharsets.UTF_8)
                     + ":"

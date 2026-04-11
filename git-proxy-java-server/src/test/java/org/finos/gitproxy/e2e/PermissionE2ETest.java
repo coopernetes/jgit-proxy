@@ -150,7 +150,7 @@ class PermissionE2ETest {
         String path = "/" + GiteaContainer.TEST_ORG + "/" + GiteaContainer.TEST_REPO;
         permissionStore.save(RepoPermission.builder()
                 .username(GiteaContainer.TEST_USER)
-                .provider("gitea-e2e")
+                .provider(proxy.getProviderId())
                 .path(path)
                 .pathType(RepoPermission.PathType.LITERAL)
                 .operations(RepoPermission.Operations.PUSH)
@@ -173,7 +173,7 @@ class PermissionE2ETest {
 
         permissionStore.save(RepoPermission.builder()
                 .username(GiteaContainer.TEST_USER)
-                .provider("gitea-e2e")
+                .provider(proxy.getProviderId())
                 .path("/" + GiteaContainer.TEST_ORG + "/*")
                 .pathType(RepoPermission.PathType.GLOB)
                 .operations(RepoPermission.Operations.PUSH)
@@ -195,7 +195,7 @@ class PermissionE2ETest {
 
         permissionStore.save(RepoPermission.builder()
                 .username(GiteaContainer.TEST_USER)
-                .provider("gitea-e2e")
+                .provider(proxy.getProviderId())
                 .path("^/" + GiteaContainer.TEST_ORG + "/.+")
                 .pathType(RepoPermission.PathType.REGEX)
                 .operations(RepoPermission.Operations.PUSH)
@@ -218,7 +218,7 @@ class PermissionE2ETest {
         // Grant only for "other-owner/*" — should not match TEST_ORG
         permissionStore.save(RepoPermission.builder()
                 .username(GiteaContainer.TEST_USER)
-                .provider("gitea-e2e")
+                .provider(proxy.getProviderId())
                 .path("/other-owner/*")
                 .pathType(RepoPermission.PathType.GLOB)
                 .operations(RepoPermission.Operations.PUSH)
