@@ -147,10 +147,20 @@ public class JdbcUserStore implements UserStore {
 
     @Override
     public void addEmail(String username, String email) {
+        String normalized = email.toLowerCase();
+        List<String> existing = jdbc.queryForList(
+                "SELECT username FROM user_emails WHERE email = :email",
+                Map.of("email", normalized),
+                String.class);
+        if (!existing.isEmpty()) {
+            String owner = existing.get(0);
+            if (owner.equals(username)) return; // already registered to this user — no-op
+            throw new EmailConflictException(normalized, owner);
+        }
         jdbc.update(
                 "INSERT INTO user_emails (username, email) VALUES (:u, :email)",
-                Map.of("u", username, "email", email.toLowerCase()));
-        log.debug("Added email '{}' for user '{}'", email, username);
+                Map.of("u", username, "email", normalized));
+        log.debug("Added email '{}' for user '{}'", normalized, username);
     }
 
     @Override
@@ -264,10 +274,15 @@ public class JdbcUserStore implements UserStore {
      * so the source and locked flag stay in sync with the current IdP configuration.
      */
     public void upsertLockedEmail(String username, String email, String authSource) {
-        List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT locked FROM user_emails WHERE username = :u AND email = :email",
-                Map.of("u", username, "email", email));
-        if (rows.isEmpty()) {
+        List<String> owners = jdbc.queryForList(
+                "SELECT username FROM user_emails WHERE email = :email",
+                Map.of("email", email),
+                String.class);
+        if (!owners.isEmpty() && !owners.get(0).equals(username)) {
+            throw new EmailConflictException(email, owners.get(0));
+        }
+        boolean exists = !owners.isEmpty(); // owner == username if we get here
+        if (!exists) {
             jdbc.update(
                     "INSERT INTO user_emails (username, email, verified, auth_source, locked) VALUES (:u, :email, TRUE, :source, TRUE)",
                     Map.of("u", username, "email", email, "source", authSource));

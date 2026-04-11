@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.db.model.PushQuery;
 import org.finos.gitproxy.db.model.PushRecord;
+import org.finos.gitproxy.user.EmailConflictException;
 import org.finos.gitproxy.user.LockedByConfigException;
 import org.finos.gitproxy.user.ReadOnlyUserStore;
 import org.finos.gitproxy.user.ScmIdentityConflictException;
@@ -130,6 +131,8 @@ public class UserController {
             mutable.addEmail(username, req.email());
         } catch (LockedByConfigException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
+        } catch (EmailConflictException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("email", req.email()));
     }

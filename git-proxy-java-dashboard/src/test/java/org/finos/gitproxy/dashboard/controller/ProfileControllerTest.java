@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Map;
 import java.util.Optional;
+import org.finos.gitproxy.user.EmailConflictException;
 import org.finos.gitproxy.user.LockedByConfigException;
 import org.finos.gitproxy.user.LockedEmailException;
 import org.finos.gitproxy.user.ScmIdentityConflictException;
@@ -53,7 +54,6 @@ class ProfileControllerTest {
 
     @Test
     void addEmail_configUser_returns403() {
-        when(userStore.findByEmail("new@example.com")).thenReturn(Optional.empty());
         doThrow(new LockedByConfigException("alice")).when(userStore).addEmail(eq("alice"), eq("new@example.com"));
 
         var resp = controller.addEmail(Map.of("email", "new@example.com"));
@@ -62,9 +62,16 @@ class ProfileControllerTest {
     }
 
     @Test
-    void addEmail_success_returns200() {
-        when(userStore.findByEmail("new@example.com")).thenReturn(Optional.empty());
+    void addEmail_conflict_returns409() {
+        doThrow(new EmailConflictException("new@example.com", "bob")).when(userStore).addEmail(eq("alice"), eq("new@example.com"));
 
+        var resp = controller.addEmail(Map.of("email", "new@example.com"));
+
+        assertEquals(HttpStatus.CONFLICT, resp.getStatusCode());
+    }
+
+    @Test
+    void addEmail_success_returns200() {
         var resp = controller.addEmail(Map.of("email", "new@example.com"));
 
         assertEquals(HttpStatus.OK, resp.getStatusCode());

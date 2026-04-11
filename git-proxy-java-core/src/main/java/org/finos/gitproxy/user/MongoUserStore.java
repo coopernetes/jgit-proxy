@@ -171,6 +171,15 @@ public class MongoUserStore implements UserStore {
     @Override
     public void addEmail(String username, String email) {
         String normalized = email.toLowerCase();
+        Document owner = getCollection()
+                .find(Filters.elemMatch("emails", Filters.eq("email", normalized)))
+                .projection(new Document("_id", 1))
+                .first();
+        if (owner != null) {
+            String ownerUsername = owner.getString("_id");
+            if (ownerUsername.equals(username)) return; // already registered to this user — no-op
+            throw new EmailConflictException(normalized, ownerUsername);
+        }
         getCollection()
                 .updateOne(
                         Filters.eq("_id", username),
@@ -207,6 +216,13 @@ public class MongoUserStore implements UserStore {
     public void upsertLockedEmail(String username, String email, String authSource) {
         Document doc = getCollection().find(Filters.eq("_id", username)).first();
         if (doc == null) return;
+        Document owner = getCollection()
+                .find(Filters.elemMatch("emails", Filters.eq("email", email)))
+                .projection(new Document("_id", 1))
+                .first();
+        if (owner != null && !owner.getString("_id").equals(username)) {
+            throw new EmailConflictException(email, owner.getString("_id"));
+        }
         // Remove existing entry for this email then insert the locked version
         getCollection().updateOne(Filters.eq("_id", username), Updates.pull("emails", new Document("email", email)));
         getCollection()

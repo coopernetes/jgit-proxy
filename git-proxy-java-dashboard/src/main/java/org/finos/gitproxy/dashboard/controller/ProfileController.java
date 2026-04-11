@@ -1,6 +1,7 @@
 package org.finos.gitproxy.dashboard.controller;
 
 import java.util.Map;
+import org.finos.gitproxy.user.EmailConflictException;
 import org.finos.gitproxy.user.LockedByConfigException;
 import org.finos.gitproxy.user.LockedEmailException;
 import org.finos.gitproxy.user.ReadOnlyUserStore;
@@ -50,23 +51,14 @@ public class ProfileController {
             return ResponseEntity.badRequest().body(Map.of("error", "email is required"));
         }
         email = email.strip().toLowerCase();
-
-        // Prevent claiming an email already registered to another user
         String currentUser = currentUsername();
-        var existing = userStore.findByEmail(email);
-        if (existing.isPresent() && !existing.get().getUsername().equals(currentUser)) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("error", "Email is already registered to another user"));
-        }
-        // Silently skip if already registered to this user (idempotent)
-        if (existing.isPresent()) {
-            return ResponseEntity.ok(Map.of("email", email));
-        }
-
         try {
             mutable.addEmail(currentUser, email);
         } catch (LockedByConfigException e) {
             return LOCKED_BY_CONFIG;
+        } catch (EmailConflictException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "Email is already registered to another user"));
         }
         return ResponseEntity.ok(Map.of("email", email));
     }

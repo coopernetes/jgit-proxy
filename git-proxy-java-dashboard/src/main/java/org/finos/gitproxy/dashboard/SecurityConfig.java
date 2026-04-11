@@ -30,6 +30,7 @@ import org.finos.gitproxy.jetty.config.AuthConfig;
 import org.finos.gitproxy.jetty.config.GitProxyConfig;
 import org.finos.gitproxy.jetty.config.LdapAuthConfig;
 import org.finos.gitproxy.jetty.config.OidcAuthConfig;
+import org.finos.gitproxy.user.EmailConflictException;
 import org.finos.gitproxy.user.ReadOnlyUserStore;
 import org.finos.gitproxy.user.UserStore;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -468,8 +469,17 @@ public class SecurityConfig {
 
         jdbc.upsertUser(username);
         if (email != null && !email.isBlank()) {
-            jdbc.upsertLockedEmail(username, email.strip().toLowerCase(), authSource);
-            log.info("Locked {} email '{}' for user '{}'", authSource, email, username);
+            try {
+                jdbc.upsertLockedEmail(username, email.strip().toLowerCase(), authSource);
+                log.info("Locked {} email '{}' for user '{}'", authSource, email, username);
+            } catch (EmailConflictException e) {
+                log.warn(
+                        "IdP login for '{}' via {}: email '{}' is already claimed by user '{}' — skipping email lock",
+                        username,
+                        authSource,
+                        email,
+                        e.getOwner());
+            }
         } else {
             log.warn("IdP login for '{}' via {} returned no email address", username, authSource);
         }
