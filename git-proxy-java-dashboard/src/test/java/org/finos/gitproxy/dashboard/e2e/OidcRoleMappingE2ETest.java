@@ -151,8 +151,8 @@ class OidcRoleMappingE2ETest {
         String location = callbackResp.headers().firstValue("Location").orElse("");
         assertTrue(
                 location.contains("error") || callbackResp.statusCode() >= 400,
-                "Expected error redirect for unmapped OIDC user; got status="
-                        + callbackResp.statusCode() + " location=" + location);
+                "Expected error redirect for unmapped OIDC user; got status=" + callbackResp.statusCode() + " location="
+                        + location);
 
         // /api/me must be inaccessible — no session was established
         var meResp = client.send(

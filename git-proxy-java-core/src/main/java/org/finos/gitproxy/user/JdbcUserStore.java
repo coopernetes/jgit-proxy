@@ -149,9 +149,7 @@ public class JdbcUserStore implements UserStore {
     public void addEmail(String username, String email) {
         String normalized = email.toLowerCase();
         List<String> existing = jdbc.queryForList(
-                "SELECT username FROM user_emails WHERE email = :email",
-                Map.of("email", normalized),
-                String.class);
+                "SELECT username FROM user_emails WHERE email = :email", Map.of("email", normalized), String.class);
         if (!existing.isEmpty()) {
             String owner = existing.get(0);
             if (owner.equals(username)) return; // already registered to this user — no-op
@@ -275,9 +273,7 @@ public class JdbcUserStore implements UserStore {
      */
     public void upsertLockedEmail(String username, String email, String authSource) {
         List<String> owners = jdbc.queryForList(
-                "SELECT username FROM user_emails WHERE email = :email",
-                Map.of("email", email),
-                String.class);
+                "SELECT username FROM user_emails WHERE email = :email", Map.of("email", email), String.class);
         if (!owners.isEmpty() && !owners.get(0).equals(username)) {
             throw new EmailConflictException(email, owners.get(0));
         }
