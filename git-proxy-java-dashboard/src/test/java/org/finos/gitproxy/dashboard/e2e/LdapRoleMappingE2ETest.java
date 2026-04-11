@@ -89,4 +89,51 @@ class LdapRoleMappingE2ETest {
                 resp.body().contains("ROLE_ADMIN"),
                 "Expected ROLE_ADMIN from LDAP group membership in authorities; got: " + resp.body());
     }
+
+    /**
+     * Verifies deny-by-default: when role mappings are configured, a user whose LDAP groups do not match any mapping
+     * must be rejected at login.
+     */
+    @Test
+    @Order(3)
+    void userNotInMappedGroup_loginDenied() throws Exception {
+        // Start a fresh dashboard that maps a *different* group — testuser is not a member of it.
+        var config = new GitProxyConfig();
+        config.getAuth().setProvider("ldap");
+        config.getAuth().getLdap().setUrl(ldap.getLdapUrl());
+        config.getAuth().getLdap().setUserDnPatterns(OpenLdapContainer.USER_DN_PATTERN);
+        config.getAuth().getLdap().setBindDn(OpenLdapContainer.MANAGER_DN);
+        config.getAuth().getLdap().setBindPassword(OpenLdapContainer.ADMIN_PASSWORD);
+        config.getAuth().getLdap().setGroupSearchBase(OpenLdapContainer.GROUP_SEARCH_BASE);
+        // Map a group the test user is NOT a member of
+        config.getAuth().setRoleMappings(Map.of("ADMIN", List.of("no-such-group")));
+
+        try (var restrictedDashboard = new DashboardFixture(config)) {
+            var restrictedBaseUrl = restrictedDashboard.getBaseUrl();
+            var cookieManager = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
+            var restrictedClient = HttpClient.newBuilder()
+                    .cookieHandler(cookieManager)
+                    .followRedirects(HttpClient.Redirect.NORMAL)
+                    .build();
+
+            String formBody =
+                    "username=" + OpenLdapContainer.TEST_USER + "&password=" + OpenLdapContainer.TEST_PASSWORD;
+            restrictedClient.send(
+                    HttpRequest.newBuilder()
+                            .uri(URI.create(restrictedBaseUrl + "/login"))
+                            .header("Content-Type", "application/x-www-form-urlencoded")
+                            .POST(HttpRequest.BodyPublishers.ofString(formBody, StandardCharsets.UTF_8))
+                            .build(),
+                    HttpResponse.BodyHandlers.ofString());
+
+            // After a failed login, /api/me must be inaccessible (401 or redirect to login)
+            var meResp = restrictedClient.send(
+                    HttpRequest.newBuilder()
+                            .uri(URI.create(restrictedBaseUrl + "/api/me"))
+                            .GET()
+                            .build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertNotEquals(200, meResp.statusCode(), "User not in mapped group must not access /api/me");
+        }
+    }
 }

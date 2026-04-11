@@ -36,6 +36,7 @@ import org.finos.gitproxy.user.UserStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -64,6 +65,8 @@ import org.springframework.security.oauth2.client.web.HttpSessionOAuth2Authorize
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -488,24 +491,39 @@ public class SecurityConfig {
     /**
      * Builds an {@link OidcUserService} that maps IdP group memberships to git-proxy-java roles. The configured
      * {@code groupsClaim} is read from the OIDC token; any group present in {@code roleMappings} results in a
-     * corresponding {@code ROLE_xxx} authority being added to the session. {@code ROLE_USER} is always granted.
+     * corresponding {@code ROLE_xxx} authority being added to the session.
+     *
+     * <p>If {@code roleMappings} is empty, {@code ROLE_USER} is granted to every authenticated user (open mode). If
+     * {@code roleMappings} is non-empty, access is <em>deny-by-default</em>: the user must belong to at least one
+     * mapped group, otherwise authentication is rejected.
      */
     private OidcUserService buildOidcUserService(Map<String, List<String>> roleMappings, String groupsClaim) {
         return new OidcUserService() {
             @Override
             public OidcUser loadUser(OidcUserRequest userRequest) {
                 OidcUser oidcUser = super.loadUser(userRequest);
+                if (roleMappings.isEmpty()) {
+                    Set<GrantedAuthority> authorities = new LinkedHashSet<>(oidcUser.getAuthorities());
+                    authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+                    return new DefaultOidcUser(authorities, oidcUser.getIdToken(), oidcUser.getUserInfo());
+                }
                 List<String> groups = oidcUser.getClaimAsStringList(groupsClaim);
                 if (groups == null) groups = List.of();
-                Set<GrantedAuthority> authorities = new LinkedHashSet<>(oidcUser.getAuthorities());
-                authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+                Set<GrantedAuthority> authorities = new LinkedHashSet<>();
                 for (Map.Entry<String, List<String>> entry : roleMappings.entrySet()) {
                     List<String> mappedGroups = entry.getValue();
                     if (groups.stream().anyMatch(mappedGroups::contains)) {
                         String role = entry.getKey().toUpperCase(java.util.Locale.ROOT);
+                        authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
                         authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
                         log.debug("Granted ROLE_{} to OIDC user '{}' via group membership", role, oidcUser.getName());
                     }
+                }
+                if (authorities.isEmpty()) {
+                    log.warn("OIDC login denied for '{}': not a member of any authorised group", oidcUser.getName());
+                    throw new OAuth2AuthenticationException(
+                            new OAuth2Error("access_denied"),
+                            "Access not granted: your account is not a member of any authorised group");
                 }
                 return new DefaultOidcUser(authorities, oidcUser.getIdToken(), oidcUser.getUserInfo());
             }
@@ -513,21 +531,34 @@ public class SecurityConfig {
     }
 
     /**
-     * Maps IdP-supplied group authorities (from LDAP group search) to git-proxy-java roles using {@code roleMappings}.
-     * {@code ROLE_USER} is always granted.
+     * Maps IdP-supplied group authorities (from LDAP/AD group search) to git-proxy-java roles using
+     * {@code roleMappings}.
+     *
+     * <p>If {@code roleMappings} is empty the operator has not configured group-based access control, so
+     * {@code ROLE_USER} is granted to every authenticated user (open mode). If {@code roleMappings} is non-empty,
+     * access is <em>deny-by-default</em>: the user must be a member of at least one mapped group, otherwise
+     * authentication is rejected with {@link BadCredentialsException}.
      */
     private Set<GrantedAuthority> mapIdpGroupsToRoles(
             Collection<? extends GrantedAuthority> ldapAuthorities, Map<String, List<String>> roleMappings) {
+        if (roleMappings.isEmpty()) {
+            return Set.of(new SimpleGrantedAuthority("ROLE_USER"));
+        }
         Set<GrantedAuthority> mapped = new LinkedHashSet<>();
-        mapped.add(new SimpleGrantedAuthority("ROLE_USER"));
         for (GrantedAuthority authority : ldapAuthorities) {
             String groupName = authority.getAuthority();
             for (Map.Entry<String, List<String>> entry : roleMappings.entrySet()) {
                 if (entry.getValue().contains(groupName)) {
+                    mapped.add(new SimpleGrantedAuthority("ROLE_USER"));
                     mapped.add(
                             new SimpleGrantedAuthority("ROLE_" + entry.getKey().toUpperCase(java.util.Locale.ROOT)));
                 }
             }
+        }
+        if (mapped.isEmpty()) {
+            log.warn("IdP login denied: user is not a member of any authorised group");
+            throw new BadCredentialsException(
+                    "Access not granted: your account is not a member of any authorised group");
         }
         return mapped;
     }

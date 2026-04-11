@@ -112,6 +112,58 @@ class OidcRoleMappingE2ETest {
                 "Expected ROLE_ADMIN from OIDC groups claim in authorities; got: " + meResp.body());
     }
 
+    /**
+     * Verifies deny-by-default: when role mappings are configured, a user whose OIDC groups claim does not match any
+     * mapping must be rejected — the callback must redirect to an error URL, not establish a session.
+     */
+    @Test
+    void userNotInMappedGroup_loginDenied() throws Exception {
+        var cookieManager = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
+        var client = HttpClient.newBuilder()
+                .cookieHandler(cookieManager)
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
+
+        var authorizePageResponse = followUntil200(client, baseUrl + "/oauth2/authorization/gitproxy");
+        assertEquals(200, authorizePageResponse.statusCode());
+
+        // POST with a groups claim that does NOT match "ADMIN" → ["git-admins"]
+        URI authorizeUri = authorizePageResponse.uri();
+        String loginBody = "username=" + MockOAuth2Container.TEST_USER
+                + "&claims=%7B%22groups%22%3A%5B%22unrelated-group%22%5D%7D";
+
+        var loginResp = client.send(
+                HttpRequest.newBuilder()
+                        .uri(authorizeUri)
+                        .header("Content-Type", "application/x-www-form-urlencoded")
+                        .POST(HttpRequest.BodyPublishers.ofString(loginBody, StandardCharsets.UTF_8))
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(302, loginResp.statusCode());
+        String callbackUrl = loginResp.headers().firstValue("Location").orElseThrow();
+
+        var callbackResp = client.send(
+                HttpRequest.newBuilder().uri(URI.create(callbackUrl)).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        // Callback must redirect to an error page, not a success URL
+        String location = callbackResp.headers().firstValue("Location").orElse("");
+        assertTrue(
+                location.contains("error") || callbackResp.statusCode() >= 400,
+                "Expected error redirect for unmapped OIDC user; got status="
+                        + callbackResp.statusCode() + " location=" + location);
+
+        // /api/me must be inaccessible — no session was established
+        var meResp = client.send(
+                HttpRequest.newBuilder()
+                        .uri(URI.create(baseUrl + "/api/me"))
+                        .GET()
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertNotEquals(200, meResp.statusCode(), "Unmapped OIDC user must not access /api/me");
+    }
+
     private static HttpResponse<String> followUntil200(HttpClient client, String startUrl) throws Exception {
         String url = startUrl;
         for (int i = 0; i < 10; i++) {
