@@ -45,12 +45,8 @@ services:
   git-proxy-java:
     volumes:
       - ./docker/git-proxy-oidc.yml:/app/conf/git-proxy-oidc.yml:ro
-      # Uncomment to enable Spring Security debug logging (see docker/logback-debug.xml):
-      #- ./docker/logback-debug.xml:/app/conf/logback-debug.xml:ro
     environment:
       GITPROXY_CONFIG_PROFILES: docker-default,oidc
-      # Uncomment together with the volume mount above to activate debug logging:
-      #JAVA_TOOL_OPTIONS: -Dlogback.configurationFile=/app/conf/logback-debug.xml
     depends_on:
       mock-oauth2:
         condition: service_healthy
