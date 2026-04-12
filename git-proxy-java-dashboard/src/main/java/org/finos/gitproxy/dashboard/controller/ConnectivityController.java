@@ -11,7 +11,9 @@ import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import javax.net.ssl.SSLContext;
@@ -43,13 +45,16 @@ import org.springframework.web.server.ResponseStatusException;
  *   <li><b>TLS</b> — complete the TLS handshake (HTTPS providers only). Reports negotiated protocol and cipher, or the
  *       specific exception class for certificate / SNI failures.
  *   <li><b>HTTP</b> — send {@code GET /} and record the status code and response time.
- *   <li><b>Git probe</b> (targeted check only) — send {@code GET /info/refs?service=git-upload-pack} with
- *       {@code User-Agent: git/2.x.x} to a specific repo URL. Distinguishes appliances that pass generic HTTP but
- *       block git-specific URL patterns, query strings, or user-agent strings.
+ *   <li><b>Git probe</b> (targeted check only) — send {@code GET /info/refs?service=git-upload-pack} and
+ *       {@code GET /info/refs?service=git-receive-pack} with {@code User-Agent: git/2.x.x} to a specific repo URL.
+ *       Distinguishes appliances that pass generic HTTP but block git-specific URL patterns, query strings, or
+ *       user-agent strings.
  * </ol>
  *
- * <p>Every step is logged at INFO level so that the application log can be used as evidence for firewall tickets.
- * Requires {@code ROLE_ADMIN}.
+ * <p>Every step is logged at INFO level. Targeted checks additionally return a structured {@code steps} log in the API
+ * response so that the output can be shared with network teams without requiring access to server logs.
+ *
+ * <p>Requires {@code ROLE_ADMIN}.
  */
 @Slf4j
 @RestController
@@ -83,28 +88,30 @@ public class ConnectivityController {
         Map<String, Object> providerResults = new LinkedHashMap<>();
 
         if (providerName != null) {
-            // Targeted: single provider, optional git probe
+            // Targeted: single provider, structured step log, optional git probe
             GitProxyProvider provider = providers.getProviders().stream()
                     .filter(p -> p.getName().equals(providerName))
                     .findFirst()
                     .orElseThrow(() -> new ResponseStatusException(
                             HttpStatus.BAD_REQUEST, "Unknown provider: " + providerName));
             log.info("--- Provider: {} ({}) [targeted] ---", provider.getName(), provider.getUri());
-            Map<String, Object> result = checkProvider(provider, sslContext);
+            List<Map<String, Object>> steps = new ArrayList<>();
+            Map<String, Object> result = checkProvider(provider, sslContext, steps);
             if (repoPath != null) {
                 String repoUrl = provider.getUri().toString().replaceAll("/+$", "")
                         + (repoPath.startsWith("/") ? repoPath : "/" + repoPath);
                 Map<String, Object> gitProbe = new LinkedHashMap<>();
-                gitProbe.put("uploadPack", probe(repoUrl, "git-upload-pack", sslContext));
-                gitProbe.put("receivePack", probe(repoUrl, "git-receive-pack", sslContext));
+                gitProbe.put("uploadPack", probe(repoUrl, "git-upload-pack", sslContext, steps));
+                gitProbe.put("receivePack", probe(repoUrl, "git-receive-pack", sslContext, steps));
                 result.put("gitProbe", gitProbe);
             }
+            result.put("steps", steps);
             providerResults.put(provider.getName(), result);
         } else {
-            // Baseline: all providers, no git probe
+            // Baseline: all providers, no git probe, no step log
             for (GitProxyProvider provider : providers.getProviders()) {
                 log.info("--- Provider: {} ({}) ---", provider.getName(), provider.getUri());
-                providerResults.put(provider.getName(), checkProvider(provider, sslContext));
+                providerResults.put(provider.getName(), checkProvider(provider, sslContext, null));
             }
         }
 
@@ -115,7 +122,8 @@ public class ConnectivityController {
         return result;
     }
 
-    private Map<String, Object> checkProvider(GitProxyProvider provider, SSLContext sslContext) {
+    private Map<String, Object> checkProvider(
+            GitProxyProvider provider, SSLContext sslContext, List<Map<String, Object>> steps) {
         URI uri = provider.getUri();
         boolean isHttps = "https".equalsIgnoreCase(uri.getScheme());
         int port = uri.getPort() > 0 ? uri.getPort() : (isHttps ? 443 : 80);
@@ -130,6 +138,7 @@ public class ConnectivityController {
             socket.connect(new InetSocketAddress(host, port), TIMEOUT_MS);
             long tcpMs = System.currentTimeMillis() - tcpStart;
             log.info("[{}] TCP {}:{} → OK ({} ms)", provider.getName(), host, port, tcpMs);
+            addStep(steps, "TCP", "ok", tcpMs, host + ":" + port + " → OK");
             Map<String, Object> tcp = new LinkedHashMap<>();
             tcp.put("status", "ok");
             tcp.put("host", host);
@@ -148,6 +157,13 @@ public class ConnectivityController {
                     tcpMs,
                     e.getClass().getSimpleName(),
                     e.getMessage());
+            addStep(
+                    steps,
+                    "TCP",
+                    "error",
+                    tcpMs,
+                    host + ":" + port + " → " + errorCode + " — " + e.getClass().getSimpleName() + ": "
+                            + e.getMessage());
             Map<String, Object> tcp = new LinkedHashMap<>();
             tcp.put("status", "error");
             tcp.put("error", errorCode);
@@ -182,6 +198,7 @@ public class ConnectivityController {
                         protocol,
                         cipher,
                         peerCn);
+                addStep(steps, "TLS", "ok", tlsMs, protocol + " / " + cipher + " / CN=" + peerCn);
                 Map<String, Object> tls = new LinkedHashMap<>();
                 tls.put("status", "ok");
                 tls.put("protocol", protocol);
@@ -201,6 +218,12 @@ public class ConnectivityController {
                         tlsMs,
                         e.getClass().getSimpleName(),
                         e.getMessage());
+                addStep(
+                        steps,
+                        "TLS",
+                        "error",
+                        tlsMs,
+                        errorCode + " — " + e.getClass().getSimpleName() + ": " + e.getMessage());
                 Map<String, Object> tls = new LinkedHashMap<>();
                 tls.put("status", "error");
                 tls.put("error", errorCode);
@@ -219,6 +242,12 @@ public class ConnectivityController {
                         tlsMs,
                         e.getClass().getSimpleName(),
                         e.getMessage());
+                addStep(
+                        steps,
+                        "TLS",
+                        "error",
+                        tlsMs,
+                        "ERROR — " + e.getClass().getSimpleName() + ": " + e.getMessage());
                 Map<String, Object> tls = new LinkedHashMap<>();
                 tls.put("status", "error");
                 tls.put("error", "ERROR");
@@ -229,7 +258,8 @@ public class ConnectivityController {
                 return out;
             }
         } else {
-            out.put("tls", null); // HTTP — not applicable
+            addStep(steps, "TLS", "skipped", null, "not applicable (HTTP provider)");
+            out.put("tls", null);
         }
 
         // ── HTTP probe ────────────────────────────────────────────────────────
@@ -248,6 +278,8 @@ public class ConnectivityController {
             long httpMs = System.currentTimeMillis() - httpStart;
             int status = resp.statusCode();
             String location = resp.headers().firstValue("location").orElse(null);
+            String stepDetail = "GET " + uri + " → " + status;
+            if (location != null) stepDetail += "  →  " + location;
             if (location != null) {
                 log.info(
                         "[{}] HTTP GET {} → {} ({} ms) — Location: {}",
@@ -259,6 +291,7 @@ public class ConnectivityController {
             } else {
                 log.info("[{}] HTTP GET {} → {} ({} ms)", provider.getName(), uri, status, httpMs);
             }
+            addStep(steps, "HTTP", "ok", httpMs, stepDetail);
             Map<String, Object> http = new LinkedHashMap<>();
             http.put("status", status);
             if (location != null) http.put("location", location);
@@ -273,6 +306,12 @@ public class ConnectivityController {
                     httpMs,
                     e.getClass().getSimpleName(),
                     e.getMessage());
+            addStep(
+                    steps,
+                    "HTTP",
+                    "error",
+                    httpMs,
+                    "GET " + uri + " → ERROR — " + e.getClass().getSimpleName() + ": " + e.getMessage());
             Map<String, Object> http = new LinkedHashMap<>();
             http.put("status", "error");
             http.put("detail", e.getClass().getSimpleName() + ": " + e.getMessage());
@@ -288,8 +327,10 @@ public class ConnectivityController {
      * (200, 401, 403, 404 …) means the request reached the upstream — the git URL patterns are not being filtered. A
      * network-level error (TIMEOUT, RESET) after TCP/TLS passed indicates git-specific DLP blocking.
      */
-    private Map<String, Object> probe(String repoUrl, String service, SSLContext sslContext) {
+    private Map<String, Object> probe(
+            String repoUrl, String service, SSLContext sslContext, List<Map<String, Object>> steps) {
         String probeUrl = repoUrl.replaceAll("/+$", "") + "/info/refs?service=" + service;
+        String stepName = "git-upload-pack".equals(service) ? "Git fetch" : "Git push";
         log.info("[git-probe:{}] GET {}", service, probeUrl);
         long start = System.currentTimeMillis();
         try {
@@ -314,6 +355,9 @@ public class ConnectivityController {
                     status,
                     ms,
                     contentType.orElse("none"));
+            String stepDetail = "GET " + probeUrl + " → " + status;
+            if (contentType.isPresent()) stepDetail += "  content-type: " + contentType.get();
+            addStep(steps, stepName, "ok", ms, stepDetail);
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("status", "ok");
             result.put("probeUrl", probeUrl);
@@ -332,6 +376,13 @@ public class ConnectivityController {
                     ms,
                     e.getClass().getSimpleName(),
                     e.getMessage());
+            addStep(
+                    steps,
+                    stepName,
+                    "error",
+                    ms,
+                    "GET " + probeUrl + " → " + errorCode + " — " + e.getClass().getSimpleName() + ": "
+                            + e.getMessage());
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("status", "error");
             result.put("probeUrl", probeUrl);
@@ -340,6 +391,22 @@ public class ConnectivityController {
             result.put("durationMs", ms);
             return result;
         }
+    }
+
+    /**
+     * Appends a step entry to {@code steps} if non-null. Safe to call with a null list (baseline checks don't collect
+     * steps).
+     */
+    private static void addStep(
+            List<Map<String, Object>> steps, String step, String status, Long durationMs, String detail) {
+        if (steps == null) return;
+        Map<String, Object> entry = new LinkedHashMap<>();
+        entry.put("timestamp", Instant.now().toString());
+        entry.put("step", step);
+        entry.put("status", status);
+        if (durationMs != null) entry.put("durationMs", durationMs);
+        entry.put("detail", detail);
+        steps.add(entry);
     }
 
     private static String classifyTcpError(Exception e) {

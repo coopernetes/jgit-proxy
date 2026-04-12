@@ -316,6 +316,14 @@ export interface GitProbe {
   receivePack: GitProbeResult
 }
 
+export interface LogStep {
+  timestamp: string
+  step: string
+  status: 'ok' | 'error' | 'skipped'
+  durationMs?: number
+  detail: string
+}
+
 export interface ProviderConnectivity {
   uri: string
   tcp: TcpResult
@@ -323,6 +331,8 @@ export interface ProviderConnectivity {
   http: HttpResult | null
   /** Only present on targeted checks (provider + repoPath supplied) */
   gitProbe?: GitProbe | null
+  /** Structured step log — only present on targeted checks */
+  steps?: LogStep[]
 }
 
 export async function checkConnectivity(): Promise<{

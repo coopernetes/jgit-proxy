@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Provider } from '../types'
 import {
   type GitProbeResult,
+  type LogStep,
   type ProviderConnectivity,
   type TcpResult,
   type TlsResult,
@@ -72,6 +73,47 @@ function GitProbeBadge({ label, result }: { label: string; result: GitProbeResul
     >
       {ok ? '✓' : '✗'} {label} {detail}
     </span>
+  )
+}
+
+function formatSteps(steps: LogStep[]): string {
+  return steps
+    .map((s) => {
+      const time = new Date(s.timestamp).toISOString().substring(11, 23) // HH:MM:SS.mmm
+      const dur = s.durationMs != null ? ` (${s.durationMs}ms)` : ''
+      const label = s.step.padEnd(12)
+      return `[${time}] ${label} ${s.detail}${dur}`
+    })
+    .join('\n')
+}
+
+function DiagnosticLog({ steps }: { steps: LogStep[] }) {
+  const [copied, setCopied] = useState(false)
+  const textRef = useRef<HTMLPreElement>(null)
+
+  function handleCopy() {
+    navigator.clipboard.writeText(formatSteps(steps)).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <div className="relative mt-2">
+      <button
+        onClick={handleCopy}
+        title="Copy to clipboard"
+        className="absolute top-2 right-2 text-xs px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500 text-slate-200 transition-colors"
+      >
+        {copied ? 'Copied!' : 'Copy'}
+      </button>
+      <pre
+        ref={textRef}
+        className="text-xs font-mono bg-slate-900 text-slate-200 rounded p-3 pr-20 overflow-x-auto whitespace-pre leading-5"
+      >
+        {formatSteps(steps)}
+      </pre>
+    </div>
   )
 }
 
@@ -151,11 +193,21 @@ function ConnectivityRow({ result }: { name: string; result: ProviderConnectivit
       {result.http && typeof result.http.status === 'number' && result.http.location && (
         <div className="text-xs text-gray-400 font-mono">→ {result.http.location}</div>
       )}
-      {result.gitProbe && result.gitProbe.uploadPack.status === 'ok' && result.gitProbe.uploadPack.contentType && (
-        <div className="text-xs text-gray-400 font-mono">
-          fetch content-type: {result.gitProbe.uploadPack.contentType}
-        </div>
+      {result.gitProbe && (
+        <>
+          {result.gitProbe.uploadPack.status === 'ok' && result.gitProbe.uploadPack.contentType && (
+            <div className="text-xs text-gray-400 font-mono">
+              fetch content-type: {result.gitProbe.uploadPack.contentType}
+            </div>
+          )}
+          {result.gitProbe.receivePack.status === 'ok' && result.gitProbe.receivePack.contentType && (
+            <div className="text-xs text-gray-400 font-mono">
+              push content-type: {result.gitProbe.receivePack.contentType}
+            </div>
+          )}
+        </>
       )}
+      {result.steps && result.steps.length > 0 && <DiagnosticLog steps={result.steps} />}
     </div>
   )
 }
