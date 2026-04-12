@@ -38,7 +38,9 @@ public class DatabaseMigrator {
             new Migration("1", "initial schema", "db/migration/V1__initial_schema.sql", false),
             new Migration("2", "provider id format", "db/migration/V2__provider_id_format.sql", false),
             new Migration(
-                    "2.1", "widen provider columns", "db/migration-postgresql/V2_1__widen_provider_columns.sql", true));
+                    "2.1", "widen provider columns", "db/migration-postgresql/V2_1__widen_provider_columns.sql", true),
+            new Migration("3", "email unique constraint", "db/migration/V3__email_unique.sql", false),
+            new Migration("4", "spring session tables", "db/migration/V4__spring_session.sql", false));
 
     // ---------------------------------------------------------------------------
 

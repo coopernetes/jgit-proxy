@@ -148,6 +148,10 @@ dependencies {
     implementation "org.springframework.security:spring-security-oauth2-client:${springSecurityVersion}"
     implementation "org.springframework.security:spring-security-oauth2-jose:${springSecurityVersion}"
 
+    // Spring Session — JDBC and Redis backends for distributed session management
+    implementation "org.springframework.session:spring-session-jdbc:${springSessionVersion}"
+    implementation "org.springframework.session:spring-session-data-redis:${springSessionVersion}"
+
     // Jackson JSON processing
     implementation "tools.jackson.core:jackson-databind"
 

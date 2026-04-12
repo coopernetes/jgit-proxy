@@ -665,6 +665,16 @@ public class JettyConfigurationBuilder {
         return cachedMongoStoreFactory;
     }
 
+    /**
+     * Returns the JDBC {@link DataSource} for JDBC-backed database types ({@code h2-mem}, {@code h2-file},
+     * {@code postgres}). Returns {@code null} for {@code mongo} — callers that need a DataSource for features like
+     * session persistence should check for null and either skip or fail gracefully.
+     */
+    public DataSource getJdbcDataSourceOrNull() {
+        if ("mongo".equals(config.getDatabase().getType())) return null;
+        return requireJdbcDataSource();
+    }
+
     private DataSource requireJdbcDataSource() {
         if (cachedDataSource == null) {
             DatabaseConfig db = config.getDatabase();

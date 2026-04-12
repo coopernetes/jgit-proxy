@@ -68,4 +68,31 @@ public class ServerConfig {
 
     /** TLS configuration for the server listener and upstream trust. Omit entirely to use plain HTTP. */
     private TlsConfig tls = new TlsConfig();
+
+    /**
+     * HTTP session persistence backend. Values:
+     *
+     * <ul>
+     *   <li>{@code none} (default) — in-memory sessions; sessions are lost on restart and not shared across instances
+     *   <li>{@code jdbc} — persisted to the configured JDBC database ({@code h2-file} or {@code postgres}); zero new
+     *       infrastructure required, uses the same DataSource as the push store
+     *   <li>{@code redis} — persisted to a Redis or Valkey instance; configure connection via {@code server.redis.*}
+     * </ul>
+     *
+     * <p>Use {@code jdbc} or {@code redis} when running multiple instances sharing a database so that authenticated
+     * sessions survive pod restarts and are visible across all instances.
+     */
+    private String sessionStore = "none";
+
+    /** Redis connection settings — used when {@code server.session-store: redis}. */
+    private RedisConfig redis = new RedisConfig();
+
+    /** Binds the {@code server.redis:} block. */
+    @Data
+    public static class RedisConfig {
+        private String host = "localhost";
+        private int port = 6379;
+        private String password = "";
+        private boolean ssl = false;
+    }
 }

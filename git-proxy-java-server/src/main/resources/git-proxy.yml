@@ -10,6 +10,21 @@ server:
   # Sends a "." progress packet periodically to prevent idle-timeout disconnects during long validation steps
   # (e.g. secret scanning, approval polling). Set to 0 to disable.
   heartbeat-interval-seconds: 10
+  # HTTP session persistence backend. Options:
+  #   none   — in-memory sessions (default); sessions are lost on restart and not shared across instances
+  #   jdbc   — persisted to the configured JDBC database (h2-file or postgres); no new infrastructure needed
+  #   redis  — persisted to a Redis or Valkey instance; configure connection via server.redis.*
+  # Use jdbc or redis when running multiple instances sharing a database so that authenticated sessions
+  # survive pod restarts and remain valid across all pods.
+  # session-store: none
+
+  # Redis connection — required when session-store: redis
+  # redis:
+  #   host: redis.cluster.local
+  #   port: 6379
+  #   password: ""
+  #   ssl: false
+
   # Origins allowed to make cross-origin requests to the dashboard REST API.
   # Required when the frontend is served from a different hostname than the backend (e.g. behind a load balancer).
   # Default (empty): same-origin only. Override per-deployment in git-proxy-local.yml or via

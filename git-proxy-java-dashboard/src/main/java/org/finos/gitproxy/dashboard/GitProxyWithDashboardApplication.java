@@ -97,8 +97,16 @@ public class GitProxyWithDashboardApplication {
         });
 
         // Spring MVC DispatcherServlet at /* - git-specific paths take precedence per servlet spec
+        var jdbcDataSource = configBuilder.getJdbcDataSourceOrNull();
         registerSpringServlet(
-                context, ctx, providerConfig, gitProxyConfig, configHolder, liveConfigLoader, repoRegistry);
+                context,
+                ctx,
+                providerConfig,
+                gitProxyConfig,
+                configHolder,
+                liveConfigLoader,
+                repoRegistry,
+                jdbcDataSource);
 
         server.setHandler(context);
         server.start();
@@ -118,9 +126,10 @@ public class GitProxyWithDashboardApplication {
             GitProxyConfig gitProxyConfig,
             ConfigHolder configHolder,
             LiveConfigLoader liveConfigLoader,
-            RepoRegistry repoRegistry) {
+            RepoRegistry repoRegistry,
+            javax.sql.DataSource jdbcDataSource) {
         var appContext = new AnnotationConfigWebApplicationContext();
-        appContext.register(SpringWebConfig.class, SecurityConfig.class);
+        appContext.register(SpringWebConfig.class, SecurityConfig.class, SessionStoreConfig.class);
         appContext.addBeanFactoryPostProcessor(bf -> {
             bf.registerSingleton("pushStore", ctx.pushStore());
             bf.registerSingleton("providers", providers);
@@ -132,6 +141,11 @@ public class GitProxyWithDashboardApplication {
             bf.registerSingleton("fetchStore", ctx.fetchStore());
             if (ctx.repoPermissionService() != null) {
                 bf.registerSingleton("repoPermissionService", ctx.repoPermissionService());
+            }
+            // Expose the JDBC DataSource as a Spring bean so SessionStoreConfig can inject it
+            // when session-store=jdbc. Null for MongoDB deployments (no JDBC DataSource available).
+            if (jdbcDataSource != null) {
+                bf.registerSingleton("dataSource", jdbcDataSource);
             }
         });
 
@@ -156,6 +170,17 @@ public class GitProxyWithDashboardApplication {
         var holder = new ServletHolder("spring-dispatcher", dispatcher);
         holder.setInitOrder(1);
         context.addServlet(holder, "/*");
+
+        // Spring Session filter — must be registered before Spring Security so that the distributed
+        // session store is in place before Security reads authentication state from the session.
+        // The filter is always wired (even for session-store=none, where it uses an in-memory store
+        // equivalent to the default Jetty session behaviour).
+        var sessionFilter = new FilterHolder(new DelegatingFilterProxy("springSessionRepositoryFilter", appContext));
+        sessionFilter.setName("springSessionRepositoryFilter");
+        sessionFilter.setAsyncSupported(true);
+        for (String path : new String[] {"/api/*", "/login", "/logout", "/", "/oauth2/*", "/login/oauth2/*"}) {
+            context.addFilter(sessionFilter, path, EnumSet.of(DispatcherType.REQUEST, DispatcherType.ERROR));
+        }
 
         // Wire Spring Security filter chain into Jetty. Register only on the paths Spring Security
         // actually protects — never on /push/* or /proxy/* to avoid interfering with async git streaming.
