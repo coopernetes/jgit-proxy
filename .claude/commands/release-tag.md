@@ -31,7 +31,8 @@ Arguments passed: `$ARGUMENTS`
    - `CI / E2E Test`
    - `CodeQL / java-kotlin`
    - `CodeQL / actions`
-   - `CVE / Dependency Check`
+   - `CVE / Dependency Check (Gradle)`
+   - `CVE / Grype (npm)`
 
    If any are still in progress or failed, tell the user and stop.
 
@@ -54,3 +55,13 @@ Arguments passed: `$ARGUMENTS`
 
    Then ask: "Ready to push the tag? This will trigger the Docker publish workflow."
    If they confirm, run `git push origin v<version>`. If they decline, remind them to push manually.
+
+7. **Create GitHub release with auto-generated notes.**
+   ```
+   gh release create v<version> \
+     --title "v<version>" \
+     --generate-notes \
+     --prerelease
+   ```
+   Omit `--prerelease` if the version has no pre-release suffix (i.e. stable semver like `1.0.0`).
+   Show the user the release URL when done.
