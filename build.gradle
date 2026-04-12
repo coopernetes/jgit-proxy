@@ -74,6 +74,8 @@ allprojects {
     }
     dependencyCheck {
         nvd.apiKey = System.getenv("NVD_API_KEY")
+        analyzers.ossIndex.username = System.getenv("OSS_INDEX_USERNAME")
+        analyzers.ossIndex.password = System.getenv("OSS_INDEX_TOKEN")
         failBuildOnCVSS = 5
         suppressionFile = rootProject.file('gradle-suppressions.xml').toString()
     }

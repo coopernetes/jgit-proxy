@@ -42,6 +42,8 @@ jobs:
         timeout-minutes: 180
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+          OSS_INDEX_USERNAME: ${{ secrets.OSS_INDEX_USERNAME }}
+          OSS_INDEX_TOKEN: ${{ secrets.OSS_INDEX_TOKEN }}
 
       - name: Upload Test results
         if: ${{ always() }}
