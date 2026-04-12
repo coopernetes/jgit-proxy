@@ -3,6 +3,7 @@ package org.finos.gitproxy.e2e;
 import jakarta.servlet.DispatcherType;
 import java.net.URI;
 import java.nio.file.Files;
+import java.time.Duration;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.function.Function;
@@ -14,6 +15,7 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jgit.http.server.GitServlet;
 import org.finos.gitproxy.approval.ApprovalGateway;
+import org.finos.gitproxy.approval.AutoApprovalGateway;
 import org.finos.gitproxy.approval.UiApprovalGateway;
 import org.finos.gitproxy.config.CommitConfig;
 import org.finos.gitproxy.config.GpgConfig;
@@ -79,6 +81,23 @@ class JettyProxyFixture implements AutoCloseable {
                 CommitConfig.IdentityVerificationMode.WARN);
     }
 
+    /**
+     * Create a fixture with URL allow/deny rules enforced on both the transparent proxy path and the store-and-forward
+     * path. Uses auto-approve for the approval gateway so that allowed pushes go through without a review step.
+     *
+     * @param urlRuleFilters config-based allow/deny rules — mirrors what {@code rules.allow/deny} in git-proxy.yml
+     *     produces via {@code JettyConfigurationBuilder.buildUrlRuleFilters()}
+     */
+    JettyProxyFixture(URI giteaUri, List<UrlRuleFilter> urlRuleFilters) throws Exception {
+        this(
+                giteaUri,
+                AutoApprovalGateway::new,
+                null,
+                null,
+                CommitConfig.IdentityVerificationMode.WARN,
+                urlRuleFilters);
+    }
+
     /** Create a fixture with identity and permission filters enabled, using an explicit identity verification mode. */
     JettyProxyFixture(
             URI giteaUri,
@@ -86,6 +105,18 @@ class JettyProxyFixture implements AutoCloseable {
             PushIdentityResolver identityResolver,
             RepoPermissionService permissionService,
             CommitConfig.IdentityVerificationMode identityVerificationMode)
+            throws Exception {
+        this(giteaUri, proxyGatewayFactory, identityResolver, permissionService, identityVerificationMode, List.of());
+    }
+
+    /** Full constructor — all options. */
+    JettyProxyFixture(
+            URI giteaUri,
+            Function<PushStore, ApprovalGateway> proxyGatewayFactory,
+            PushIdentityResolver identityResolver,
+            RepoPermissionService permissionService,
+            CommitConfig.IdentityVerificationMode identityVerificationMode,
+            List<UrlRuleFilter> urlRuleFilters)
             throws Exception {
         server = new Server();
         var connector = new ServerConnector(server);
@@ -111,8 +142,19 @@ class JettyProxyFixture implements AutoCloseable {
         var gitServlet = new GitServlet();
         gitServlet.setRepositoryResolver(resolver);
         var approvalGateway = new AutoApproveGateway(pushStore);
-        gitServlet.setReceivePackFactory(
-                new StoreAndForwardReceivePackFactory(provider, commitConfig, pushStore, approvalGateway));
+        // Wire URL rules into S&F — null repoRegistry means config rules only (no DB rules in tests)
+        gitServlet.setReceivePackFactory(new StoreAndForwardReceivePackFactory(
+                provider,
+                () -> commitConfig,
+                GpgConfig.defaultConfig(),
+                null,
+                null,
+                pushStore,
+                approvalGateway,
+                null,
+                Duration.ofSeconds(30),
+                urlRuleFilters,
+                null));
         gitServlet.setUploadPackFactory(new StoreAndForwardUploadPackFactory());
 
         String pushServletPath = PUSH_PREFIX + provider.servletPath();
@@ -145,6 +187,10 @@ class JettyProxyFixture implements AutoCloseable {
         addFilter(context, proxyMapping, new ParseGitRequestFilter(provider, PROXY_PREFIX));
         addFilter(context, proxyMapping, new EnrichPushCommitsFilter(provider, proxyCache, PROXY_PREFIX));
         addFilter(context, proxyMapping, new AllowApprovedPushFilter(pushStore, serviceUrl));
+        if (!urlRuleFilters.isEmpty()) {
+            // null repoRegistry — config rules only, no DB rules in tests
+            addFilter(context, proxyMapping, new UrlRuleAggregateFilter(100, provider, urlRuleFilters, PROXY_PREFIX));
+        }
         if (identityResolver != null && permissionService != null) {
             addFilter(context, proxyMapping, new CheckUserPushPermissionFilter(identityResolver, permissionService));
             addFilter(

@@ -1,7 +1,5 @@
 package org.finos.gitproxy.servlet.filter;
 
-import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.nio.file.FileSystems;
@@ -12,18 +10,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.db.model.AccessRule;
-import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
 import org.finos.gitproxy.provider.GitProxyProvider;
 
 /**
- * A filter that checks a request URL against a list of patterns and marks the request as matched when any entry
- * matches. Used by {@link UrlRuleAggregateFilter} to evaluate allow/deny rules from configuration.
+ * Holds a compiled allow/deny rule from configuration. Used by {@link UrlRuleEvaluator} to evaluate rules in both
+ * proxy-mode and store-and-forward mode.
  *
  * <p>Each entry in the pattern list may be:
  *
@@ -46,9 +42,6 @@ public class UrlRuleFilter extends AbstractProviderAwareGitProxyFilter {
         NAME,
         SLUG
     }
-
-    public static final String MATCHED_BY_ATTRIBUTE = "org.finos.gitproxy.servlet.filter.UrlRuleFilter.matchedBy";
-    public static final String DENIED_BY_ATTRIBUTE = "org.finos.gitproxy.servlet.filter.UrlRuleFilter.deniedBy";
 
     private static final String REGEX_PREFIX = "regex:";
 
@@ -147,27 +140,6 @@ public class UrlRuleFilter extends AbstractProviderAwareGitProxyFilter {
                 this.getClass().getSimpleName());
     }
 
-    public boolean isMatched(Predicate<String> predicate) {
-        return entries.stream().anyMatch(predicate);
-    }
-
-    public Predicate<String> createPredicate(Target target, HttpServletRequest request) {
-        var details = (GitRequestDetails) request.getAttribute(GIT_REQUEST_ATTR);
-        if (target == Target.OWNER) {
-            String owner = details.getRepoRef().getOwner();
-            return e -> e.equals(owner) || matchesGlob(e, owner) || matchesRegex(e, owner);
-        }
-        if (target == Target.NAME) {
-            String name = details.getRepoRef().getName();
-            return e -> e.equals(name) || matchesGlob(e, name) || matchesRegex(e, name);
-        }
-        if (target == Target.SLUG) {
-            String slug = details.getRepoRef().getSlug();
-            return e -> e.equals(slug) || matchesGlob(e, slug) || matchesRegex(e, slug);
-        }
-        throw new IllegalArgumentException("Unknown target type: " + target);
-    }
-
     private boolean matchesGlob(String pattern, String value) {
         PathMatcher matcher = globPatterns.get(pattern);
         if (matcher == null) return false;
@@ -182,28 +154,16 @@ public class UrlRuleFilter extends AbstractProviderAwareGitProxyFilter {
 
     @Override
     public void doHttpFilter(HttpServletRequest request, HttpServletResponse response) {
-        // no-op — the aggregate filter drives rule evaluation
+        // no-op — UrlRuleEvaluator drives rule evaluation; this filter is a rule spec holder
     }
 
     public boolean appliesTo(HttpOperation operation) {
         return applicableOperations.contains(operation);
     }
 
-    public void applyRule(HttpServletRequest request) {
-        var predicate = createPredicate(target, request);
-        if (isMatched(predicate)) {
-            if (access == AccessRule.Access.DENY) {
-                request.setAttribute(DENIED_BY_ATTRIBUTE, this.toString());
-            } else {
-                request.setAttribute(MATCHED_BY_ATTRIBUTE, this.toString());
-            }
-        }
-    }
-
     /**
-     * Returns true if this rule matches the given repo reference. Used by
-     * {@link org.finos.gitproxy.git.RepositoryUrlRuleHook} which operates inside the JGit hook chain where no
-     * {@link HttpServletRequest} is available.
+     * Returns true if this rule matches the given repo reference. Used by {@link UrlRuleEvaluator} which operates
+     * without an {@link HttpServletRequest}.
      *
      * <p>Leading {@code /} characters are stripped from both the stored entry and the supplied value before comparison
      * so that {@code /owner/repo} and {@code owner/repo} are treated identically.
@@ -218,8 +178,13 @@ public class UrlRuleFilter extends AbstractProviderAwareGitProxyFilter {
         if (value == null) return false;
         String normalised = stripLeadingSlash(value);
         return entries.stream().anyMatch(e -> {
+            // Literal: strip leading slashes from both sides so /owner/repo and owner/repo are identical.
+            // Glob: use the original entry key (compiled patterns are keyed by the unstripped entry) and
+            //   the original value so that slash-anchored patterns like /*/public-* match correctly.
+            // Regex: use the original entry and raw value so users can write patterns relative to the
+            //   full slug form (e.g. regex:/myorg/.*).
             String en = stripLeadingSlash(e);
-            return en.equals(normalised) || matchesGlob(en, normalised) || matchesRegex(e, normalised);
+            return en.equals(normalised) || matchesGlob(e, value) || matchesRegex(e, value);
         });
     }
 

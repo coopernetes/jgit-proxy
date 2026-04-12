@@ -159,6 +159,11 @@ class GitHelper {
         return new PushResult(exitCode, output);
     }
 
+    /** Updates the {@code origin} remote URL — used to redirect a local clone's push target. */
+    void setRemoteUrl(Path repoDir, String remote, String url) throws IOException, InterruptedException {
+        git(repoDir, "remote", "set-url", remote, url);
+    }
+
     // ---- private helpers ----
 
     private String currentBranch(Path repoDir) throws IOException, InterruptedException {

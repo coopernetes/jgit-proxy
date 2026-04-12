@@ -146,6 +146,8 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/api/users", "/api/users/**")
                         .hasRole("ADMIN")
+                        .requestMatchers("/api/admin/**")
+                        .hasRole("ADMIN")
                         .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/repos/rules/**")
                         .hasRole("ADMIN")
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/repos/rules")

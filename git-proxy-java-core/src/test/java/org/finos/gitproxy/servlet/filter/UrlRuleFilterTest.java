@@ -1,8 +1,6 @@
 package org.finos.gitproxy.servlet.filter;
 
 import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
-import static org.finos.gitproxy.servlet.filter.UrlRuleFilter.DENIED_BY_ATTRIBUTE;
-import static org.finos.gitproxy.servlet.filter.UrlRuleFilter.MATCHED_BY_ATTRIBUTE;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -103,8 +101,7 @@ class UrlRuleFilterTest {
                 })
                 .when(req)
                 .setAttribute(anyString(), any());
-        when(req.getAttribute(MATCHED_BY_ATTRIBUTE)).thenAnswer(inv -> attrs.get(MATCHED_BY_ATTRIBUTE));
-        when(req.getAttribute(DENIED_BY_ATTRIBUTE)).thenAnswer(inv -> attrs.get(DENIED_BY_ATTRIBUTE));
+        when(req.getAttribute(anyString())).thenAnswer(inv -> attrs.get(inv.getArgument(0)));
         return req;
     }
 
@@ -142,135 +139,56 @@ class UrlRuleFilterTest {
     }
 
     @Test
-    void urlRule_applyRule_ownerMatch_setsAttribute() throws Exception {
+    void urlRule_matchesRepo_ownerMatch() {
         var filter = new UrlRuleFilter(100, GITHUB, List.of("allowed-owner"), UrlRuleFilter.Target.OWNER);
-        GitRequestDetails details = makeDetails("allowed-owner", "repo", "allowed-owner/repo");
-        HttpServletRequest req = mockPushRequest(details);
-
-        filter.applyRule(req);
-
-        verify(req).setAttribute(eq(MATCHED_BY_ATTRIBUTE), anyString());
+        assertTrue(filter.matchesRepo("allowed-owner/repo", "allowed-owner", "repo"));
+        assertFalse(filter.matchesRepo("other-owner/repo", "other-owner", "repo"));
     }
 
     @Test
-    void urlRule_applyRule_ownerNoMatch_doesNotSetAttribute() throws Exception {
-        var filter = new UrlRuleFilter(100, GITHUB, List.of("allowed-owner"), UrlRuleFilter.Target.OWNER);
-        GitRequestDetails details = makeDetails("other-owner", "repo", "other-owner/repo");
-        HttpServletRequest req = mockPushRequest(details);
-
-        filter.applyRule(req);
-
-        verify(req, never()).setAttribute(eq(MATCHED_BY_ATTRIBUTE), anyString());
-    }
-
-    @Test
-    void urlRule_applyRule_nameMatch_setsAttribute() throws Exception {
+    void urlRule_matchesRepo_nameMatch() {
         var filter = new UrlRuleFilter(100, GITHUB, List.of("my-repo"), UrlRuleFilter.Target.NAME);
-        GitRequestDetails details = makeDetails("owner", "my-repo", "owner/my-repo");
-        HttpServletRequest req = mockPushRequest(details);
-
-        filter.applyRule(req);
-
-        verify(req).setAttribute(eq(MATCHED_BY_ATTRIBUTE), anyString());
+        assertTrue(filter.matchesRepo("owner/my-repo", "owner", "my-repo"));
+        assertFalse(filter.matchesRepo("owner/other-repo", "owner", "other-repo"));
     }
 
     @Test
-    void urlRule_applyRule_slugMatch_setsAttribute() throws Exception {
+    void urlRule_matchesRepo_slugMatch() {
         var filter = new UrlRuleFilter(100, GITHUB, List.of("/owner/repo"), UrlRuleFilter.Target.SLUG);
-        GitRequestDetails details = makeDetails("owner", "repo", "/owner/repo");
-        HttpServletRequest req = mockPushRequest(details);
-
-        filter.applyRule(req);
-
-        verify(req).setAttribute(eq(MATCHED_BY_ATTRIBUTE), anyString());
+        assertTrue(filter.matchesRepo("/owner/repo", "owner", "repo"));
     }
 
     @Test
-    void urlRule_globOwner_matches() throws Exception {
+    void urlRule_matchesRepo_globOwner() {
         var filter = new UrlRuleFilter(100, GITHUB, List.of("open-source-*"), UrlRuleFilter.Target.OWNER);
-        GitRequestDetails details = makeDetails("open-source-org", "repo", "open-source-org/repo");
-        HttpServletRequest req = mockPushRequest(details);
-
-        filter.applyRule(req);
-
-        verify(req).setAttribute(eq(MATCHED_BY_ATTRIBUTE), anyString());
+        assertTrue(filter.matchesRepo("open-source-org/repo", "open-source-org", "repo"));
+        assertFalse(filter.matchesRepo("other-org/repo", "other-org", "repo"));
     }
 
     @Test
-    void urlRule_globOwner_noMatch() throws Exception {
-        var filter = new UrlRuleFilter(100, GITHUB, List.of("open-source-*"), UrlRuleFilter.Target.OWNER);
-        GitRequestDetails details = makeDetails("other-org", "repo", "other-org/repo");
-        HttpServletRequest req = mockPushRequest(details);
-
-        filter.applyRule(req);
-
-        verify(req, never()).setAttribute(eq(MATCHED_BY_ATTRIBUTE), anyString());
-    }
-
-    @Test
-    void urlRule_globSlug_matches() throws Exception {
+    void urlRule_matchesRepo_globSlug() {
         var filter = new UrlRuleFilter(100, GITHUB, List.of("/*/public-*"), UrlRuleFilter.Target.SLUG);
-        GitRequestDetails details = makeDetails("owner", "public-api", "/owner/public-api");
-        HttpServletRequest req = mockPushRequest(details);
-
-        filter.applyRule(req);
-
-        verify(req).setAttribute(eq(MATCHED_BY_ATTRIBUTE), anyString());
+        assertTrue(filter.matchesRepo("/owner/public-api", "owner", "public-api"));
+        assertFalse(filter.matchesRepo("/owner/private-repo", "owner", "private-repo"));
     }
 
     @Test
-    void urlRule_globSlug_noMatch() throws Exception {
-        var filter = new UrlRuleFilter(100, GITHUB, List.of("/*/public-*"), UrlRuleFilter.Target.SLUG);
-        GitRequestDetails details = makeDetails("owner", "private-repo", "/owner/private-repo");
-        HttpServletRequest req = mockPushRequest(details);
-
-        filter.applyRule(req);
-
-        verify(req, never()).setAttribute(eq(MATCHED_BY_ATTRIBUTE), anyString());
-    }
-
-    @Test
-    void urlRule_globName_matches() throws Exception {
+    void urlRule_matchesRepo_globName() {
         var filter = new UrlRuleFilter(100, GITHUB, List.of("feature-*"), UrlRuleFilter.Target.NAME);
-        GitRequestDetails details = makeDetails("owner", "feature-xyz", "/owner/feature-xyz");
-        HttpServletRequest req = mockPushRequest(details);
-
-        filter.applyRule(req);
-
-        verify(req).setAttribute(eq(MATCHED_BY_ATTRIBUTE), anyString());
+        assertTrue(filter.matchesRepo("/owner/feature-xyz", "owner", "feature-xyz"));
     }
 
     @Test
-    void urlRule_regexOwner_matches() throws Exception {
+    void urlRule_matchesRepo_regexOwner() {
         var filter = new UrlRuleFilter(100, GITHUB, List.of("regex:^(myorg|partnerorg)$"), UrlRuleFilter.Target.OWNER);
-        GitRequestDetails details = makeDetails("myorg", "repo", "myorg/repo");
-        HttpServletRequest req = mockPushRequest(details);
-
-        filter.applyRule(req);
-
-        verify(req).setAttribute(eq(MATCHED_BY_ATTRIBUTE), anyString());
+        assertTrue(filter.matchesRepo("myorg/repo", "myorg", "repo"));
+        assertFalse(filter.matchesRepo("other-org/repo", "other-org", "repo"));
     }
 
     @Test
-    void urlRule_regexOwner_noMatch() throws Exception {
-        var filter = new UrlRuleFilter(100, GITHUB, List.of("regex:^(myorg|partnerorg)$"), UrlRuleFilter.Target.OWNER);
-        GitRequestDetails details = makeDetails("other-org", "repo", "other-org/repo");
-        HttpServletRequest req = mockPushRequest(details);
-
-        filter.applyRule(req);
-
-        verify(req, never()).setAttribute(eq(MATCHED_BY_ATTRIBUTE), anyString());
-    }
-
-    @Test
-    void urlRule_regexSlug_matches() throws Exception {
+    void urlRule_matchesRepo_regexSlug() {
         var filter = new UrlRuleFilter(100, GITHUB, List.of("regex:/myorg/.*"), UrlRuleFilter.Target.SLUG);
-        GitRequestDetails details = makeDetails("myorg", "any-repo", "/myorg/any-repo");
-        HttpServletRequest req = mockPushRequest(details);
-
-        filter.applyRule(req);
-
-        verify(req).setAttribute(eq(MATCHED_BY_ATTRIBUTE), anyString());
+        assertTrue(filter.matchesRepo("/myorg/any-repo", "myorg", "any-repo"));
     }
 
     @Test
@@ -333,19 +251,6 @@ class UrlRuleFilterTest {
         aggregate.doHttpFilter(mockPushRequest(details), resp.mock);
 
         assertTrue(resp.committed.get(), "No allow rules configured — default-deny should block all requests");
-    }
-
-    @Test
-    void urlRule_denyAccess_applyRule_setsdeniedByAttribute() throws Exception {
-        var filter = new UrlRuleFilter(
-                100, GITHUB, List.of("blocked-owner"), UrlRuleFilter.Target.OWNER, AccessRule.Access.DENY);
-        GitRequestDetails details = makeDetails("blocked-owner", "repo", "blocked-owner/repo");
-        HttpServletRequest req = mockPushRequest(details);
-
-        filter.applyRule(req);
-
-        verify(req).setAttribute(eq(DENIED_BY_ATTRIBUTE), anyString());
-        verify(req, never()).setAttribute(eq(MATCHED_BY_ATTRIBUTE), anyString());
     }
 
     @Test
@@ -413,10 +318,7 @@ class UrlRuleFilterTest {
                 })
                 .when(req)
                 .setAttribute(anyString(), any());
-        when(req.getAttribute(MATCHED_BY_ATTRIBUTE)).thenAnswer(inv -> attrs.get(MATCHED_BY_ATTRIBUTE));
-        when(req.getAttribute(DENIED_BY_ATTRIBUTE)).thenAnswer(inv -> attrs.get(DENIED_BY_ATTRIBUTE));
-        when(req.getAttribute(org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR))
-                .thenReturn(details);
+        when(req.getAttribute(anyString())).thenAnswer(inv -> attrs.get(inv.getArgument(0)));
         return req;
     }
 

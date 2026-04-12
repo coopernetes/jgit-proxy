@@ -10,38 +10,24 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
 import org.finos.gitproxy.db.RepoRegistry;
-import org.finos.gitproxy.db.model.AccessRule;
 import org.finos.gitproxy.db.model.PushStep;
 import org.finos.gitproxy.db.model.StepStatus;
 import org.finos.gitproxy.provider.GitProxyProvider;
+import org.finos.gitproxy.servlet.filter.UrlRuleEvaluator;
 import org.finos.gitproxy.servlet.filter.UrlRuleFilter;
 
 /**
- * Pre-receive hook that enforces URL allow/deny rules in store-and-forward mode. Mirrors the behaviour of
- * {@link org.finos.gitproxy.servlet.filter.UrlRuleAggregateFilter} for the JGit hook chain.
+ * Pre-receive hook that enforces URL allow/deny rules in store-and-forward mode. Rule evaluation is delegated entirely
+ * to {@link UrlRuleEvaluator}; this class only handles extracting the JGit context and writing JGit responses.
  *
- * <p>Evaluation order:
- *
- * <ol>
- *   <li>Config deny rules — any match immediately blocks the push.
- *   <li>DB deny rules — any match immediately blocks the push.
- *   <li>Config allow rules — first match permits the push.
- *   <li>DB allow rules — first match permits the push.
- *   <li>If allow rules exist but none match — push is blocked.
- *   <li>If no allow rules are configured at all — push is permitted (open mode).
- * </ol>
- *
- * <p>When {@code urlRuleFilters} is empty and {@code repoRegistry} is {@code null}, the hook records a PASS
- * unconditionally (open/permissive mode — no rules configured).
+ * <p>Mirrors the behaviour of {@link org.finos.gitproxy.servlet.filter.UrlRuleAggregateFilter} for the JGit hook chain.
  */
 @Slf4j
 public class RepositoryUrlRuleHook implements GitProxyHook {
 
     private static final int ORDER = 100;
 
-    private final List<UrlRuleFilter> urlRuleFilters;
-    private final RepoRegistry repoRegistry;
-    private final GitProxyProvider provider;
+    private final UrlRuleEvaluator evaluator;
     private final ValidationContext validationContext;
     private final PushContext pushContext;
 
@@ -56,24 +42,26 @@ public class RepositoryUrlRuleHook implements GitProxyHook {
             GitProxyProvider provider,
             ValidationContext validationContext,
             PushContext pushContext) {
-        this.urlRuleFilters = urlRuleFilters != null ? urlRuleFilters : List.of();
-        this.repoRegistry = repoRegistry;
-        this.provider = provider;
+        this.evaluator = new UrlRuleEvaluator(urlRuleFilters, repoRegistry, provider);
         this.validationContext = validationContext;
         this.pushContext = pushContext;
     }
 
     @Override
     public void onPreReceive(ReceivePack rp, Collection<ReceiveCommand> commands) {
-        // Open mode: no rules configured at all
-        if (urlRuleFilters.isEmpty() && repoRegistry == null) {
-            log.debug("No URL rules configured — allowing push (open mode)");
-            recordPass();
-            return;
-        }
+        // Open mode: evaluator has no config rules and no registry
+        // (detected inside evaluator — returns OpenMode)
 
         String repoSlug = rp.getRepository().getConfig().getString("gitproxy", null, "repoSlug");
         if (repoSlug == null || repoSlug.isBlank()) {
+            // No repoSlug means we can't evaluate rules — fail closed
+            // Exception: if the evaluator is in pure open mode (no rules at all), allow it
+            UrlRuleEvaluator.Result probe = evaluator.evaluate(null, null, null, HttpOperation.PUSH);
+            if (probe instanceof UrlRuleEvaluator.Result.OpenMode) {
+                log.debug("No repoSlug and no rules configured — allowing push (open mode)");
+                recordPass();
+                return;
+            }
             log.warn("No repoSlug in repo config — cannot evaluate URL rules, blocking push (fail-closed)");
             blockPush(rp, commands, "Repository path unavailable");
             return;
@@ -85,61 +73,26 @@ public class RepositoryUrlRuleHook implements GitProxyHook {
         String name = parts.length >= 3 ? parts[2] : null;
         String normSlug = (owner != null && name != null) ? owner + "/" + name : strip(repoSlug);
 
-        String providerId = provider != null ? provider.getProviderId() : null;
+        UrlRuleEvaluator.Result result = evaluator.evaluate(normSlug, owner, name, HttpOperation.PUSH);
 
-        // ── Step 1: deny rules ─────────────────────────────────────────────────
-        for (UrlRuleFilter f : urlRuleFilters) {
-            if (f.getAccess() == AccessRule.Access.DENY && f.matchesRepo(normSlug, owner, name)) {
-                log.debug("Push blocked by config deny rule: {}", f);
-                blockPush(rp, commands, "Repository denied by configuration rule");
-                return;
+        switch (result) {
+            case UrlRuleEvaluator.Result.Denied d -> {
+                log.debug("Push blocked by deny rule: {}", d.ruleId());
+                blockPush(rp, commands, "Repository denied by access rule");
             }
-        }
-        if (repoRegistry != null && providerId != null) {
-            for (AccessRule rule : repoRegistry.findEnabledForProvider(providerId)) {
-                if (rule.getAccess() == AccessRule.Access.DENY && matchesDbRule(rule, normSlug, owner, name)) {
-                    log.debug("Push blocked by DB deny rule: id={}", rule.getId());
-                    blockPush(rp, commands, "Repository denied by access rule");
-                    return;
-                }
-            }
-        }
-
-        // ── Step 2: allow rules ────────────────────────────────────────────────
-        List<UrlRuleFilter> configAllow = urlRuleFilters.stream()
-                .filter(f -> f.getAccess() == AccessRule.Access.ALLOW)
-                .toList();
-        List<AccessRule> dbAllow = List.of();
-        if (repoRegistry != null && providerId != null) {
-            dbAllow = repoRegistry.findEnabledForProvider(providerId).stream()
-                    .filter(r -> r.getAccess() == AccessRule.Access.ALLOW)
-                    .toList();
-        }
-
-        if (configAllow.isEmpty() && dbAllow.isEmpty()) {
-            // No allow rules configured anywhere — open/permissive mode
-            log.debug("No allow rules configured for {} — allowing push (open mode)", providerId);
-            recordPass();
-            return;
-        }
-
-        for (UrlRuleFilter f : configAllow) {
-            if (f.matchesRepo(normSlug, owner, name)) {
-                log.debug("Push allowed by config allow rule: {}", f);
+            case UrlRuleEvaluator.Result.Allowed a -> {
+                log.debug("Push allowed by rule: {}", a.ruleId());
                 recordPass();
-                return;
             }
-        }
-        for (AccessRule rule : dbAllow) {
-            if (matchesDbRule(rule, normSlug, owner, name)) {
-                log.debug("Push allowed by DB allow rule: id={}", rule.getId());
+            case UrlRuleEvaluator.Result.OpenMode m -> {
+                log.debug("Push allowed — open mode (no allow rules configured)");
                 recordPass();
-                return;
+            }
+            case UrlRuleEvaluator.Result.NotAllowed n -> {
+                log.debug("Push blocked — no allow rule matched");
+                blockPush(rp, commands, "Repository is not in the allow list");
             }
         }
-
-        log.debug("Push to {}/{} matched no allow rule — blocking", providerId, normSlug);
-        blockPush(rp, commands, "Repository is not in the allow list");
     }
 
     private void blockPush(ReceivePack rp, Collection<ReceiveCommand> commands, String reason) {
@@ -177,31 +130,8 @@ public class RepositoryUrlRuleHook implements GitProxyHook {
                 .build());
     }
 
-    private static boolean matchesDbRule(AccessRule rule, String slug, String owner, String name) {
-        if (rule.getSlug() != null) return matchPattern(strip(rule.getSlug()), slug);
-        if (rule.getOwner() != null) return matchPattern(strip(rule.getOwner()), owner);
-        if (rule.getName() != null) return matchPattern(strip(rule.getName()), name);
-        return false;
-    }
-
     private static String strip(String s) {
         return (s != null && s.startsWith("/")) ? s.substring(1) : s;
-    }
-
-    private static boolean matchPattern(String pattern, String value) {
-        if (pattern == null || value == null) return false;
-        if (pattern.equals(value)) return true;
-        if (pattern.startsWith("regex:")) {
-            return java.util.regex.Pattern.compile(pattern.substring(6))
-                    .matcher(value)
-                    .matches();
-        }
-        if (pattern.contains("*") || pattern.contains("?") || pattern.contains("[")) {
-            return java.nio.file.FileSystems.getDefault()
-                    .getPathMatcher("glob:" + pattern)
-                    .matches(java.nio.file.Paths.get(value));
-        }
-        return false;
     }
 
     @Override

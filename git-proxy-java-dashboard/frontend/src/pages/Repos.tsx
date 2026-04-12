@@ -105,6 +105,7 @@ interface AddRuleForm {
   pattern: string
   provider: string
   operations: 'BOTH' | 'PUSH' | 'FETCH'
+  ruleOrder: number
 }
 
 const DEFAULT_FORM: AddRuleForm = {
@@ -114,6 +115,7 @@ const DEFAULT_FORM: AddRuleForm = {
   pattern: '',
   provider: '',
   operations: 'BOTH',
+  ruleOrder: 100,
 }
 
 function AddRuleModal({
@@ -185,6 +187,7 @@ function AddRuleModal({
         access: form.access,
         operations: form.operations,
         provider: form.provider || undefined,
+        ruleOrder: form.ruleOrder,
       }
       if (form.targetType === 'slug') payload.slug = encoded
       else if (form.targetType === 'owner') payload.owner = encoded
@@ -337,6 +340,22 @@ function AddRuleModal({
               <option value="PUSH">Push only</option>
               <option value="FETCH">Fetch only</option>
             </select>
+          </div>
+
+          {/* Rule order */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Priority order</label>
+            <input
+              type="number"
+              value={form.ruleOrder}
+              onChange={(e) => set('ruleOrder', Number(e.target.value))}
+              min={1}
+              className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
+            />
+            <p className="mt-1 text-xs text-gray-400">
+              Lower numbers are evaluated first. Default is 100. Deny rules always override allow
+              rules regardless of order.
+            </p>
           </div>
         </div>
 
@@ -493,6 +512,12 @@ export function Repos() {
                   className="bg-white rounded-lg border border-gray-200 px-5 py-3 flex items-center justify-between"
                 >
                   <div className="flex items-center gap-3 min-w-0">
+                    <span
+                      className="text-xs w-8 text-center text-gray-400 font-mono shrink-0"
+                      title="Priority order — lower runs first"
+                    >
+                      #{rule.ruleOrder}
+                    </span>
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${
                         rule.access === 'ALLOW'

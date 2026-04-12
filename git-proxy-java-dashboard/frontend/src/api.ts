@@ -263,6 +263,50 @@ export async function deleteAccessRule(id: string) {
   if (!res.ok) await parseErrorResponse(res, 'Failed to delete access rule')
 }
 
+export interface TcpResult {
+  status: 'ok' | 'error'
+  host: string
+  port: number
+  durationMs: number
+  error?: string
+  detail?: string
+}
+
+export interface TlsResult {
+  status: 'ok' | 'error'
+  durationMs: number
+  // ok fields
+  protocol?: string
+  cipher?: string
+  peerCn?: string
+  // error fields
+  error?: string
+  detail?: string
+}
+
+export interface HttpResult {
+  status: number | 'error'
+  durationMs: number
+  location?: string
+  detail?: string
+}
+
+export interface ProviderConnectivity {
+  uri: string
+  tcp: TcpResult
+  tls: TlsResult | null
+  http: HttpResult | null
+}
+
+export async function checkConnectivity(): Promise<{
+  checkedAt: string
+  providers: Record<string, ProviderConnectivity>
+}> {
+  const res = await apiFetch('/api/admin/connectivity')
+  if (!res.ok) await parseErrorResponse(res, 'Connectivity check failed')
+  return res.json()
+}
+
 export async function deleteUserPermission(username: string, id: string) {
   const res = await apiFetch(
     `/api/users/${encodeURIComponent(username)}/permissions/${encodeURIComponent(id)}`,

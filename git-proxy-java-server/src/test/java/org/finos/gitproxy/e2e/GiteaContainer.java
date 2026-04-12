@@ -174,6 +174,36 @@ class GiteaContainer extends GenericContainer<GiteaContainer> {
         }
     }
 
+    /**
+     * Creates an organisation. Ignores 422 (already exists) so it is safe to call from multiple test classes that share
+     * the same Gitea instance.
+     */
+    void createOrg(String orgName) throws IOException, InterruptedException {
+        var client = HttpClient.newHttpClient();
+        String auth = Base64.getEncoder().encodeToString((ADMIN_USER + ":" + ADMIN_PASSWORD).getBytes());
+        apiPost(
+                client,
+                auth,
+                getBaseUrl() + "/api/v1/orgs",
+                "{\"username\":\"" + orgName + "\",\"visibility\":\"public\"}");
+        // 422 = already exists — ignore
+    }
+
+    /** Creates a repository under an existing org. Auto-initialises with a README. Ignores 409 (already exists). */
+    void createRepo(String org, String repoName) throws IOException, InterruptedException {
+        var client = HttpClient.newHttpClient();
+        String auth = Base64.getEncoder().encodeToString((ADMIN_USER + ":" + ADMIN_PASSWORD).getBytes());
+        var resp = apiPost(
+                client,
+                auth,
+                getBaseUrl() + "/api/v1/orgs/" + org + "/repos",
+                "{\"name\":\"" + repoName + "\",\"private\":false,\"auto_init\":true,\"default_branch\":\"main\"}");
+        if (resp.statusCode() >= 400 && resp.statusCode() != 409) {
+            throw new RuntimeException(
+                    "Failed to create repo " + org + "/" + repoName + " (" + resp.statusCode() + "): " + resp.body());
+        }
+    }
+
     private HttpResponse<String> apiPost(HttpClient client, String auth, String url, String body)
             throws IOException, InterruptedException {
         var req = HttpRequest.newBuilder()

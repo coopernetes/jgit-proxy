@@ -1,0 +1,330 @@
+package org.finos.gitproxy.dashboard.controller;
+
+import jakarta.annotation.Resource;
+import java.net.ConnectException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.file.Path;
+import java.security.cert.X509Certificate;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
+import lombok.extern.slf4j.Slf4j;
+import org.finos.gitproxy.config.ProviderConfigurationSource;
+import org.finos.gitproxy.jetty.config.GitProxyConfig;
+import org.finos.gitproxy.provider.GitProxyProvider;
+import org.finos.gitproxy.tls.SslUtil;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * Admin endpoint that tests outbound connectivity to each configured upstream provider. Useful for diagnosing
+ * network-level failures in firewalled environments.
+ *
+ * <p>Runs three checks per provider in sequence, stopping at the first failure:
+ *
+ * <ol>
+ *   <li><b>TCP</b> — open a socket to {@code host:port} (5 s timeout). Classifies the error as REFUSED, TIMEOUT, or
+ *       RESET so firewall DROP vs REJECT is immediately distinguishable.
+ *   <li><b>TLS</b> — complete the TLS handshake (HTTPS providers only). Reports negotiated protocol and cipher, or the
+ *       specific exception class for certificate / SNI failures.
+ *   <li><b>HTTP</b> — send {@code GET /} and record the status code and response time.
+ * </ol>
+ *
+ * <p>Every step is logged at INFO level so that the application log can be used as evidence for firewall tickets.
+ * Requires {@code ROLE_ADMIN}.
+ */
+@Slf4j
+@RestController
+public class ConnectivityController {
+
+    private static final int TIMEOUT_MS = 5000;
+
+    @Resource(name = "providers")
+    private ProviderConfigurationSource providers;
+
+    @Autowired
+    private GitProxyConfig gitProxyConfig;
+
+    @GetMapping("/api/admin/connectivity")
+    public Map<String, Object> check() {
+        SSLContext sslContext = buildSslContext();
+        Instant checkedAt = Instant.now();
+
+        log.info("=== Connectivity check started at {} ===", checkedAt);
+
+        Map<String, Object> providerResults = new LinkedHashMap<>();
+        for (GitProxyProvider provider : providers.getProviders()) {
+            log.info("--- Provider: {} ({}) ---", provider.getName(), provider.getUri());
+            providerResults.put(provider.getName(), checkProvider(provider, sslContext));
+        }
+
+        log.info("=== Connectivity check complete ===");
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("checkedAt", checkedAt.toString());
+        result.put("providers", providerResults);
+        return result;
+    }
+
+    private Map<String, Object> checkProvider(GitProxyProvider provider, SSLContext sslContext) {
+        URI uri = provider.getUri();
+        boolean isHttps = "https".equalsIgnoreCase(uri.getScheme());
+        int port = uri.getPort() > 0 ? uri.getPort() : (isHttps ? 443 : 80);
+        String host = uri.getHost();
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("uri", uri.toString());
+
+        // ── TCP connect ───────────────────────────────────────────────────────
+        long tcpStart = System.currentTimeMillis();
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(host, port), TIMEOUT_MS);
+            long tcpMs = System.currentTimeMillis() - tcpStart;
+            log.info("[{}] TCP {}:{} → OK ({} ms)", provider.getName(), host, port, tcpMs);
+            Map<String, Object> tcp = new LinkedHashMap<>();
+            tcp.put("status", "ok");
+            tcp.put("host", host);
+            tcp.put("port", port);
+            tcp.put("durationMs", tcpMs);
+            out.put("tcp", tcp);
+        } catch (Exception e) {
+            long tcpMs = System.currentTimeMillis() - tcpStart;
+            String errorCode = classifyTcpError(e);
+            log.info(
+                    "[{}] TCP {}:{} → {} ({} ms) — {}: {}",
+                    provider.getName(),
+                    host,
+                    port,
+                    errorCode,
+                    tcpMs,
+                    e.getClass().getSimpleName(),
+                    e.getMessage());
+            Map<String, Object> tcp = new LinkedHashMap<>();
+            tcp.put("status", "error");
+            tcp.put("error", errorCode);
+            tcp.put("detail", e.getClass().getSimpleName() + ": " + e.getMessage());
+            tcp.put("host", host);
+            tcp.put("port", port);
+            tcp.put("durationMs", tcpMs);
+            out.put("tcp", tcp);
+            out.put("tls", null);
+            out.put("http", null);
+            return out;
+        }
+
+        // ── TLS handshake (HTTPS only) ────────────────────────────────────────
+        if (isHttps) {
+            long tlsStart = System.currentTimeMillis();
+            SSLSocketFactory factory = sslContext.getSocketFactory();
+            try (SSLSocket ssl = (SSLSocket) factory.createSocket(host, port)) {
+                ssl.setSoTimeout(TIMEOUT_MS);
+                ssl.startHandshake();
+                long tlsMs = System.currentTimeMillis() - tlsStart;
+                var session = ssl.getSession();
+                String protocol = session.getProtocol();
+                String cipher = session.getCipherSuite();
+                String peerCn = peerCommonName(ssl);
+                log.info(
+                        "[{}] TLS {}:{} → OK ({} ms) — {} / {} / peer={}",
+                        provider.getName(),
+                        host,
+                        port,
+                        tlsMs,
+                        protocol,
+                        cipher,
+                        peerCn);
+                Map<String, Object> tls = new LinkedHashMap<>();
+                tls.put("status", "ok");
+                tls.put("protocol", protocol);
+                tls.put("cipher", cipher);
+                tls.put("peerCn", peerCn);
+                tls.put("durationMs", tlsMs);
+                out.put("tls", tls);
+            } catch (SSLHandshakeException e) {
+                long tlsMs = System.currentTimeMillis() - tlsStart;
+                String errorCode = classifyTlsError(e);
+                log.info(
+                        "[{}] TLS {}:{} → {} ({} ms) — {}: {}",
+                        provider.getName(),
+                        host,
+                        port,
+                        errorCode,
+                        tlsMs,
+                        e.getClass().getSimpleName(),
+                        e.getMessage());
+                Map<String, Object> tls = new LinkedHashMap<>();
+                tls.put("status", "error");
+                tls.put("error", errorCode);
+                tls.put("detail", e.getClass().getSimpleName() + ": " + e.getMessage());
+                tls.put("durationMs", tlsMs);
+                out.put("tls", tls);
+                out.put("http", null);
+                return out;
+            } catch (Exception e) {
+                long tlsMs = System.currentTimeMillis() - tlsStart;
+                log.info(
+                        "[{}] TLS {}:{} → ERROR ({} ms) — {}: {}",
+                        provider.getName(),
+                        host,
+                        port,
+                        tlsMs,
+                        e.getClass().getSimpleName(),
+                        e.getMessage());
+                Map<String, Object> tls = new LinkedHashMap<>();
+                tls.put("status", "error");
+                tls.put("error", "ERROR");
+                tls.put("detail", e.getClass().getSimpleName() + ": " + e.getMessage());
+                tls.put("durationMs", tlsMs);
+                out.put("tls", tls);
+                out.put("http", null);
+                return out;
+            }
+        } else {
+            out.put("tls", null); // HTTP — not applicable
+        }
+
+        // ── HTTP probe ────────────────────────────────────────────────────────
+        long httpStart = System.currentTimeMillis();
+        try {
+            HttpClient client = HttpClient.newBuilder()
+                    .sslContext(sslContext)
+                    .connectTimeout(Duration.ofMillis(TIMEOUT_MS))
+                    .followRedirects(HttpClient.Redirect.NEVER)
+                    .build();
+            HttpRequest req = HttpRequest.newBuilder(uri)
+                    .GET()
+                    .timeout(Duration.ofMillis(TIMEOUT_MS))
+                    .build();
+            HttpResponse<Void> resp = client.send(req, HttpResponse.BodyHandlers.discarding());
+            long httpMs = System.currentTimeMillis() - httpStart;
+            int status = resp.statusCode();
+            String location = resp.headers().firstValue("location").orElse(null);
+            if (location != null) {
+                log.info(
+                        "[{}] HTTP GET {} → {} ({} ms) — Location: {}",
+                        provider.getName(),
+                        uri,
+                        status,
+                        httpMs,
+                        location);
+            } else {
+                log.info("[{}] HTTP GET {} → {} ({} ms)", provider.getName(), uri, status, httpMs);
+            }
+            Map<String, Object> http = new LinkedHashMap<>();
+            http.put("status", status);
+            if (location != null) http.put("location", location);
+            http.put("durationMs", httpMs);
+            out.put("http", http);
+        } catch (Exception e) {
+            long httpMs = System.currentTimeMillis() - httpStart;
+            log.info(
+                    "[{}] HTTP GET {} → ERROR ({} ms) — {}: {}",
+                    provider.getName(),
+                    uri,
+                    httpMs,
+                    e.getClass().getSimpleName(),
+                    e.getMessage());
+            Map<String, Object> http = new LinkedHashMap<>();
+            http.put("status", "error");
+            http.put("detail", e.getClass().getSimpleName() + ": " + e.getMessage());
+            http.put("durationMs", httpMs);
+            out.put("http", http);
+        }
+
+        return out;
+    }
+
+    /**
+     * Classifies a TCP-layer exception into a short error code that maps to OS-level error signals:
+     *
+     * <ul>
+     *   <li>{@code TIMEOUT} — firewall DROP or host unreachable (no RST received within timeout)
+     *   <li>{@code REFUSED} — firewall REJECT or no listener on port (RST received immediately)
+     *   <li>{@code RESET} — connection established then RST mid-stream (proxy intercept, load balancer)
+     *   <li>{@code ERROR} — other (DNS failure, network unreachable, etc.)
+     * </ul>
+     */
+    private static String classifyTcpError(Exception e) {
+        if (e instanceof SocketTimeoutException) return "TIMEOUT";
+        if (e instanceof ConnectException) {
+            String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+            if (msg.contains("refused")) return "REFUSED";
+            if (msg.contains("reset")) return "RESET";
+            return "REFUSED"; // ConnectException default
+        }
+        if (e instanceof SocketException) {
+            String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+            if (msg.contains("reset")) return "RESET";
+            if (msg.contains("refused")) return "REFUSED";
+            if (msg.contains("timeout") || msg.contains("timed out")) return "TIMEOUT";
+        }
+        return "ERROR";
+    }
+
+    /**
+     * Classifies a TLS-layer exception.
+     *
+     * <ul>
+     *   <li>{@code TLS_CERT_INVALID} — PKIX path building or certificate chain failure
+     *   <li>{@code TLS_HANDSHAKE_FAILED} — general handshake failure (alert from peer)
+     * </ul>
+     */
+    private static String classifyTlsError(SSLHandshakeException e) {
+        String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+        if (msg.contains("pkix")
+                || msg.contains("certificate")
+                || msg.contains("cert")
+                || msg.contains("trustanchor")
+                || msg.contains("trust anchor")) {
+            return "TLS_CERT_INVALID";
+        }
+        return "TLS_HANDSHAKE_FAILED";
+    }
+
+    /** Extracts the CN from the peer certificate, or returns the host name as fallback. */
+    private static String peerCommonName(SSLSocket ssl) {
+        try {
+            var certs = ssl.getSession().getPeerCertificates();
+            if (certs != null && certs.length > 0 && certs[0] instanceof X509Certificate x509) {
+                String dn = x509.getSubjectX500Principal().getName();
+                for (String part : dn.split(",")) {
+                    part = part.strip();
+                    if (part.startsWith("CN=")) return part.substring(3);
+                }
+            }
+        } catch (SSLPeerUnverifiedException ignored) {
+            // anonymous cipher — no peer cert
+        }
+        return ssl.getInetAddress().getHostName();
+    }
+
+    private SSLContext buildSslContext() {
+        var tlsCfg = gitProxyConfig.getServer().getTls();
+        if (tlsCfg != null && tlsCfg.isUpstreamTrustConfigured()) {
+            try {
+                return SslUtil.buildUpstreamTls(Path.of(tlsCfg.getTrustCaBundle()))
+                        .sslContext();
+            } catch (Exception e) {
+                log.warn("Failed to build SSL context from trust-ca-bundle; using JVM defaults: {}", e.getMessage());
+            }
+        }
+        try {
+            return SSLContext.getDefault();
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to get default SSLContext", e);
+        }
+    }
+}
