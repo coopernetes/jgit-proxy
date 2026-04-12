@@ -319,16 +319,13 @@ public class PushStorePersistenceHook {
                 .url(providerUri)
                 .project(provider.getUri().getHost());
 
-        // Prefer the resolved proxy username (set by CheckUserPushPermissionHook after identity
-        // resolution) so that push_user matches the dashboard login. Fall back to the raw HTTP Basic
-        // username if resolution didn't run (open mode / no user store configured).
+        // push_user: always the raw HTTP Basic Auth username — audit artefact, never queried as identity.
+        // resolved_user: set only when identity resolution succeeded (FK → proxy_users.username).
         String resolvedUser = repo.getConfig().getString("gitproxy", null, "resolvedUser");
         String pushUser = repo.getConfig().getString("gitproxy", null, "pushUser");
-        String userToStore = resolvedUser != null ? resolvedUser : pushUser;
-        if (userToStore != null) {
-            builder.user(userToStore);
+        if (pushUser != null) {
+            builder.user(pushUser);
         }
-        // Store the resolvedUser separately — only set when identity resolution succeeded
         if (resolvedUser != null) {
             builder.resolvedUser(resolvedUser);
         }

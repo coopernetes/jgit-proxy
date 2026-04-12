@@ -105,7 +105,7 @@ public class JdbcPushStore implements PushStore {
             params.addValue("commitTo", query.getCommitTo());
         }
         if (query.getUser() != null) {
-            sql.append(" AND push_user = :user");
+            sql.append(" AND resolved_user = :user");
             params.addValue("user", query.getUser());
         }
         if (query.getAuthorEmail() != null) {
