@@ -73,9 +73,12 @@ Strip the `GITPROXY_` prefix, lowercase, and replace `_` with `.` to get the con
 | `GITPROXY_CONFIG_PROFILES`          | _(meta — not a config key)_ | `docker-default,ldap`     |
 | `GITPROXY_SERVER_PORT`              | `server.port`               | `9090`                    |
 | `GITPROXY_SERVER_APPROVAL_MODE`     | `server.approvalMode`       | `ui`                      |
-| `GITPROXY_DATABASE_TYPE`            | `database.type`             | `postgres`                |
-| `GITPROXY_DATABASE_URL`             | `database.url`              | `jdbc:postgresql://...`   |
-| `GITPROXY_DATABASE_HOST`            | `database.host`             | `db.internal`             |
+| `GITPROXY_DATABASE_TYPE`                    | `database.type`                    | `postgres`                |
+| `GITPROXY_DATABASE_URL`                     | `database.url`                     | `jdbc:postgresql://...`   |
+| `GITPROXY_DATABASE_HOST`                    | `database.host`                    | `db.internal`             |
+| `GITPROXY_DATABASE_POOL_MAXIMUMPOOLSIZE`    | `database.pool.maximum-pool-size`  | `3`                       |
+| `GITPROXY_DATABASE_POOL_MINIMUMIDLE`        | `database.pool.minimum-idle`       | `1`                       |
+| `GITPROXY_DATABASE_POOL_CONNECTIONTIMEOUT`  | `database.pool.connection-timeout` | `30000`                   |
 | `GITPROXY_PROVIDERS_GITHUB_ENABLED` | `providers.github.enabled`  | `false`                   |
 | `GITPROXY_PROVIDERS_<NAME>_URI`     | `providers.<name>.uri`      | `https://gitlab.corp.com` |
 
@@ -187,6 +190,29 @@ database:
 
 For both `postgres` and `mongo`, setting `url` to a full connection string is the recommended approach when you need
 driver-specific options (TLS, SSL certificates, connection parameters) that are not exposed as individual config fields.
+
+### Connection pool tuning
+
+Applies to all JDBC backends (`h2-mem`, `h2-file`, `postgres`). The default pool size is deliberately small — git push
+workloads are sequential per user, so a large pool buys nothing and drives up aggregate connection counts when multiple
+instances share a database. The [HikariCP pool sizing guide](https://github.com/brettwooldridge/HikariCP/wiki/About-Pool-Sizing)
+covers this in depth.
+
+```yaml
+database:
+  type: postgres
+  url: jdbc:postgresql://db.internal:5432/gitproxy
+  pool:
+    maximum-pool-size: 3      # per-instance connections; multiply by instance count for total DB load
+    minimum-idle: 1           # release idle connections; omit to keep the full pool warm
+    connection-timeout: 30000 # ms; fail fast if the pool is exhausted
+    idle-timeout: 600000      # ms; retire connections after 10 min idle
+    max-lifetime: 1800000     # ms; rotate connections every 30 min
+```
+
+For deployments sharing a database across multiple instances (multiple environments, blue/green, canary), set
+`maximum-pool-size` to the lowest value that keeps p99 push latency acceptable. For most proxy workloads, 2–5
+connections per instance is sufficient.
 
 ```yaml
 # Postgres — individual fields

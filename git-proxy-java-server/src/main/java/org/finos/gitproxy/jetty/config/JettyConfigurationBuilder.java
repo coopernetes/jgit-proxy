@@ -668,17 +668,25 @@ public class JettyConfigurationBuilder {
     private DataSource requireJdbcDataSource() {
         if (cachedDataSource == null) {
             DatabaseConfig db = config.getDatabase();
+            var pool = db.getPool();
+            log.info(
+                    "Database pool: maximumPoolSize={} minimumIdle={} connectionTimeout={}ms idleTimeout={}ms maxLifetime={}ms",
+                    pool.getMaximumPoolSize(),
+                    pool.getMinimumIdle() >= 0 ? pool.getMinimumIdle() : "(default: matches maximumPoolSize)",
+                    pool.getConnectionTimeout(),
+                    pool.getIdleTimeout(),
+                    pool.getMaxLifetime());
             cachedDataSource = switch (db.getType()) {
-                case "h2-mem" -> DataSourceFactory.h2InMemory(db.getName());
+                case "h2-mem" -> DataSourceFactory.h2InMemory(db.getName(), pool);
                 case "h2-file" ->
-                    DataSourceFactory.h2File(db.getPath().isBlank() ? "./.data/" + db.getName() : db.getPath());
+                    DataSourceFactory.h2File(db.getPath().isBlank() ? "./.data/" + db.getName() : db.getPath(), pool);
                 case "postgres" -> {
                     if (!db.getUrl().isBlank()) {
                         log.info("Postgres: using connection URL (individual host/port/name fields ignored)");
-                        yield DataSourceFactory.fromUrl(db.getUrl(), db.getUsername(), db.getPassword());
+                        yield DataSourceFactory.fromUrl(db.getUrl(), db.getUsername(), db.getPassword(), pool);
                     }
                     yield DataSourceFactory.postgres(
-                            db.getHost(), db.getPort(), db.getName(), db.getUsername(), db.getPassword());
+                            db.getHost(), db.getPort(), db.getName(), db.getUsername(), db.getPassword(), pool);
                 }
                 default -> throw new IllegalStateException("No JDBC DataSource for db type: " + db.getType());
             };

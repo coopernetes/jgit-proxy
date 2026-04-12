@@ -1,6 +1,7 @@
 package org.finos.gitproxy.jetty.config;
 
 import lombok.Data;
+import org.finos.gitproxy.db.jdbc.PoolConfig;
 
 /** Binds the {@code database:} block in git-proxy.yml. */
 @Data
@@ -34,4 +35,7 @@ public class DatabaseConfig {
      * the URI contains no path component.
      */
     private String url = "";
+
+    /** HikariCP connection pool tuning. Applies to all JDBC backends (h2-mem, h2-file, postgres). */
+    private PoolConfig pool = new PoolConfig();
 }
