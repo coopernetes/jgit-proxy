@@ -134,16 +134,9 @@ public class SecurityConfig {
         http.securityMatcher(protectedPaths)
                 .authorizeHttpRequests(auth -> auth.requestMatchers("/api/runtime-config", "/api/health")
                         .permitAll()
-                        .requestMatchers(
-                                org.springframework.http.HttpMethod.POST,
-                                "/api/users",
-                                "/api/users/*/reset-password",
-                                "/api/users/*/identities",
-                                "/api/users/*/emails",
-                                "/api/users/*/permissions")
+                        .requestMatchers("/api/users", "/api/users/**")
                         .hasRole("ADMIN")
-                        .requestMatchers(
-                                org.springframework.http.HttpMethod.DELETE, "/api/users/**", "/api/repos/rules/**")
+                        .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/repos/rules/**")
                         .hasRole("ADMIN")
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/repos/rules")
                         .hasRole("ADMIN")

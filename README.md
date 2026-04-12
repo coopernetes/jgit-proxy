@@ -7,9 +7,13 @@
 Enterprises in regulated industries need their developers to contribute to open-source — but every outbound push must be
 audited, validated, and approved before it leaves the building. git-proxy-java sits between the developer's `git push`
 and the upstream host, enforcing commit policies, scanning for secrets, verifying identities, and gating pushes behind a
-review workflow. It is a Java reimplementation of [finos/git-proxy](https://github.com/finos/git-proxy), built on
-[JGit](https://github.com/eclipse-jgit/jgit), [Jetty](https://github.com/jetty/jetty.project), and
-[Spring](https://spring.io/).
+review workflow.
+
+This project is a Java reimplementation of [FINOS git-proxy](https://github.com/finos/git-proxy) — a Node.js proxy that
+pioneered the concept of an enterprise-grade, policy-enforcing git push gateway. git-proxy-java builds on the same core
+ideas (validation pipeline, push approval lifecycle, multi-provider support) while targeting JVM-based environments,
+using [JGit](https://github.com/eclipse-jgit/jgit) for native git protocol handling,
+[Jetty](https://github.com/jetty/jetty.project) for the HTTP layer, and [Spring](https://spring.io/) for the dashboard.
 
 ![Store-and-forward — validation failure and fix](https://github.com/coopernetes/git-proxy-java/releases/download/demo-assets/demo-push-fix-message.gif)
 
@@ -186,13 +190,15 @@ This is a multi-module Gradle project:
 
 ## Documentation
 
-| Document                                           | Description                                                                                      |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| [Architecture](docs/ARCHITECTURE.md)               | How the proxy works: two proxy modes, validation pipeline, core abstractions, advanced use cases |
-| [Configuration Reference](docs/CONFIGURATION.md)   | YAML config structure, environment variable overrides, provider settings, validation rules       |
-| [Demo Gallery](DEMO.md)                            | Animated demos and screenshots of both proxy modes and the dashboard UI                          |
-| [JGit Infrastructure](docs/JGIT_INFRASTRUCTURE.md) | Store-and-forward architecture: ReceivePackFactory, hook chain, forwarding, credential flow      |
-| [Git Internals](docs/GIT_INTERNALS.md)             | Wire-protocol edge cases: tags, new branches, force pushes, pack parsing                         |
+| Document                                                     | Description                                                                                                      |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| [User Guide](docs/USER_GUIDE.md)                             | For developers pushing code through the proxy: remote setup, push modes, blocked pushes, approval workflow       |
+| [Administrator Guide](docs/ADMIN_GUIDE.md)                   | For operators: RBAC vs permissions, approval modes, logging, JGit filesystem requirements, production checklist  |
+| [Configuration Reference](docs/CONFIGURATION.md)             | YAML config structure, environment variable overrides, provider settings, validation rules                       |
+| [Architecture](docs/ARCHITECTURE.md)                         | How the proxy works: two proxy modes, validation pipeline, core abstractions, advanced use cases                 |
+| [Demo Gallery](DEMO.md)                                      | Animated demos and screenshots of both proxy modes and the dashboard UI                                          |
+| [JGit Infrastructure](docs/internals/JGIT_INFRASTRUCTURE.md) | Store-and-forward internals: ReceivePackFactory, hook chain, forwarding, credential flow (contributor reference) |
+| [Git Internals](docs/internals/GIT_INTERNALS.md)             | Wire-protocol edge cases: tags, new branches, force pushes, pack parsing (contributor reference)                 |
 
 ## Roadmap
 
@@ -203,6 +209,13 @@ cover design rationale and reference material:
 | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [Project vision & design](https://gist.github.com/coopernetes/d02d48efa759282ff8187da0d5dcae64) | High-level goals and priority tracks: sideband streaming UX, checkpoint-based resumption, lifecycle hooks, DAG pipeline execution, SCM OAuth integration, SSH support |
 | [Framework rationale](https://gist.github.com/coopernetes/626541b83a148f4ae21ae2c62c57edea)     | Why Java/Jetty + JGit over Node.js/Express: native git protocol handling, in-process pack inspection, sideband streaming                                              |
+
+## Acknowledgments
+
+This project would not exist without [FINOS git-proxy](https://github.com/finos/git-proxy) and its contributors, who
+designed the original push validation model, approval lifecycle, and multi-provider architecture. The Node.js
+implementation remains the reference for the Action/Step pipeline, Sink interface, and filter chain patterns that
+git-proxy-java builds on. If you're in a Node.js environment, check out the original.
 
 ## Contributing
 

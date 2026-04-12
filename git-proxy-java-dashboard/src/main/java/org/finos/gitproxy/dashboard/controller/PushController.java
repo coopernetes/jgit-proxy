@@ -236,10 +236,13 @@ public class PushController {
      * <ol>
      *   <li>ROLE_ADMIN bypasses all identity checks — admins may approve/reject any push.
      *   <li>The pusher must have been resolved to a proxy user — if not, we cannot guarantee identity.
-     *   <li>Self-review: allowed only when the reviewer has a
-     *       {@link org.finos.gitproxy.permission.RepoPermission.Operations#SELF_CERTIFY} grant for the repo.
-     *   <li>Non-self reviewer: must have a REVIEW (or PUSH_AND_REVIEW) permission for the repo when
-     *       {@link RepoPermissionService} is configured.
+     *   <li>Self-review: allowed only when the reviewer has both {@code ROLE_SELF_CERTIFY} (the capability, attested by
+     *       the org's IdP/IAM via {@code auth.role-mappings} or the local {@code users[].roles} block) and a
+     *       {@link org.finos.gitproxy.permission.RepoPermission.Operations#SELF_CERTIFY} repo permission entry for this
+     *       specific repository (the per-repo entitlement). Both must be present.
+     *   <li>Non-self reviewer: by default any authenticated user may review. When
+     *       {@code server.require-review-permission: true}, the user must have a REVIEW (or PUSH_AND_REVIEW) permission
+     *       for the repo.
      * </ol>
      *
      * @return a 403 response if the check fails, {@code null} if the reviewer is permitted to proceed
@@ -260,7 +263,17 @@ public class PushController {
         }
 
         if (pusherProxyUser.equals(reviewer)) {
-            // Self-review: permitted only when the user has an explicit SELF_CERTIFY grant for this repo.
+            // Self-review requires two independent checks:
+            // 1. ROLE_SELF_CERTIFY — the capability, granted via auth.role-mappings or users[].roles in config.
+            //    This is the pre-requisite gate: it must be attested by the org's IdP/IAM before any per-repo
+            //    entitlement can take effect.
+            // 2. A SELF_CERTIFY repo permission entry for this specific repo — the per-repo entitlement.
+            boolean hasSelfCertifyRole = auth != null
+                    && auth.getAuthorities().stream().anyMatch(a -> "ROLE_SELF_CERTIFY".equals(a.getAuthority()));
+            if (!hasSelfCertifyRole) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "Self-approval is not permitted: SELF_CERTIFY role not granted"));
+            }
             boolean hasSelfCertifyPerm = repoPermissionService != null
                     && record.getProvider() != null
                     && record.getUrl() != null
@@ -268,11 +281,16 @@ public class PushController {
             if (hasSelfCertifyPerm) {
                 return null;
             }
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Self-approval is not permitted"));
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of(
+                            "error", "Self-approval is not permitted: no SELF_CERTIFY permission for this repository"));
         }
 
-        // Non-self reviewer: check REVIEW permission — only enforced when the service is wired up.
-        if (repoPermissionService != null && record.getProvider() != null && record.getUrl() != null) {
+        // Non-self reviewer: check REVIEW permission only when require-review-permission is enabled.
+        // Default (false) allows any authenticated user to review any push they did not push themselves.
+        boolean requirePerm =
+                gitProxyConfig.getServer() != null && gitProxyConfig.getServer().isRequireReviewPermission();
+        if (requirePerm && repoPermissionService != null && record.getProvider() != null && record.getUrl() != null) {
             if (reviewer != null
                     && !repoPermissionService.isAllowedToReview(reviewer, record.getProvider(), record.getUrl())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)

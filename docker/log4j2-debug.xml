@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Debug logging profile for diagnosing OIDC/Spring Security issues.
+     Mount this file and set JAVA_TOOL_OPTIONS in docker-compose.oidc.yml:
+
+       volumes:
+         - ./docker/log4j2-debug.xml:/app/conf/log4j2-debug.xml:ro
+       environment:
+         JAVA_TOOL_OPTIONS: -Dlog4j2.configurationFile=/app/conf/log4j2-debug.xml
+
+     Remove both when done — this is very chatty.
+-->
+<Configuration status="WARN">
+    <Appenders>
+        <Console name="CONSOLE" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] [%X{requestId}] [%X{sessionId}] %-5level %logger{36} - %msg%n"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <Logger name="org.springframework.security" level="DEBUG"/>
+        <Logger name="org.springframework.web.client" level="DEBUG"/>
+        <Logger name="org.finos.gitproxy" level="DEBUG"/>
+
+        <Root level="INFO">
+            <AppenderRef ref="CONSOLE"/>
+        </Root>
+    </Loggers>
+</Configuration>

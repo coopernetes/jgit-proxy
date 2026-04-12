@@ -3,7 +3,6 @@ package org.finos.gitproxy.dashboard.controller;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import org.finos.gitproxy.permission.RepoPermission;
 import org.finos.gitproxy.permission.RepoPermissionService;
 import org.finos.gitproxy.user.ReadOnlyUserStore;
 import org.finos.gitproxy.user.UserEntry;
@@ -26,8 +25,8 @@ public class AuthController {
     private RepoPermissionService repoPermissionService;
 
     /**
-     * Returns the currently authenticated user's full profile: username, emails (with verified flag), and SCM
-     * identities.
+     * Returns the currently authenticated user's full profile: username, emails (with verified flag), SCM identities,
+     * authorities, and repo permissions.
      */
     @GetMapping("/me")
     public Map<String, Object> me() {
@@ -64,20 +63,15 @@ public class AuthController {
                                 .toList()
                         : List.of());
 
-        // Dynamically add ROLE_SELF_CERTIFY when the user has any explicit SELF_CERTIFY permission grant.
-        // This authority is not stored in the user record — it is derived at login time from repo permissions.
-        if (username != null
-                && repoPermissionService != null
-                && !authorities.contains("ROLE_SELF_CERTIFY")
-                && repoPermissionService.findByUsername(username).stream()
-                        .anyMatch(p -> p.getOperations() == RepoPermission.Operations.SELF_CERTIFY)) {
-            authorities.add("ROLE_SELF_CERTIFY");
-        }
+        var permissions = username != null && repoPermissionService != null
+                ? repoPermissionService.findByUsername(username)
+                : List.of();
 
         return Map.of(
                 "username", username != null ? username : "",
                 "emails", emails,
                 "scmIdentities", scmIdentities,
-                "authorities", authorities);
+                "authorities", authorities,
+                "permissions", permissions);
     }
 }

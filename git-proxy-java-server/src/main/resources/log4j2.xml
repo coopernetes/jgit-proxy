@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Appenders>
+        <Console name="CONSOLE" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] [%X{requestId}] [%X{sessionId}] %-5level %logger{36} - %msg%n"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <!-- Jetty specific loggers -->
+        <Logger name="org.eclipse.jetty" level="INFO"/>
+        <Logger name="org.eclipse.jetty.server" level="INFO"/>
+        <Logger name="org.eclipse.jetty.http" level="INFO"/>
+        <Logger name="org.eclipse.jetty.ee10" level="INFO"/>
+        <!--<Logger name="org.eclipse.jgit" level="DEBUG"/>-->
+        <!--<Logger name="org.eclipse.jgit.http.server" level="DEBUG"/>-->
+
+        <!-- Application logs -->
+        <Logger name="org.finos.gitproxy" level="INFO"/>
+
+        <Root level="INFO">
+            <AppenderRef ref="CONSOLE"/>
+        </Root>
+    </Loggers>
+</Configuration>

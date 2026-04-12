@@ -48,6 +48,19 @@ model, Sink interface, and filter chain patterns when porting features.
 ./gradlew e2eTest            # e2e tests — requires Docker/Podman
 ```
 
+**Important:** Gradle caches test results. If you add new tests or change coverage-relevant code, run with `--rerun` to
+bypass the cache and verify the jacoco threshold:
+
+```bash
+./gradlew :git-proxy-java-core:test :git-proxy-java-core:jacocoTestCoverageVerification --rerun
+```
+
+Always verify the threshold passes locally before pushing — CI runs without cache and will catch it.
+
+```bash
+
+```
+
 Unit tests live under each module's `src/test/`. E2e tests are in
 `git-proxy-java-server/src/test/java/org/finos/gitproxy/e2e/` and tagged `@Tag("e2e")`.
 

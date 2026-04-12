@@ -4,7 +4,6 @@ import {
   addScmIdentity,
   fetchMe,
   fetchProviders,
-  fetchUserPermissions,
   removeEmail,
   removeScmIdentity,
 } from '../api'
@@ -33,7 +32,6 @@ export function Profile() {
 
   const [tab, setTab] = useState<'emails' | 'identities' | 'permissions'>('emails')
   const [permissions, setPermissions] = useState<RepoPermission[]>([])
-  const [permissionsLoaded, setPermissionsLoaded] = useState(false)
 
   const [newEmail, setNewEmail] = useState('')
   const [emailError, setEmailError] = useState<string | null>(null)
@@ -47,7 +45,10 @@ export function Profile() {
 
   useEffect(() => {
     fetchMe()
-      .then(setProfile)
+      .then((data) => {
+        setProfile(data)
+        setPermissions(data.permissions ?? [])
+      })
       .catch(() => setError('Failed to load profile'))
       .finally(() => setLoading(false))
     fetchProviders()
@@ -57,16 +58,6 @@ export function Profile() {
       })
       .catch(() => {})
   }, [])
-
-  useEffect(() => {
-    if (tab !== 'permissions' || permissionsLoaded || !profile) return
-    fetchUserPermissions(profile.username)
-      .then((data) => {
-        setPermissions(data)
-        setPermissionsLoaded(true)
-      })
-      .catch(() => {})
-  }, [tab, permissionsLoaded, profile])
 
   async function handleAddEmail(e: React.FormEvent) {
     e.preventDefault()
@@ -143,6 +134,27 @@ export function Profile() {
         <p className="text-sm text-gray-500 mt-1">
           Signed in as <span className="font-medium text-gray-700">{profile.username}</span>
         </p>
+        <div className="flex flex-wrap gap-1 mt-2">
+          {profile.authorities
+            .filter((a: string) => a.startsWith('ROLE_'))
+            .map((a: string) => {
+              const label = a.replace('ROLE_', '')
+              const colour =
+                label === 'ADMIN'
+                  ? 'bg-purple-100 text-purple-700'
+                  : label === 'SELF_CERTIFY'
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-gray-100 text-gray-600'
+              return (
+                <span
+                  key={a}
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${colour}`}
+                >
+                  {label}
+                </span>
+              )
+            })}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -229,7 +241,7 @@ export function Profile() {
           <p className="text-sm text-gray-500">
             Repository access permissions granted to your account.
           </p>
-          {!permissionsLoaded ? (
+          {loading ? (
             <p className="text-sm text-gray-400">Loading…</p>
           ) : permissions.length === 0 ? (
             <p className="text-sm text-gray-400 italic">No permissions configured.</p>

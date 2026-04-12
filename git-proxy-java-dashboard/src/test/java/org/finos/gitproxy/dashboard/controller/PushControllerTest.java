@@ -16,6 +16,7 @@ import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.db.model.PushRecord;
 import org.finos.gitproxy.db.model.PushStatus;
 import org.finos.gitproxy.jetty.config.GitProxyConfig;
+import org.finos.gitproxy.jetty.config.ServerConfig;
 import org.finos.gitproxy.permission.RepoPermissionService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Nested;
@@ -72,9 +73,14 @@ class PushControllerTest {
     }
 
     private void loginAs(String username, boolean admin) {
-        var authorities = admin
-                ? List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ROLE_ADMIN"))
-                : List.of(new SimpleGrantedAuthority("ROLE_USER"));
+        loginAs(username, admin, false);
+    }
+
+    private void loginAs(String username, boolean admin, boolean selfCertify) {
+        var authorities = new java.util.ArrayList<SimpleGrantedAuthority>();
+        authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+        if (admin) authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        if (selfCertify) authorities.add(new SimpleGrantedAuthority("ROLE_SELF_CERTIFY"));
         SecurityContextHolder.getContext()
                 .setAuthentication(new UsernamePasswordAuthenticationToken(username, null, authorities));
     }
@@ -234,7 +240,7 @@ class PushControllerTest {
         void selfCertify_nonAdmin_notFlaggedAsAdminOverride() throws Exception {
             when(pushStore.findById("p1")).thenReturn(Optional.of(blockedPush("p1", "alice")));
             when(pushStore.approve(eq("p1"), any())).thenReturn(approvedPush("p1"));
-            loginAs("alice", false);
+            loginAs("alice", false, true); // ROLE_SELF_CERTIFY granted — prerequisite gate
 
             repoPermissionService = mock(RepoPermissionService.class);
             when(repoPermissionService.isBypassReviewAllowed("alice", "github", "github.com/acme/repo.git"))
@@ -264,10 +270,14 @@ class PushControllerTest {
             when(pushStore.findById("p1")).thenReturn(Optional.of(push));
             loginAs("reviewer", false);
 
+            // require-review-permission=true: permission service must allow the reviewer
+            var serverConfig = new ServerConfig();
+            serverConfig.setRequireReviewPermission(true);
+            when(gitProxyConfig.getServer()).thenReturn(serverConfig);
+
             repoPermissionService = mock(RepoPermissionService.class);
             when(repoPermissionService.isAllowedToReview("reviewer", "github", "github.com/acme/repo.git"))
                     .thenReturn(false);
-            // inject into controller
             var field = PushController.class.getDeclaredField("repoPermissionService");
             field.setAccessible(true);
             field.set(controller, repoPermissionService);
@@ -283,6 +293,11 @@ class PushControllerTest {
             when(pushStore.findById("p1")).thenReturn(Optional.of(push));
             when(pushStore.approve(eq("p1"), any())).thenReturn(approvedPush("p1"));
             loginAs("reviewer", false);
+
+            // require-review-permission=true: permission service grants access
+            var serverConfig = new ServerConfig();
+            serverConfig.setRequireReviewPermission(true);
+            when(gitProxyConfig.getServer()).thenReturn(serverConfig);
 
             repoPermissionService = mock(RepoPermissionService.class);
             when(repoPermissionService.isAllowedToReview("reviewer", "github", "github.com/acme/repo.git"))

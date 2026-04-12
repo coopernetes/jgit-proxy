@@ -54,8 +54,8 @@ dependencies {
     api "tools.jackson.core:jackson-databind"
     
     // Logging
-    implementation "ch.qos.logback:logback-core:${logbackVersion}"
-    implementation "ch.qos.logback:logback-classic:${logbackVersion}"
+    implementation "org.apache.logging.log4j:log4j-core:${log4j2Version}"
+    implementation "org.apache.logging.log4j:log4j-slf4j2-impl:${log4j2Version}"
     implementation "org.slf4j:slf4j-api:${slf4jVersion}"
     
     // Jetty for servlet container - exposed as API for standalone apps

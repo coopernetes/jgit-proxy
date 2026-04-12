@@ -107,7 +107,7 @@ tasks.named('run') {
     // Pass through API key so test scripts can use X-Api-Key without a session.
     // Default keeps the dev experience simple; override in shell for a stricter key.
     environment 'GITPROXY_API_KEY', System.getenv('GITPROXY_API_KEY') ?: 'change-me-in-production'
-    jvmArgs "-Dlogback.configurationFile=${rootDir}/git-proxy-java-server/src/main/resources/logback-local.xml"
+    jvmArgs "-Dlog4j2.configurationFile=${rootDir}/git-proxy-java-server/src/main/resources/log4j2-local.xml"
 }
 
 tasks.register('stop') {

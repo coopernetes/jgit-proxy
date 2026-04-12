@@ -55,6 +55,17 @@ public class ServerConfig {
      */
     private int proxyConnectTimeoutSeconds = 0;
 
+    /**
+     * When {@code false} (default), any authenticated user may review any push they did not push themselves.
+     * {@code REVIEW} permission entries are still respected for notification and filtering purposes, but are not
+     * required to approve or reject.
+     *
+     * <p>When {@code true}, a user must have an explicit {@code REVIEW} (or {@code PUSH_AND_REVIEW}) permission entry
+     * for the repository to approve or reject pushes to it. Set this for deployments that require restricted approvers
+     * (e.g. formal sign-off with compliance liability).
+     */
+    private boolean requireReviewPermission = false;
+
     /** TLS configuration for the server listener and upstream trust. Omit entirely to use plain HTTP. */
     private TlsConfig tls = new TlsConfig();
 }

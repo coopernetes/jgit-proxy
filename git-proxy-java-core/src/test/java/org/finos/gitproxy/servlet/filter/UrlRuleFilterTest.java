@@ -459,6 +459,28 @@ class UrlRuleFilterTest {
     }
 
     @Test
+    void infoRefs_uploadPack_pushOnlyDenyRule_doesNotBlock() throws Exception {
+        // A PUSH-only deny rule must not block a FETCH /info/refs (clone/fetch).
+        var pushDeny = new UrlRuleFilter(
+                100,
+                Set.of(HttpOperation.PUSH),
+                GITHUB,
+                List.of("/owner/repo"),
+                UrlRuleFilter.Target.SLUG,
+                AccessRule.Access.DENY);
+        var allowFilter = new UrlRuleFilter(
+                101, GITHUB, List.of("/owner/repo"), UrlRuleFilter.Target.SLUG, AccessRule.Access.ALLOW);
+        var aggregate = new UrlRuleAggregateFilter(50, GITHUB, List.of(pushDeny, allowFilter));
+        GitRequestDetails details = makeInfoDetails("owner", "repo", "/owner/repo");
+        FakeResponse resp = new FakeResponse();
+
+        aggregate.doHttpFilter(mockInfoRefsRequest(details, "git-upload-pack"), resp.mock);
+
+        verify(resp.mock, never()).sendError(anyInt());
+        assertEquals(GitRequestDetails.GitResult.ALLOWED, details.getResult());
+    }
+
+    @Test
     void infoRefs_receivePack_deniedByRule_returns403() throws Exception {
         var denyFilter = new UrlRuleFilter(
                 100, GITHUB, List.of("/owner/repo"), UrlRuleFilter.Target.SLUG, AccessRule.Access.DENY);

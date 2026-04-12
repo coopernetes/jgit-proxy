@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Local development logging config — activated via -Dlog4j2.configurationFile in the Gradle run task.
+     Writes to logs/application.log in addition to console. Not used in container builds. -->
+<Configuration status="WARN">
+    <Appenders>
+        <Console name="CONSOLE" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] [%X{requestId}] [%X{sessionId}] %-5level %logger{36} - %msg%n"/>
+        </Console>
+        <RollingFile name="FILE" fileName="logs/application.log"
+                     filePattern="logs/application.%d{yyyy-MM-dd}.%i.log">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] [%X{requestId}] [%X{sessionId}] %-5level %logger{36} - %msg%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy/>
+                <SizeBasedTriggeringPolicy size="10MB"/>
+            </Policies>
+            <DefaultRolloverStrategy>
+                <Delete basePath="logs" maxDepth="1">
+                    <IfFileName glob="application.*.log"/>
+                    <IfLastModified age="30d"/>
+                </Delete>
+            </DefaultRolloverStrategy>
+        </RollingFile>
+    </Appenders>
+    <Loggers>
+        <!-- Jetty specific loggers -->
+        <Logger name="org.eclipse.jetty" level="INFO"/>
+        <Logger name="org.eclipse.jetty.server" level="INFO"/>
+        <Logger name="org.eclipse.jetty.http" level="INFO"/>
+        <Logger name="org.eclipse.jetty.ee10" level="INFO"/>
+        <!--<Logger name="org.eclipse.jgit" level="DEBUG"/>-->
+        <!--<Logger name="org.eclipse.jgit.http.server" level="DEBUG"/>-->
+
+        <!-- Application logs -->
+        <Logger name="org.finos.gitproxy" level="INFO"/>
+
+        <Root level="INFO">
+            <AppenderRef ref="CONSOLE"/>
+            <AppenderRef ref="FILE"/>
+        </Root>
+    </Loggers>
+</Configuration>

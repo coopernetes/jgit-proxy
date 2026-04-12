@@ -418,8 +418,8 @@ This sets `core.hooksPath` to `.githooks/`. The hook runs on every `git commit`:
 | `git-proxy-java-server`    | Standalone proxy-only server — no dashboard, no Spring                                     |
 | `git-proxy-java-dashboard` | Dashboard + REST API — Spring MVC, approval UI                                             |
 
-See [docs/JGIT_INFRASTRUCTURE.md](docs/JGIT_INFRASTRUCTURE.md) for the store-and-forward architecture and
-[docs/GIT_INTERNALS.md](docs/GIT_INTERNALS.md) for wire-protocol details.
+See [docs/internals/JGIT_INFRASTRUCTURE.md](docs/internals/JGIT_INFRASTRUCTURE.md) for the store-and-forward
+architecture and [docs/internals/GIT_INTERNALS.md](docs/internals/GIT_INTERNALS.md) for wire-protocol details.
 
 ## Issues and pull requests
 

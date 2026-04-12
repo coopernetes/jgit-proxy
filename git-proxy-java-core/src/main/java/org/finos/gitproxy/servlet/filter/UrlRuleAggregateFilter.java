@@ -136,9 +136,11 @@ public class UrlRuleAggregateFilter extends AbstractProviderAwareGitProxyFilter 
 
         List<UrlRuleFilter> denyFilters = urlRuleFilters.stream()
                 .filter(f -> f.getAccess() == AccessRule.Access.DENY)
+                .filter(f -> f.appliesTo(operation))
                 .toList();
         List<UrlRuleFilter> allowFilters = urlRuleFilters.stream()
                 .filter(f -> f.getAccess() == AccessRule.Access.ALLOW)
+                .filter(f -> f.appliesTo(operation))
                 .toList();
 
         // Deny rules evaluated first — deny overrides allow
@@ -288,6 +290,7 @@ public class UrlRuleAggregateFilter extends AbstractProviderAwareGitProxyFilter 
         // Deny rules first
         for (UrlRuleFilter filter : urlRuleFilters.stream()
                 .filter(f -> f.getAccess() == AccessRule.Access.DENY)
+                .filter(f -> f.appliesTo(effectiveOp))
                 .toList()) {
             filter.applyRule(request);
         }
@@ -311,6 +314,7 @@ public class UrlRuleAggregateFilter extends AbstractProviderAwareGitProxyFilter 
         // Allow rules
         for (UrlRuleFilter filter : urlRuleFilters.stream()
                 .filter(f -> f.getAccess() == AccessRule.Access.ALLOW)
+                .filter(f -> f.appliesTo(effectiveOp))
                 .toList()) {
             filter.applyRule(request);
         }

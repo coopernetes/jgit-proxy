@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.sql.DataSource;
@@ -30,6 +31,7 @@ import org.finos.gitproxy.db.jdbc.JdbcFetchStore;
 import org.finos.gitproxy.db.jdbc.JdbcRepoRegistry;
 import org.finos.gitproxy.db.memory.InMemoryRepoRegistry;
 import org.finos.gitproxy.db.model.AccessRule;
+import org.finos.gitproxy.git.HttpOperation;
 import org.finos.gitproxy.git.LocalRepositoryCache;
 import org.finos.gitproxy.jetty.GitProxyContext;
 import org.finos.gitproxy.jetty.reload.ConfigHolder;
@@ -42,6 +44,7 @@ import org.finos.gitproxy.service.CachingTokenPushIdentityResolver;
 import org.finos.gitproxy.service.JdbcScmTokenCache;
 import org.finos.gitproxy.service.PushIdentityResolver;
 import org.finos.gitproxy.service.TokenPushIdentityResolver;
+import org.finos.gitproxy.servlet.filter.GitProxyFilter;
 import org.finos.gitproxy.servlet.filter.UrlRuleFilter;
 import org.finos.gitproxy.tls.SslUtil;
 import org.finos.gitproxy.user.CompositeUserStore;
@@ -212,17 +215,21 @@ public class JettyConfigurationBuilder {
 
             int order = rule.getOrder();
             String accessLabel = access.name().toLowerCase();
+            Set<HttpOperation> ops = toHttpOperations(rule.getOperations());
 
             if (!rule.getSlugs().isEmpty()) {
-                filters.add(new UrlRuleFilter(order, provider, rule.getSlugs(), UrlRuleFilter.Target.SLUG, access));
+                filters.add(
+                        new UrlRuleFilter(order, ops, provider, rule.getSlugs(), UrlRuleFilter.Target.SLUG, access));
                 log.debug("Added slug {} rule for provider {}: {}", accessLabel, provider.getName(), rule.getSlugs());
             }
             if (!rule.getOwners().isEmpty()) {
-                filters.add(new UrlRuleFilter(order, provider, rule.getOwners(), UrlRuleFilter.Target.OWNER, access));
+                filters.add(
+                        new UrlRuleFilter(order, ops, provider, rule.getOwners(), UrlRuleFilter.Target.OWNER, access));
                 log.debug("Added owner {} rule for provider {}: {}", accessLabel, provider.getName(), rule.getOwners());
             }
             if (!rule.getNames().isEmpty()) {
-                filters.add(new UrlRuleFilter(order, provider, rule.getNames(), UrlRuleFilter.Target.NAME, access));
+                filters.add(
+                        new UrlRuleFilter(order, ops, provider, rule.getNames(), UrlRuleFilter.Target.NAME, access));
                 log.debug("Added name {} rule for provider {}: {}", accessLabel, provider.getName(), rule.getNames());
             }
         }
@@ -549,6 +556,15 @@ public class JettyConfigurationBuilder {
             case "FETCH" -> AccessRule.Operations.FETCH;
             case "PUSH" -> AccessRule.Operations.PUSH;
             default -> AccessRule.Operations.BOTH;
+        };
+    }
+
+    private static Set<HttpOperation> toHttpOperations(List<String> ops) {
+        if (ops == null || ops.isEmpty() || ops.size() > 1) return GitProxyFilter.DEFAULT_OPERATIONS;
+        return switch (ops.get(0).toUpperCase()) {
+            case "FETCH" -> Set.of(HttpOperation.FETCH);
+            case "PUSH" -> Set.of(HttpOperation.PUSH);
+            default -> GitProxyFilter.DEFAULT_OPERATIONS;
         };
     }
 

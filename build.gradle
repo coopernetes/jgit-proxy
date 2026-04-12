@@ -20,7 +20,7 @@ ext {
 
     // Logging
     slf4jVersion = '2.0.17'
-    logbackVersion = '1.5.32'
+    log4j2Version = '2.25.4'
 
     // Database
     hikariVersion = '7.0.2'

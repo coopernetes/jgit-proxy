@@ -104,6 +104,11 @@ server:
   # Should include the /dashboard path prefix.
   # Defaults to http://localhost:<port>/dashboard if not set.
   # service-url: https://gitproxy.internal.example.com/dashboard
+
+  # When false (default), any authenticated user may review any push they did not push
+  # themselves. Set to true to require an explicit REVIEW permission entry for the repo.
+  # Use true for deployments that need restricted approvers with formal sign-off.
+  require-review-permission: false
 ```
 
 ## TLS
@@ -159,6 +164,7 @@ CAs are merged with the JVM's built-in trust anchors — public hosts (GitHub, G
 continue to work without any changes.
 
 This applies to both proxy modes:
+
 - **Transparent proxy** — Jetty's `HttpClient` used for upstream forwarding
 - **Store-and-forward** — JGit's HTTP transport used for forwarding after local receipt
 
@@ -489,21 +495,18 @@ commit:
   identity-verification: warn # warn | strict | off
 ```
 
-For every push, the proxy runs two independent checks:
+For every push, the proxy runs two checks:
 
 1. **SCM login check** — calls the upstream provider's user API with the token supplied in the git credentials (the HTTP
    Basic-auth password). The returned login (e.g. GitHub `login`, GitLab `username`) is matched against the
-   authenticated git-proxy-java user's `scm-identities`. This is the only identity signal the SCM can reliably provide —
-   email is not used here (GitHub omits it when private email visibility is enabled; other providers vary).
+   authenticated git-proxy-java user's `scm-identities`. This check is **always enforced** regardless of the
+   `identity-verification` mode — a push from a token that cannot be matched to a registered proxy user is always
+   blocked.
 
 2. **Commit email check** — every author and committer email in the pushed commits is checked against the authenticated
    git-proxy-java user's `emails` list. These emails are populated independently of the SCM: they come from the IdP on
    LDAP/OIDC login, or from additional associations added via the dashboard. This is what ties commit attribution back
-   to a verified real person.
-
-Both checks must pass in `strict` mode. This catches a developer whose git client is misconfigured (`user.email` doesn't
-match their registered address) and — more critically — commits attributed to someone other than the person who actually
-pushed.
+   to a verified real person. The `identity-verification` mode controls this check only.
 
 > **The HTTP Basic-auth username in the remote URL is not used for identity resolution.** It is ignored by all providers
 > (except Bitbucket). Configure your remote URL with any username — `git`, `me`, your actual name — it makes no
@@ -511,20 +514,22 @@ pushed.
 
 ### Modes
 
+`identity-verification` controls the **commit email check** only. The SCM login check is always enforced.
+
 | Mode     | Behaviour                                                                                                      | Use when                                                                       |
 | -------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `strict` | Blocks the push if the SCM username or any commit email cannot be matched to the authenticated git-proxy-java user | Production — this is the only mode that actually enforces identity             |
+| `strict` | Blocks the push if any commit email cannot be matched to the authenticated git-proxy-java user   | Production — enforces that every commit is attributed to the person who pushed |
 | `warn`   | Allows the push through but emits a sideband warning to the git client and records the mismatch                | Rolling out to an existing team — lets you observe mismatches before enforcing |
-| `off`    | Check is disabled entirely                                                                                     | Migrations or environments where SCM identity data is not yet populated        |
+| `off`    | Commit email check is disabled entirely                                                                        | Migrations or environments where email data is not yet populated               |
 
-> **`warn` is not a security control.** Pushes succeed regardless of the outcome. Only `strict` blocks unverified
-> pushes. The default is `warn` to avoid breaking existing deployments on first install — but `strict` should be the
-> target for any production deployment once users have registered their SCM identities.
+> **`warn` is not a security control.** Pushes succeed regardless of the email check outcome. Only `strict` blocks
+> mismatched commits. The default is `warn` to avoid breaking existing deployments on first install — but `strict`
+> should be the target for any production deployment once users have their emails registered.
 
 ### Token scope requirements
 
-Identity resolution calls `GET /user` (or equivalent) on the upstream SCM using the pusher's token. The token must carry
-at least the following scope:
+The SCM login check calls `GET /user` (or equivalent) on the upstream SCM using the pusher's token. The token must
+carry at least the following scope:
 
 | Provider | API endpoint                           | Additional scope                                                       |
 | -------- | -------------------------------------- | ---------------------------------------------------------------------- |
@@ -533,14 +538,14 @@ at least the following scope:
 | Codeberg | `GET https://codeberg.org/api/v1/user` | `read:user`                                                            |
 | Gitea    | `GET https://gitea.com/api/v1/user`    | `read:user`                                                            |
 
-If the token is missing the required scope, `fetchScmIdentity` returns empty and the push is treated as unresolved —
-which is a warning in `warn` mode and a block in `strict` mode.
+If the token is missing the required scope or cannot be resolved to a registered proxy user, the push is blocked
+regardless of `identity-verification` mode.
 
 ### Prerequisites
 
-Identity verification requires user records with populated `scm-identities` and `emails`. A push from a user with no
-registered SCM identity always fails in `strict` mode. Use `warn` during rollout to give users time to register before
-enforcement begins.
+Both checks require the user record to be populated before a push. A push from a token that cannot be matched to any
+registered proxy user is always blocked. Use `identity-verification: warn` during rollout to allow pushes through while
+users register their commit emails; the SCM identity must be registered before any push can proceed.
 
 ```yaml
 users:
@@ -637,22 +642,42 @@ Logs: `git-proxy-java-server/logs/application.log`
 
 ## Logging
 
-git-proxy-java ships a default `logback.xml` (console + rolling file, INFO level). To override it without
-rebuilding the image, point the JVM at an external Logback config file:
+git-proxy-java uses Log4j2 for logging. To override the bundled config without rebuilding the image, mount
+a custom `log4j2.xml` and point the JVM at it:
 
 ```bash
 # Local run
-JAVA_TOOL_OPTIONS=-Dlogback.configurationFile=/path/to/logback.xml ./gradlew :git-proxy-java-dashboard:run
+JAVA_TOOL_OPTIONS=-Dlog4j2.configurationFile=/path/to/log4j2.xml ./gradlew :git-proxy-java-dashboard:run
 
 # Docker — mount your config and set the env var
 volumes:
-  - ./my-logback.xml:/app/conf/logback.xml:ro
+  - ./my-log4j2.xml:/app/conf/log4j2.xml:ro
 environment:
-  JAVA_TOOL_OPTIONS: -Dlogback.configurationFile=/app/conf/logback.xml
+  JAVA_TOOL_OPTIONS: -Dlog4j2.configurationFile=/app/conf/log4j2.xml
 ```
 
 `JAVA_TOOL_OPTIONS` is read directly by the JVM, so it works regardless of how the application is launched.
 
-A ready-made debug config (`docker/logback-debug.xml`) is included for diagnosing OIDC and Spring Security
+A ready-made debug config (`docker/log4j2-debug.xml`) is included for diagnosing OIDC and Spring Security
 issues — it enables `DEBUG` on `org.springframework.security` and `org.springframework.web.client`. See the
 comments in that file for how to activate it.
+
+## Git client output
+
+git-proxy-java sends validation results and status messages to the git client via sideband (the `remote:`
+lines visible during a push). Two environment variables control the formatting of these messages:
+
+| Variable | Effect |
+| -------- | ------ |
+| `NO_COLOR` | Disables ANSI colour in sideband output. Follows the [no-color.org](https://no-color.org) convention — set to any value to disable. |
+| `GITPROXY_NO_EMOJI` | Replaces emoji symbols (✅ ❌ ⛔ 🔑 etc.) with plain ASCII equivalents. Useful when pushing through terminals or CI systems that do not render Unicode correctly. |
+
+Both are read at runtime from the server's environment — no restart is required if set before the process
+starts, but they cannot be changed while the server is running.
+
+```bash
+# Docker Compose — add to the git-proxy-java service environment block
+environment:
+  NO_COLOR: "1"
+  GITPROXY_NO_EMOJI: "1"
+```

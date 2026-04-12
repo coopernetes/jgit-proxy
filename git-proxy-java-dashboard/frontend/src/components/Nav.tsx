@@ -38,7 +38,18 @@ export function Nav({ currentUser }: NavProps) {
               : 'text-slate-300 hover:text-white hover:bg-slate-700')
           }
         >
-          Push Records
+          Pushes
+        </NavLink>
+        <NavLink
+          to="/repos"
+          className={({ isActive }) =>
+            'px-3 py-1 rounded text-sm transition-colors ' +
+            (isActive
+              ? 'bg-slate-600 text-white'
+              : 'text-slate-300 hover:text-white hover:bg-slate-700')
+          }
+        >
+          Repos
         </NavLink>
         <NavLink
           to="/providers"
@@ -51,40 +62,31 @@ export function Nav({ currentUser }: NavProps) {
         >
           Providers
         </NavLink>
-        <NavLink
-          to="/repos"
-          className={({ isActive }) =>
-            'px-3 py-1 rounded text-sm transition-colors ' +
-            (isActive
-              ? 'bg-slate-600 text-white'
-              : 'text-slate-300 hover:text-white hover:bg-slate-700')
-          }
-        >
-          Repositories
-        </NavLink>
-        <NavLink
-          to="/users"
-          className={({ isActive }) =>
-            'px-3 py-1 rounded text-sm transition-colors ' +
-            (isActive
-              ? 'bg-slate-600 text-white'
-              : 'text-slate-300 hover:text-white hover:bg-slate-700')
-          }
-        >
-          Users
-        </NavLink>
         {currentUser?.authorities.includes('ROLE_ADMIN') && (
-          <NavLink
-            to="/admin"
-            className={({ isActive }) =>
-              'px-3 py-1 rounded text-sm transition-colors ' +
-              (isActive
-                ? 'bg-slate-600 text-white'
-                : 'text-slate-300 hover:text-white hover:bg-slate-700')
-            }
-          >
-            Admin
-          </NavLink>
+          <>
+            <NavLink
+              to="/users"
+              className={({ isActive }) =>
+                'px-3 py-1 rounded text-sm transition-colors ' +
+                (isActive
+                  ? 'bg-slate-600 text-white'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700')
+              }
+            >
+              Users
+            </NavLink>
+            <NavLink
+              to="/admin"
+              className={({ isActive }) =>
+                'px-3 py-1 rounded text-sm transition-colors ' +
+                (isActive
+                  ? 'bg-slate-600 text-white'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700')
+              }
+            >
+              Admin
+            </NavLink>
+          </>
         )}
       </nav>
 

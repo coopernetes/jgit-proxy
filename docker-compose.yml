@@ -18,7 +18,7 @@ services:
       # Uncomment together with the volume mount above to activate debug logging:
       JAVA_TOOL_OPTIONS: -Dlogback.configurationFile=/app/conf/logback-debug.xml
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/login.html || exit 1"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/api/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 6

@@ -25,7 +25,7 @@ tasks.named('run') {
     // Default to the 'local' profile so git-proxy-local.yml is loaded in local dev.
     // Override by setting GITPROXY_CONFIG_PROFILES in your shell before running.
     environment 'GITPROXY_CONFIG_PROFILES', System.getenv('GITPROXY_CONFIG_PROFILES') ?: 'local'
-    jvmArgs "-Dlogback.configurationFile=${projectDir}/src/main/resources/logback-local.xml"
+    jvmArgs "-Dlog4j2.configurationFile=${projectDir}/src/main/resources/log4j2-local.xml"
 }
 
 tasks.register('stop') {

@@ -185,6 +185,10 @@ public class UrlRuleFilter extends AbstractProviderAwareGitProxyFilter {
         // no-op — the aggregate filter drives rule evaluation
     }
 
+    public boolean appliesTo(HttpOperation operation) {
+        return applicableOperations.contains(operation);
+    }
+
     public void applyRule(HttpServletRequest request) {
         var predicate = createPredicate(target, request);
         if (isMatched(predicate)) {

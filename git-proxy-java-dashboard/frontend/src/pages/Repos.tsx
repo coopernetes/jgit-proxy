@@ -245,7 +245,7 @@ function AddRuleModal({
               onChange={(e) => set('targetType', e.target.value as TargetType)}
               className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
             >
-              <option value="slug">Slug (owner/repo)</option>
+              <option value="slug">Slug (/owner/repo)</option>
               <option value="owner">Owner / org</option>
               <option value="name">Repository name</option>
             </select>
@@ -273,18 +273,18 @@ function AddRuleModal({
               placeholder={
                 form.patternType === 'REGEX'
                   ? form.targetType === 'slug'
-                    ? '^myorg/.*'
+                    ? '^/myorg/.*'
                     : form.targetType === 'owner'
                       ? '^(myorg|partnerorg)$'
                       : '^my-service-.*'
                   : form.patternType === 'GLOB'
                     ? form.targetType === 'slug'
-                      ? 'myorg/*'
+                      ? '/myorg/*'
                       : form.targetType === 'owner'
                         ? 'myorg-*'
                         : 'feature-*'
                     : form.targetType === 'slug'
-                      ? 'myorg/myrepo'
+                      ? '/myorg/myrepo'
                       : form.targetType === 'owner'
                         ? 'myorg'
                         : 'myrepo'
@@ -297,6 +297,12 @@ function AddRuleModal({
             {form.patternType === 'REGEX' && !regexError && form.pattern && (
               <p className="mt-1 text-xs text-gray-400">
                 Stored as <code className="font-mono">regex:{form.pattern}</code>
+              </p>
+            )}
+            {form.targetType === 'slug' && (
+              <p className="mt-1 text-xs text-gray-400">
+                Slug rules match the full URL path — must start with <code className="font-mono">/</code>, e.g.{' '}
+                <code className="font-mono">/myorg/myrepo</code>.
               </p>
             )}
           </div>

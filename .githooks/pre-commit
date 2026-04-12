@@ -4,16 +4,23 @@
 
 set -euo pipefail
 
+# Activate mise so that node/npm from mise.toml are on PATH.
+# npm tasks are run with --no-daemon so they pick up the current PATH
+# rather than inheriting it from a daemon started without mise.
+if command -v mise &>/dev/null; then
+    eval "$(mise activate bash --shims)"
+fi
+
 echo "[pre-commit] Running spotlessApply..."
 ./gradlew spotlessApply --quiet
 git diff --name-only | xargs -r git add
 echo "[pre-commit] Spotless: OK"
 
 echo "[pre-commit] Running Prettier..."
-./gradlew :git-proxy-java-dashboard:npmFormat :git-proxy-java-dashboard:prettierDocs --quiet
+./gradlew :git-proxy-java-dashboard:npmFormat :git-proxy-java-dashboard:prettierDocs --quiet --no-daemon
 git diff --name-only -- git-proxy-java-dashboard/frontend/src '*.md' | xargs -r git add
 echo "[pre-commit] Prettier: OK"
 
 echo "[pre-commit] Running ESLint..."
-./gradlew :git-proxy-java-dashboard:npmLint --quiet
+./gradlew :git-proxy-java-dashboard:npmLint --quiet --no-daemon
 echo "[pre-commit] ESLint: OK"

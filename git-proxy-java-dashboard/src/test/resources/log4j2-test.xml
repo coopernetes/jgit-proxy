@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Appenders>
+        <Console name="CONSOLE" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{HH:mm:ss.SSS} %-5level %logger{50} - %msg%n"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <Logger name="org.springframework.security" level="DEBUG"/>
+        <Logger name="org.springframework.security.oauth2" level="DEBUG"/>
+        <Logger name="org.springframework.security.web" level="DEBUG"/>
+        <Logger name="org.finos.gitproxy" level="DEBUG"/>
+
+        <Root level="WARN">
+            <AppenderRef ref="CONSOLE"/>
+        </Root>
+    </Loggers>
+</Configuration>
