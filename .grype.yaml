@@ -1,5 +1,8 @@
 fail-on-severity: high
 
 ignore:
-  # Ubuntu marks these as "won't fix" — upstream has no intention of patching
+  # OS packages with no fix available — upstream patch not yet released or won't be released.
+  # These are base image CVEs outside this project's control; weekly scans will catch when
+  # fixes become available and a base image rebuild will be required at that point.
   - fix-state: "wont-fix"
+  - fix-state: "not-fixed"
