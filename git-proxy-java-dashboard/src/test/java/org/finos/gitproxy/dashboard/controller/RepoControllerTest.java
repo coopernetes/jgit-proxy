@@ -201,7 +201,7 @@ class RepoControllerTest {
 
             assertEquals(1, result.size());
             assertEquals(1L, result.get(0).get("pushCount"));
-            assertEquals(10L, result.get(0).get("fetchCount"));
+            assertEquals(8L, result.get(0).get("fetchCount")); // total(10) - blocked(2)
             assertEquals(2L, result.get(0).get("blockedFetchCount"));
         }
 
