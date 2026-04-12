@@ -79,6 +79,9 @@ Strip the `GITPROXY_` prefix, lowercase, and replace `_` with `.` to get the con
 | `GITPROXY_DATABASE_POOL_MAXIMUMPOOLSIZE`    | `database.pool.maximum-pool-size`  | `3`                       |
 | `GITPROXY_DATABASE_POOL_MINIMUMIDLE`        | `database.pool.minimum-idle`       | `1`                       |
 | `GITPROXY_DATABASE_POOL_CONNECTIONTIMEOUT`  | `database.pool.connection-timeout` | `30000`                   |
+| `GITPROXY_SERVER_SESSIONSTORE`              | `server.session-store`             | `jdbc`                    |
+| `GITPROXY_SERVER_REDIS_HOST`                | `server.redis.host`                | `redis.cluster.local`     |
+| `GITPROXY_SERVER_REDIS_PORT`                | `server.redis.port`                | `6379`                    |
 | `GITPROXY_PROVIDERS_GITHUB_ENABLED` | `providers.github.enabled`  | `false`                   |
 | `GITPROXY_PROVIDERS_<NAME>_URI`     | `providers.<name>.uri`      | `https://gitlab.corp.com` |
 
@@ -112,7 +115,63 @@ server:
   # themselves. Set to true to require an explicit REVIEW permission entry for the repo.
   # Use true for deployments that need restricted approvers with formal sign-off.
   require-review-permission: false
+
+  # HTTP session persistence backend. Controls where authenticated sessions are stored.
+  # Options:
+  #   none   — in-memory (default); sessions lost on restart, not shared across pods
+  #   jdbc   — persisted to the configured JDBC database; zero new infrastructure required
+  #   redis  — persisted to a Redis or Valkey instance; configure via server.redis.*
+  # Use jdbc or redis for multi-instance deployments so sessions survive pod restarts
+  # and remain valid across all replicas.
+  # session-store: none
+
+  # Redis connection — only required when session-store: redis
+  # redis:
+  #   host: redis.cluster.local
+  #   port: 6379
+  #   password: ""
+  #   ssl: false
 ```
+
+### Session persistence for multi-instance deployments
+
+By default, authenticated sessions are stored in memory. This works for single-instance deployments but means:
+- Sessions are lost when a pod restarts
+- A user hitting a different pod after a load balancer switch will be logged out
+
+Set `server.session-store` to persist sessions across restarts and share them between replicas.
+
+**JDBC (recommended — zero new infrastructure):**
+
+```yaml
+server:
+  session-store: jdbc
+
+database:
+  type: postgres
+  url: jdbc:postgresql://db.internal:5432/gitproxy
+  pool:
+    maximum-pool-size: 3
+    minimum-idle: 1
+```
+
+The session tables (`SPRING_SESSION`, `SPRING_SESSION_ATTRIBUTES`) are created automatically by the database migrator on first startup. No manual DDL required.
+
+**Redis / Valkey:**
+
+```yaml
+server:
+  session-store: redis
+  redis:
+    host: redis.cluster.local  # or valkey.cluster.local
+    port: 6379
+    password: ""               # omit if no auth configured
+    ssl: false                 # set true for TLS-secured Redis
+```
+
+A minimal single-replica Redis or Valkey pod is sufficient — sessions are small and low-throughput. No persistence or clustering required for this use case.
+
+> **MongoDB deployments:** MongoDB-backed session storage is planned (#139). In the meantime, use `session-store: jdbc` with a separate PostgreSQL instance, or stand up a Redis pod.
 
 ## TLS
 
