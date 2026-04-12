@@ -297,11 +297,32 @@ export interface HttpResult {
   detail?: string
 }
 
+export interface GitProbeResult {
+  status: 'ok' | 'error'
+  /** Full URL that was probed, e.g. https://github.com/owner/repo/info/refs?service=git-upload-pack */
+  probeUrl?: string
+  /** HTTP status code returned by the upstream — present when status is 'ok' */
+  httpStatus?: number
+  /** Content-Type header from the upstream response */
+  contentType?: string
+  /** TIMEOUT | RESET | ERROR — present when status is 'error' */
+  error?: string
+  detail?: string
+  durationMs: number
+}
+
+export interface GitProbe {
+  uploadPack: GitProbeResult
+  receivePack: GitProbeResult
+}
+
 export interface ProviderConnectivity {
   uri: string
   tcp: TcpResult
   tls: TlsResult | null
   http: HttpResult | null
+  /** Only present on targeted checks (provider + repoPath supplied) */
+  gitProbe?: GitProbe | null
 }
 
 export async function checkConnectivity(): Promise<{
@@ -309,6 +330,16 @@ export async function checkConnectivity(): Promise<{
   providers: Record<string, ProviderConnectivity>
 }> {
   const res = await apiFetch('/api/admin/connectivity')
+  if (!res.ok) await parseErrorResponse(res, 'Connectivity check failed')
+  return res.json()
+}
+
+export async function checkTargetedConnectivity(
+  provider: string,
+  repoPath: string,
+): Promise<{ checkedAt: string; providers: Record<string, ProviderConnectivity> }> {
+  const params = new URLSearchParams({ provider, repoPath })
+  const res = await apiFetch('/api/admin/connectivity?' + params)
   if (!res.ok) await parseErrorResponse(res, 'Connectivity check failed')
   return res.json()
 }

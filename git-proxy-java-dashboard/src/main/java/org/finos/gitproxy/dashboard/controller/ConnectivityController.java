@@ -1,11 +1,8 @@
 package org.finos.gitproxy.dashboard.controller;
 
 import jakarta.annotation.Resource;
-import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.net.SocketException;
-import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -16,6 +13,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLPeerUnverifiedException;
@@ -27,8 +25,11 @@ import org.finos.gitproxy.jetty.config.GitProxyConfig;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.finos.gitproxy.tls.SslUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Admin endpoint that tests outbound connectivity to each configured upstream provider. Useful for diagnosing
@@ -42,6 +43,9 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li><b>TLS</b> — complete the TLS handshake (HTTPS providers only). Reports negotiated protocol and cipher, or the
  *       specific exception class for certificate / SNI failures.
  *   <li><b>HTTP</b> — send {@code GET /} and record the status code and response time.
+ *   <li><b>Git probe</b> (targeted check only) — send {@code GET /info/refs?service=git-upload-pack} with
+ *       {@code User-Agent: git/2.x.x} to a specific repo URL. Distinguishes appliances that pass generic HTTP but
+ *       block git-specific URL patterns, query strings, or user-agent strings.
  * </ol>
  *
  * <p>Every step is logged at INFO level so that the application log can be used as evidence for firewall tickets.
@@ -59,17 +63,49 @@ public class ConnectivityController {
     @Autowired
     private GitProxyConfig gitProxyConfig;
 
+    /**
+     * Runs connectivity checks for all providers (no git probe), or a targeted check for a single provider with an
+     * optional git probe step.
+     *
+     * @param providerName optional — name of the provider to target; if absent all providers are checked
+     * @param repoPath     optional — repo path (e.g. {@code /owner/repo.git}) appended to the provider base URI for
+     *                     the git probe step; requires {@code provider}
+     */
     @GetMapping("/api/admin/connectivity")
-    public Map<String, Object> check() {
+    public Map<String, Object> check(
+            @RequestParam(name = "provider", required = false) String providerName,
+            @RequestParam(required = false) String repoPath) {
         SSLContext sslContext = buildSslContext();
         Instant checkedAt = Instant.now();
 
         log.info("=== Connectivity check started at {} ===", checkedAt);
 
         Map<String, Object> providerResults = new LinkedHashMap<>();
-        for (GitProxyProvider provider : providers.getProviders()) {
-            log.info("--- Provider: {} ({}) ---", provider.getName(), provider.getUri());
-            providerResults.put(provider.getName(), checkProvider(provider, sslContext));
+
+        if (providerName != null) {
+            // Targeted: single provider, optional git probe
+            GitProxyProvider provider = providers.getProviders().stream()
+                    .filter(p -> p.getName().equals(providerName))
+                    .findFirst()
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST, "Unknown provider: " + providerName));
+            log.info("--- Provider: {} ({}) [targeted] ---", provider.getName(), provider.getUri());
+            Map<String, Object> result = checkProvider(provider, sslContext);
+            if (repoPath != null) {
+                String repoUrl = provider.getUri().toString().replaceAll("/+$", "")
+                        + (repoPath.startsWith("/") ? repoPath : "/" + repoPath);
+                Map<String, Object> gitProbe = new LinkedHashMap<>();
+                gitProbe.put("uploadPack", probe(repoUrl, "git-upload-pack", sslContext));
+                gitProbe.put("receivePack", probe(repoUrl, "git-receive-pack", sslContext));
+                result.put("gitProbe", gitProbe);
+            }
+            providerResults.put(provider.getName(), result);
+        } else {
+            // Baseline: all providers, no git probe
+            for (GitProxyProvider provider : providers.getProviders()) {
+                log.info("--- Provider: {} ({}) ---", provider.getName(), provider.getUri());
+                providerResults.put(provider.getName(), checkProvider(provider, sslContext));
+            }
         }
 
         log.info("=== Connectivity check complete ===");
@@ -248,50 +284,74 @@ public class ConnectivityController {
     }
 
     /**
-     * Classifies a TCP-layer exception into a short error code that maps to OS-level error signals:
-     *
-     * <ul>
-     *   <li>{@code TIMEOUT} — firewall DROP or host unreachable (no RST received within timeout)
-     *   <li>{@code REFUSED} — firewall REJECT or no listener on port (RST received immediately)
-     *   <li>{@code RESET} — connection established then RST mid-stream (proxy intercept, load balancer)
-     *   <li>{@code ERROR} — other (DNS failure, network unreachable, etc.)
-     * </ul>
+     * Sends {@code GET /info/refs?service=<service>} with a real git user-agent to {@code repoUrl}. Any HTTP response
+     * (200, 401, 403, 404 …) means the request reached the upstream — the git URL patterns are not being filtered. A
+     * network-level error (TIMEOUT, RESET) after TCP/TLS passed indicates git-specific DLP blocking.
      */
-    private static String classifyTcpError(Exception e) {
-        if (e instanceof SocketTimeoutException) return "TIMEOUT";
-        if (e instanceof ConnectException) {
-            String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
-            if (msg.contains("refused")) return "REFUSED";
-            if (msg.contains("reset")) return "RESET";
-            return "REFUSED"; // ConnectException default
+    private Map<String, Object> probe(String repoUrl, String service, SSLContext sslContext) {
+        String probeUrl = repoUrl.replaceAll("/+$", "") + "/info/refs?service=" + service;
+        log.info("[git-probe:{}] GET {}", service, probeUrl);
+        long start = System.currentTimeMillis();
+        try {
+            HttpClient client = HttpClient.newBuilder()
+                    .sslContext(sslContext)
+                    .connectTimeout(Duration.ofMillis(TIMEOUT_MS))
+                    .followRedirects(HttpClient.Redirect.NEVER)
+                    .build();
+            HttpRequest req = HttpRequest.newBuilder(URI.create(probeUrl))
+                    .GET()
+                    .header("User-Agent", "git/2.x.x")
+                    .timeout(Duration.ofMillis(TIMEOUT_MS))
+                    .build();
+            HttpResponse<Void> resp = client.send(req, HttpResponse.BodyHandlers.discarding());
+            long ms = System.currentTimeMillis() - start;
+            int status = resp.statusCode();
+            Optional<String> contentType = resp.headers().firstValue("content-type");
+            log.info(
+                    "[git-probe:{}] GET {} → {} ({} ms) content-type={}",
+                    service,
+                    probeUrl,
+                    status,
+                    ms,
+                    contentType.orElse("none"));
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("status", "ok");
+            result.put("probeUrl", probeUrl);
+            result.put("httpStatus", status);
+            contentType.ifPresent(ct -> result.put("contentType", ct));
+            result.put("durationMs", ms);
+            return result;
+        } catch (Exception e) {
+            long ms = System.currentTimeMillis() - start;
+            String errorCode = classifyNetworkError(e);
+            log.info(
+                    "[git-probe:{}] GET {} → {} ({} ms) — {}: {}",
+                    service,
+                    probeUrl,
+                    errorCode,
+                    ms,
+                    e.getClass().getSimpleName(),
+                    e.getMessage());
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("status", "error");
+            result.put("probeUrl", probeUrl);
+            result.put("error", errorCode);
+            result.put("detail", e.getClass().getSimpleName() + ": " + e.getMessage());
+            result.put("durationMs", ms);
+            return result;
         }
-        if (e instanceof SocketException) {
-            String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
-            if (msg.contains("reset")) return "RESET";
-            if (msg.contains("refused")) return "REFUSED";
-            if (msg.contains("timeout") || msg.contains("timed out")) return "TIMEOUT";
-        }
-        return "ERROR";
     }
 
-    /**
-     * Classifies a TLS-layer exception.
-     *
-     * <ul>
-     *   <li>{@code TLS_CERT_INVALID} — PKIX path building or certificate chain failure
-     *   <li>{@code TLS_HANDSHAKE_FAILED} — general handshake failure (alert from peer)
-     * </ul>
-     */
+    private static String classifyTcpError(Exception e) {
+        return ConnectivityErrorClassifier.classifyTcpError(e);
+    }
+
+    private static String classifyNetworkError(Exception e) {
+        return ConnectivityErrorClassifier.classifyNetworkError(e);
+    }
+
     private static String classifyTlsError(SSLHandshakeException e) {
-        String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
-        if (msg.contains("pkix")
-                || msg.contains("certificate")
-                || msg.contains("cert")
-                || msg.contains("trustanchor")
-                || msg.contains("trust anchor")) {
-            return "TLS_CERT_INVALID";
-        }
-        return "TLS_HANDSHAKE_FAILED";
+        return ConnectivityErrorClassifier.classifyTlsError(e);
     }
 
     /** Extracts the CN from the peer certificate, or returns the host name as fallback. */
