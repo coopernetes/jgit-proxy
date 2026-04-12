@@ -13,4 +13,13 @@
         ]]></notes>
         <cpe>cpe:/a:jetty:jetty</cpe>
     </suppress>
+    <suppress>
+        <notes><![CDATA[
+        CVE-2018-14335 affects H2 through 1.4.197 only. We are on 2.x which is not vulnerable.
+        dep-check matches on package name without respecting the fixed version ceiling.
+        https://nvd.nist.gov/vuln/detail/CVE-2018-14335
+        ]]></notes>
+        <packageUrl regex="true">^pkg:maven/com\.h2database/h2@.*$</packageUrl>
+        <cve>CVE-2018-14335</cve>
+    </suppress>
 </suppressions>
