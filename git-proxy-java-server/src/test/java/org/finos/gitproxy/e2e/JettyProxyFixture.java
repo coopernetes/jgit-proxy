@@ -133,7 +133,17 @@ class JettyProxyFixture implements AutoCloseable {
         var context = new ServletContextHandler("/", false, false);
 
         var urlRuleRegistry = new InMemoryUrlRuleRegistry();
-        configRules.forEach(urlRuleRegistry::save);
+        if (configRules.isEmpty()) {
+            // No explicit rules — seed a catch-all allow rule so the proxy is open
+            urlRuleRegistry.save(AccessRule.builder()
+                    .ruleOrder(1)
+                    .access(AccessRule.Access.ALLOW)
+                    .operations(AccessRule.Operations.BOTH)
+                    .owner("*")
+                    .build());
+        } else {
+            configRules.forEach(urlRuleRegistry::save);
+        }
 
         // Store-and-forward GitServlet on /push/...
         var resolver = new StoreAndForwardRepositoryResolver(storeForwardCache, provider);
