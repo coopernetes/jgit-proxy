@@ -417,9 +417,17 @@ public class SecurityConfig {
                                 ClientAuthenticationMethod.PRIVATE_KEY_JWT.equals(reg.getClientAuthenticationMethod())
                                         ? rsaKey
                                         : null;
+                        var converter = new NimbusJwtClientAuthenticationParametersConverter<>(jwkResolver);
+                        // NimbusJwtClientAuthenticationParametersConverter only propagates kid to the JWT
+                        // header — x5t is never copied from the JWK. Entra ID matches registered
+                        // certificates by x5t (SHA-1 thumbprint), so inject it explicitly when present.
+                        if (rsaKey.getX509CertThumbprint() != null) {
+                            var x5t = rsaKey.getX509CertThumbprint().toString();
+                            converter.setJwsHeaderCustomizer(
+                                    (headers, req) -> headers.header("x5t", x5t));
+                        }
                         var tokenResponseClient = new RestClientAuthorizationCodeTokenResponseClient();
-                        tokenResponseClient.addParametersConverter(
-                                new NimbusJwtClientAuthenticationParametersConverter<>(jwkResolver));
+                        tokenResponseClient.addParametersConverter(converter);
                         oauth2.tokenEndpoint(token -> token.accessTokenResponseClient(tokenResponseClient));
                     }
                 })
