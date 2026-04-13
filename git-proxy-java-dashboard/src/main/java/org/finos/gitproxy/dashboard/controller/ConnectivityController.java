@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Pattern;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLPeerUnverifiedException;
@@ -61,6 +62,15 @@ public class ConnectivityController {
 
     private static final int TIMEOUT_MS = 5000;
 
+    /**
+     * Allowlist for the {@code repoPath} query parameter. Accepts a sequence of path segments made up of letters,
+     * digits, dot, underscore, or hyphen, separated by single forward slashes, with an optional leading slash. This
+     * excludes {@code ..}, consecutive slashes, {@code @}, {@code :}, query strings, and any other character that could
+     * influence URL authority or path parsing — a strict sanitizer that closes the SSRF taint flow into the git probe
+     * URL.
+     */
+    private static final Pattern SAFE_REPO_PATH = Pattern.compile("/?[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*");
+
     @Resource(name = "providers")
     private ProviderRegistry providers;
 
@@ -97,11 +107,30 @@ public class ConnectivityController {
             List<Map<String, Object>> steps = new ArrayList<>();
             Map<String, Object> result = checkProvider(provider, sslContext, steps);
             if (repoPath != null) {
-                String repoUrl = provider.getUri().toString().replaceAll("/+$", "")
-                        + (repoPath.startsWith("/") ? repoPath : "/" + repoPath);
+                if (!SAFE_REPO_PATH.matcher(repoPath).matches()) {
+                    throw new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST, "Invalid repoPath: must match " + SAFE_REPO_PATH.pattern());
+                }
+                // Build probe URL via URI resolution against the trusted provider base URI so the authority
+                // (scheme/host/port) is sourced entirely from configuration and cannot be overridden by repoPath.
+                String relative = repoPath.startsWith("/") ? repoPath.substring(1) : repoPath;
+                URI base = provider.getUri();
+                String basePath = base.getPath();
+                if (basePath == null || basePath.isEmpty()) {
+                    basePath = "/";
+                } else if (!basePath.endsWith("/")) {
+                    basePath = basePath + "/";
+                }
+                URI repoUri;
+                try {
+                    repoUri = new URI(
+                            base.getScheme(), null, base.getHost(), base.getPort(), basePath + relative, null, null);
+                } catch (java.net.URISyntaxException e) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid repoPath: " + e.getMessage());
+                }
                 Map<String, Object> gitProbe = new LinkedHashMap<>();
-                gitProbe.put("uploadPack", probe(repoUrl, "git-upload-pack", sslContext, steps));
-                gitProbe.put("receivePack", probe(repoUrl, "git-receive-pack", sslContext, steps));
+                gitProbe.put("uploadPack", probe(repoUri, "git-upload-pack", sslContext, steps));
+                gitProbe.put("receivePack", probe(repoUri, "git-receive-pack", sslContext, steps));
                 result.put("gitProbe", gitProbe);
             }
             result.put("steps", steps);
@@ -327,8 +356,28 @@ public class ConnectivityController {
      * network-level error (TIMEOUT, RESET) after TCP/TLS passed indicates git-specific DLP blocking.
      */
     private Map<String, Object> probe(
-            String repoUrl, String service, SSLContext sslContext, List<Map<String, Object>> steps) {
-        String probeUrl = repoUrl.replaceAll("/+$", "") + "/info/refs?service=" + service;
+            URI repoUri, String service, SSLContext sslContext, List<Map<String, Object>> steps) {
+        // Strip trailing slashes without a regex to avoid polynomial backtracking on pathological inputs.
+        String repoPath = repoUri.getPath();
+        int end = repoPath.length();
+        while (end > 0 && repoPath.charAt(end - 1) == '/') {
+            end--;
+        }
+        String trimmedPath = repoPath.substring(0, end);
+        URI probeUri;
+        try {
+            probeUri = new URI(
+                    repoUri.getScheme(),
+                    null,
+                    repoUri.getHost(),
+                    repoUri.getPort(),
+                    trimmedPath + "/info/refs",
+                    "service=" + service,
+                    null);
+        } catch (java.net.URISyntaxException e) {
+            throw new IllegalArgumentException("Failed to build probe URI", e);
+        }
+        String probeUrl = probeUri.toString();
         String stepName = "git-upload-pack".equals(service) ? "Git fetch" : "Git push";
         log.info("[git-probe:{}] GET {}", service, probeUrl);
         long start = System.currentTimeMillis();
@@ -338,7 +387,7 @@ public class ConnectivityController {
                     .connectTimeout(Duration.ofMillis(TIMEOUT_MS))
                     .followRedirects(HttpClient.Redirect.NEVER)
                     .build();
-            HttpRequest req = HttpRequest.newBuilder(URI.create(probeUrl))
+            HttpRequest req = HttpRequest.newBuilder(probeUri)
                     .GET()
                     .header("User-Agent", "git/2.x.x")
                     .timeout(Duration.ofMillis(TIMEOUT_MS))
