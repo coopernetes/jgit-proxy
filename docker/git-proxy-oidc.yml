@@ -18,8 +18,8 @@ auth:
   oidc:
     # issuer-uri drives the browser-facing authorization redirect only.
     issuer-uri: http://mock-oauth2:9090/default
-    client-id: gitproxy-client
-    client-secret: gitproxy-secret
+#    client-id: gitproxy-client
+#    client-secret: gitproxy-secret
     # Server-side endpoints use host.containers.internal (Podman's automatic host alias)
     # to reach the port-mapped mock-oauth2 container. This avoids the Podman /etc/hosts
     # injection problem where mock-oauth2 resolves to 127.0.0.1 inside containers.

@@ -7,8 +7,8 @@ services:
       - "8080:8080"
     volumes:
       - ./docker/git-proxy-docker-default.yml:/app/conf/git-proxy-docker-default.yml:ro
-      # Uncomment to enable debug logging (see docker/logback-debug.xml):
-#      - ./docker/logback-debug.xml:/app/conf/logback-debug.xml:ro
+      # Uncomment to enable debug logging (see docker/log4j2-debug.xml):
+#      - ./docker/log4j2-debug.xml:/app/conf/log4j2-debug.xml:ro
     depends_on:
       gitea:
         condition: service_healthy
@@ -16,7 +16,7 @@ services:
       GITPROXY_API_KEY: "change-me-in-production"
       GITPROXY_CONFIG_PROFILES: docker-default
       # Uncomment together with the volume mount above to activate debug logging:
-      JAVA_TOOL_OPTIONS: -Dlogback.configurationFile=/app/conf/logback-debug.xml
+#      JAVA_TOOL_OPTIONS: -Dlog4j2.configurationFile=/app/conf/log4j2-debug.xml
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/api/health || exit 1"]
       interval: 10s

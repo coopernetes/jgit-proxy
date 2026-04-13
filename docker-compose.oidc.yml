@@ -47,6 +47,8 @@ services:
       - ./docker/git-proxy-oidc.yml:/app/conf/git-proxy-oidc.yml:ro
     environment:
       GITPROXY_CONFIG_PROFILES: docker-default,oidc
+      GITPROXY_AUTH_OIDC_CLIENT__ID: gitproxy-client
+      GITPROXY_AUTH_OIDC_CLIENT__SECRET: gitproxy-secret
     depends_on:
       mock-oauth2:
         condition: service_healthy
