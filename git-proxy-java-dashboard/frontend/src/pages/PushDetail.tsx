@@ -475,7 +475,7 @@ export function PushDetail({ currentUser }: PushDetailProps) {
     try {
       const [data, providerList] = await Promise.all([fetchPush(pushId), fetchProviders()])
       setRecord(data)
-      const provider = (providerList as Provider[]).find((p) => p.name === data.provider)
+      const provider = (providerList as Provider[]).find((p) => p.id === data.provider)
       setAttestationQuestions(provider?.attestationQuestions ?? [])
     } catch (e) {
       setError(String(e))

@@ -527,7 +527,7 @@ accepts the internal username, not an email address.
 
 ## Commit validation
 
-All validation rules apply to both store-and-forward and transparent proxy modes.
+Per-commit checks (identity, author email, message content) apply to both store-and-forward and transparent proxy modes.
 
 ```yaml
 commit:
@@ -547,31 +547,114 @@ commit:
         - "DO NOT MERGE"
       patterns:
         - '(?i)(password|secret|token)\s*[=:]\s*\S+'
-
-  diff:
-    block:
-      # Scanned against added lines (+) in the push diff.
-      literals:
-        - "internal.corp.example.com"
-      patterns:
-        - '(?i)https?://[a-z0-9.-]*\.corp\.example\.com\b'
-
-  # Secret scanning via gitleaks (https://github.com/gitleaks/gitleaks).
-  # The JAR ships with a bundled gitleaks binary so scanning works out of the box.
-  # Binary resolution order:
-  #   1. scanner-path — explicit path, bypasses everything else
-  #   2. version + auto-install: true — downloads and caches on startup
-  #   3. bundled JAR binary
-  #   4. system PATH
-  secret-scanning:
-    enabled: false
-    # version: 8.22.0
-    # auto-install: true
-    # install-dir: ~/.cache/git-proxy-java/gitleaks
-    # scanner-path: /usr/local/bin/gitleaks
-    # config-file: /app/conf/.gitleaks.toml
-    # timeout-seconds: 30
 ```
+
+## Diff scan
+
+Push-level check applied once per push against the aggregate diff (all commits combined). Only added lines
+(`+`) are scanned — deletions and context lines are ignored.
+
+```yaml
+diff-scan:
+  block:
+    literals:
+      - "internal.corp.example.com"
+    patterns:
+      - '(?i)https?://[a-z0-9.-]*\.corp\.example\.com\b'
+```
+
+## Secret scanning
+
+Secret scanning via gitleaks (<https://github.com/gitleaks/gitleaks>). Applied once per push. The JAR ships with
+a bundled gitleaks binary so scanning works out of the box.
+
+Binary resolution order (first match wins):
+1. `scanner-path` — explicit path, bypasses everything else
+2. `version` + `auto-install: true` — downloads and caches that version on startup
+3. Bundled JAR binary (default version, always present)
+4. System `PATH`
+
+```yaml
+secret-scan:
+  enabled: false
+  # version: 8.22.0
+  # auto-install: true
+  # install-dir: ~/.cache/git-proxy-java/gitleaks
+  # scanner-path: /usr/local/bin/gitleaks
+
+  # External TOML rules file. Ignored when inline-config is set.
+  # config-file: /app/conf/.gitleaks.toml
+
+  # Inline TOML config — takes precedence over config-file. Hot-reloadable via
+  # POST /api/config/reload?section=secret-scan. Content must be valid gitleaks TOML:
+  # inline-config: |
+  #   title = "my-org"
+  #   [extend]
+  #   useDefault = true
+  #   [[rules]]
+  #   id = "my-org-api-key"
+  #   regex = '''MY_ORG_[A-Z0-9]{32}'''
+
+  # timeout-seconds: 30
+```
+
+## Hot reload
+
+Selected config sections can be reloaded at runtime without restarting the server. Two reload sources are supported:
+
+- **File watch** — monitors a local YAML file; triggers automatically on modification
+- **Git source** — periodically pulls a git repository and reads a YAML overlay from it
+
+```yaml
+reload:
+  file:
+    enabled: false
+    path: /app/conf/git-proxy-local.yml   # watched for modifications
+  git:
+    enabled: false
+    url: https://github.com/myorg/config.git
+    branch: main
+    file-path: git-proxy.yml
+    interval-seconds: 300   # 0 = manual trigger only
+```
+
+#### Git source authentication
+
+For private repositories, set these environment variables — no config file changes needed:
+
+```
+GITPROXY_RELOAD_GIT_AUTH_USERNAME=<username or token placeholder>
+GITPROXY_RELOAD_GIT_AUTH_PASSWORD=<personal access token or password>
+```
+
+Both variables must be set together; if only one is present a warning is logged and the clone/pull proceeds
+without credentials. For token-only auth (GitHub, GitLab, Gitea PATs) the username can be any non-empty
+string — `git` or `x-token` are common placeholders.
+
+### Reloadable sections
+
+| Section | YAML key | What changes take effect |
+|---|---|---|
+| `commit` | `commit:` | Author email rules, message block lists, identity-verification mode |
+| `diff-scan` | `diff-scan:` | Diff content block literals and patterns |
+| `secret-scan` | `secret-scan:` | All gitleaks settings including `inline-config` |
+| `rules` | `rules:` | URL access control allow/deny rules |
+| `permissions` | `permissions:` | Config-sourced user→repo permission grants |
+
+Provider, server, and database sections always require a restart.
+
+### Manual trigger
+
+```
+POST /api/config/reload             # reload all sections
+POST /api/config/reload?section=commit          # commit rules only
+POST /api/config/reload?section=diff-scan       # diff scan only
+POST /api/config/reload?section=secret-scan # gitleaks config only
+POST /api/config/reload?section=rules           # URL rules only
+POST /api/config/reload?section=permissions     # permissions only
+```
+
+The dashboard admin panel also provides a section dropdown for manual triggers.
 
 ## Identity verification
 

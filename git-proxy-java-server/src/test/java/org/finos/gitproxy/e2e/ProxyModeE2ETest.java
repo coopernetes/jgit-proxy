@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.UUID;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.db.model.Attestation;
 import org.finos.gitproxy.db.model.PushStatus;
@@ -25,19 +26,21 @@ import org.junit.jupiter.api.*;
  * directory so there are no ordering dependencies.
  */
 @Tag("e2e")
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ProxyModeE2ETest {
 
     static GiteaContainer gitea;
     static JettyProxyFixture proxy;
     static Path tempDir;
 
+    // Per-test repo — isolates local clone cache and Gitea state between tests.
+    String repoName;
+
     @BeforeAll
     static void startInfrastructure() throws Exception {
         gitea = new GiteaContainer();
         gitea.start();
         gitea.createAdminUser();
-        gitea.createTestRepo();
+        gitea.createTestRepo(); // creates the test-owner org; the per-test repos are added below
 
         proxy = new JettyProxyFixture(gitea.getBaseUri());
         tempDir = Files.createTempDirectory("git-proxy-java-proxy-e2e-");
@@ -49,6 +52,12 @@ class ProxyModeE2ETest {
         if (gitea != null) gitea.stop();
     }
 
+    @BeforeEach
+    void createRepo() throws Exception {
+        repoName = "proxy-e2e-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        gitea.createRepo(GiteaContainer.TEST_ORG, repoName);
+    }
+
     // ---- helpers ----
 
     /** Returns a proxy clone URL with admin credentials embedded. */
@@ -58,7 +67,7 @@ class ProxyModeE2ETest {
                 + URLEncoder.encode(GiteaContainer.ADMIN_PASSWORD, StandardCharsets.UTF_8);
         return "http://" + creds + "@localhost:" + proxy.getPort()
                 + "/proxy/localhost/"
-                + GiteaContainer.TEST_ORG + "/" + GiteaContainer.TEST_REPO + ".git";
+                + GiteaContainer.TEST_ORG + "/" + repoName + ".git";
     }
 
     private GitHelper helper() {
@@ -123,14 +132,12 @@ class ProxyModeE2ETest {
     // ---- passing tests (mirrors test-proxy-pass.sh) ----
 
     @Test
-    @Order(1)
     void cleanCommit_validEmail_blockedThenApproved() throws Exception {
         pushApproveAndVerify(
                 "proxy-pass-1", GiteaContainer.VALID_AUTHOR_EMAIL, "feat: add new feature for proxy filter testing");
     }
 
     @Test
-    @Order(2)
     void multipleCleanCommits_blockedThenApproved() throws Exception {
         GitHelper git = helper();
         Path repo = git.clone(repoUrl(), "proxy-pass-multi");
@@ -167,7 +174,6 @@ class ProxyModeE2ETest {
     // These pushes should be REJECTED by validation - they never enter the approval queue.
 
     @Test
-    @Order(10)
     void noreplyLocalPart_rejected() throws Exception {
         var result = cloneCommitPush("proxy-fail-noreply", "noreply@example.com", "feat: noreply author");
         assertFalse(result.succeeded(), "push with noreply@ should be rejected");
@@ -175,21 +181,18 @@ class ProxyModeE2ETest {
     }
 
     @Test
-    @Order(11)
     void noReplyHyphenLocalPart_rejected() throws Exception {
         var result = cloneCommitPush("proxy-fail-noreply2", "no-reply@example.com", "feat: no-reply local part");
         assertFalse(result.succeeded(), "push with no-reply@ should be rejected");
     }
 
     @Test
-    @Order(12)
     void nonAllowedEmailDomain_rejected() throws Exception {
         var result = cloneCommitPush("proxy-fail-domain", "developer@internal.corp.net", "feat: non-allowed domain");
         assertFalse(result.succeeded(), "push with disallowed email domain should be rejected");
     }
 
     @Test
-    @Order(13)
     void githubNoreplyEmail_rejected() throws Exception {
         var result = cloneCommitPush(
                 "proxy-fail-ghnoreply", "12345+user@users.noreply.github.com", "feat: GitHub noreply email");
@@ -197,14 +200,12 @@ class ProxyModeE2ETest {
     }
 
     @Test
-    @Order(20)
     void wipCommitMessage_rejected() throws Exception {
         var result = cloneCommitPush("proxy-fail-wip", GiteaContainer.VALID_AUTHOR_EMAIL, "WIP: still working on this");
         assertFalse(result.succeeded(), "push with WIP message should be rejected");
     }
 
     @Test
-    @Order(21)
     void fixupCommitMessage_rejected() throws Exception {
         var result = cloneCommitPush(
                 "proxy-fail-fixup", GiteaContainer.VALID_AUTHOR_EMAIL, "fixup! previous commit that needs squashing");
@@ -212,7 +213,6 @@ class ProxyModeE2ETest {
     }
 
     @Test
-    @Order(22)
     void doNotMergeCommitMessage_rejected() throws Exception {
         var result = cloneCommitPush(
                 "proxy-fail-dnm", GiteaContainer.VALID_AUTHOR_EMAIL, "DO NOT MERGE - experimental branch");
@@ -220,7 +220,6 @@ class ProxyModeE2ETest {
     }
 
     @Test
-    @Order(23)
     void passwordInCommitMessage_rejected() throws Exception {
         var result = cloneCommitPush(
                 "proxy-fail-password",
@@ -230,7 +229,6 @@ class ProxyModeE2ETest {
     }
 
     @Test
-    @Order(24)
     void tokenInCommitMessage_rejected() throws Exception {
         var result = cloneCommitPush(
                 "proxy-fail-token",
@@ -242,7 +240,6 @@ class ProxyModeE2ETest {
     // ---- checkEmptyBranch (mirrors checkEmptyBranch.ts) ----
 
     @Test
-    @Order(50)
     void emptyBranch_rejected() throws Exception {
         // The Gitea repo is auto-initialised with a README, so main already has a commit.
         // Cloning and creating a new branch at HEAD (no new commits) means the branch tip
@@ -273,7 +270,6 @@ class ProxyModeE2ETest {
     // ---- tag push tests ----
 
     @Test
-    @Order(60)
     void tagPush_blockedThenApproved() throws Exception {
         GitHelper git = helper();
         Path repo = git.clone(repoUrl(), "proxy-tag-annotated");

@@ -10,7 +10,7 @@ import java.io.File;
 import java.util.List;
 import java.util.Optional;
 import org.eclipse.jgit.lib.Repository;
-import org.finos.gitproxy.config.CommitConfig;
+import org.finos.gitproxy.config.SecretScanConfig;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.GitleaksRunner;
 import org.finos.gitproxy.git.HttpOperation;
@@ -23,14 +23,13 @@ class SecretScanningFilterTest {
     @TempDir
     File tempDir;
 
-    CommitConfig.SecretScanningConfig enabledConfig;
+    SecretScanConfig enabledConfig;
     GitleaksRunner runner;
     SecretScanningFilter filter;
 
     @BeforeEach
     void setUp() {
-        enabledConfig =
-                CommitConfig.SecretScanningConfig.builder().enabled(true).build();
+        enabledConfig = SecretScanConfig.builder().enabled(true).build();
         runner = mock(GitleaksRunner.class);
         filter = new SecretScanningFilter(enabledConfig, runner);
     }
@@ -67,7 +66,7 @@ class SecretScanningFilterTest {
     @Test
     void disabledConfig_skipped() throws Exception {
         SecretScanningFilter disabledFilter = new SecretScanningFilter(
-                CommitConfig.SecretScanningConfig.builder().enabled(false).build(), runner);
+                SecretScanConfig.builder().enabled(false).build(), runner);
         GitRequestDetails details = pushDetailsWithRepo();
 
         disabledFilter.doHttpFilter(requestWith(details), mock(HttpServletResponse.class));

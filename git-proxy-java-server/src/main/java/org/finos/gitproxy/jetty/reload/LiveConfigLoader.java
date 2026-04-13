@@ -2,6 +2,7 @@ package org.finos.gitproxy.jetty.reload;
 
 import java.io.IOException;
 import java.nio.file.*;
+import java.util.Comparator;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -10,11 +11,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
-import org.finos.gitproxy.config.CommitConfig;
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
+import org.finos.gitproxy.db.RepoRegistry;
 import org.finos.gitproxy.jetty.config.GitProxyConfig;
 import org.finos.gitproxy.jetty.config.GitProxyConfigLoader;
 import org.finos.gitproxy.jetty.config.JettyConfigurationBuilder;
 import org.finos.gitproxy.jetty.config.ReloadConfig;
+import org.finos.gitproxy.permission.RepoPermissionService;
 
 /**
  * Manages hot-reloading of {@link ConfigHolder} at runtime, without restarting the server.
@@ -28,31 +31,65 @@ import org.finos.gitproxy.jetty.config.ReloadConfig;
  *       a YAML file from the working tree on a fixed interval.
  * </ol>
  *
- * <p>On every reload the full config POJO is rebuilt, but only {@link CommitConfig} (commit rules, auth settings) is
- * propagated to the live {@link ConfigHolder}. Changes to {@code providers}, {@code server}, {@code database}, or
- * {@code rules.allow} log a WARNING — those sections require a restart or the UI-driven provider hot-swap
- * (coopernetes/git-proxy-java#75).
+ * <p>Each reload can target a specific {@link Section} or {@link Section#ALL}. Provider, server, and database changes
+ * log a WARNING — those sections require a restart (coopernetes/git-proxy-java#75).
  *
  * <p>A concurrent reload guard prevents overlapping reloads.
  */
 @Slf4j
 public class LiveConfigLoader {
 
+    /**
+     * Config sections that support hot-reload. Pass to {@link #reload(Section)} to reload only the specified section,
+     * or use {@link #ALL} to reload everything.
+     */
+    public enum Section {
+        COMMIT,
+        DIFF_SCAN,
+        SECRET_SCAN,
+        RULES,
+        PERMISSIONS,
+        ATTESTATIONS,
+        ALL;
+
+        /** Parse a section name (case-insensitive, hyphens treated as underscores). */
+        public static Section fromString(String value) {
+            if (value == null) return ALL;
+            return switch (value.trim().toLowerCase().replace('-', '_')) {
+                case "commit" -> COMMIT;
+                case "diff_scan" -> DIFF_SCAN;
+                case "secret_scan" -> SECRET_SCAN;
+                case "rules" -> RULES;
+                case "permissions" -> PERMISSIONS;
+                case "attestations" -> ATTESTATIONS;
+                default -> ALL;
+            };
+        }
+    }
+
     private final ConfigHolder configHolder;
     private final GitProxyConfig startupConfig;
     private final ReloadConfig reloadConfig;
+    private final RepoRegistry repoRegistry;
+    private final RepoPermissionService repoPermissionService;
 
     private final AtomicBoolean reloading = new AtomicBoolean(false);
 
     private Thread fileWatchThread;
     private ScheduledExecutorService gitPollScheduler;
     private ScheduledFuture<?> gitPollFuture;
-    private Path gitRepoCache;
 
-    public LiveConfigLoader(ConfigHolder configHolder, GitProxyConfig startupConfig, ReloadConfig reloadConfig) {
+    public LiveConfigLoader(
+            ConfigHolder configHolder,
+            GitProxyConfig startupConfig,
+            ReloadConfig reloadConfig,
+            RepoRegistry repoRegistry,
+            RepoPermissionService repoPermissionService) {
         this.configHolder = configHolder;
         this.startupConfig = startupConfig;
         this.reloadConfig = reloadConfig;
+        this.repoRegistry = repoRegistry;
+        this.repoPermissionService = repoPermissionService;
     }
 
     /** Starts file-watch and/or git-poll threads based on {@link ReloadConfig}. */
@@ -87,23 +124,33 @@ public class LiveConfigLoader {
     }
 
     /**
-     * Manually triggers a reload from all configured sources. Called by the REST endpoint ({@code POST
-     * /api/config/reload}).
+     * Manually triggers a reload of all sections from configured sources. Equivalent to {@code reload(Section.ALL)}.
      *
      * @return a brief human-readable description of what was reloaded
      */
     public String reload() {
+        return reload(Section.ALL);
+    }
+
+    /**
+     * Manually triggers a reload of the specified section from configured sources. Called by the REST endpoint
+     * ({@code POST /api/config/reload?section=<section>}).
+     *
+     * @return a brief human-readable description of what was reloaded
+     */
+    public String reload(Section section) {
         ReloadConfig.FileSourceConfig fileCfg = reloadConfig.getFile();
         ReloadConfig.GitSourceConfig gitCfg = reloadConfig.getGit();
 
         if (fileCfg.isEnabled() && !fileCfg.getPath().isBlank()) {
-            reloadFromFile(Path.of(fileCfg.getPath()).toAbsolutePath());
-            return "Reloaded from file: " + fileCfg.getPath();
+            reloadFromFile(Path.of(fileCfg.getPath()).toAbsolutePath(), section);
+            return "Reloaded " + section.name().toLowerCase().replace('_', '-') + " from file: " + fileCfg.getPath();
         }
 
         if (gitCfg.isEnabled() && !gitCfg.getUrl().isBlank()) {
-            reloadFromGit();
-            return "Reloaded from git: " + gitCfg.getUrl() + " (" + gitCfg.getBranch() + ")";
+            reloadFromGit(section);
+            return "Reloaded " + section.name().toLowerCase().replace('_', '-') + " from git: " + gitCfg.getUrl() + " ("
+                    + gitCfg.getBranch() + ")";
         }
 
         return "No external reload sources configured — config unchanged";
@@ -139,8 +186,8 @@ public class LiveConfigLoader {
                 for (WatchEvent<?> event : key.pollEvents()) {
                     Path changed = dir.resolve((Path) event.context());
                     if (changed.equals(watchPath)) {
-                        log.info("Config file changed: {} — triggering reload", changed);
-                        reloadFromFile(watchPath);
+                        log.info("Config file changed: {} — triggering reload (all sections)", changed);
+                        reloadFromFile(watchPath, Section.ALL);
                     }
                 }
                 if (!key.reset()) {
@@ -153,14 +200,14 @@ public class LiveConfigLoader {
         }
     }
 
-    private void reloadFromFile(Path overrideFile) {
+    private void reloadFromFile(Path overrideFile, Section section) {
         if (!reloading.compareAndSet(false, true)) {
             log.debug("Reload already in progress — skipping");
             return;
         }
         try {
             GitProxyConfig newConfig = GitProxyConfigLoader.loadWithOverride(overrideFile);
-            applyReload(newConfig);
+            applyReload(newConfig, section);
         } catch (Exception e) {
             log.error("Config reload from file {} failed: {}", overrideFile, e.getMessage(), e);
         } finally {
@@ -177,10 +224,9 @@ public class LiveConfigLoader {
         if (intervalSeconds <= 0) {
             log.info(
                     "reload.git.interval-seconds=0 — git-source will only reload on POST /api/config/reload; no polling");
-            // Perform an initial clone so the repo is ready for manual triggers
             gitPollScheduler = Executors.newSingleThreadScheduledExecutor(
                     Thread.ofVirtual().name("config-git-poller").factory());
-            gitPollScheduler.submit(this::reloadFromGit);
+            gitPollScheduler.submit(() -> reloadFromGit(Section.ALL));
             return;
         }
         log.info(
@@ -190,73 +236,168 @@ public class LiveConfigLoader {
                 intervalSeconds);
         gitPollScheduler = Executors.newSingleThreadScheduledExecutor(
                 Thread.ofVirtual().name("config-git-poller").factory());
-        gitPollFuture = gitPollScheduler.scheduleAtFixedRate(this::reloadFromGit, 0, intervalSeconds, TimeUnit.SECONDS);
+        gitPollFuture = gitPollScheduler.scheduleAtFixedRate(
+                () -> reloadFromGit(Section.ALL), 0, intervalSeconds, TimeUnit.SECONDS);
     }
 
-    private void reloadFromGit() {
+    private void reloadFromGit(Section section) {
         if (!reloading.compareAndSet(false, true)) {
             log.debug("Reload already in progress — skipping git poll");
             return;
         }
+        Path cloneDir = null;
         try {
-            Path yamlFile = fetchGitConfig();
+            cloneDir = Files.createTempDirectory("git-proxy-java-config-git-");
+            Path yamlFile = fetchGitConfig(cloneDir);
             if (yamlFile != null) {
                 GitProxyConfig newConfig = GitProxyConfigLoader.loadWithOverride(yamlFile);
-                applyReload(newConfig);
+                applyReload(newConfig, section);
             }
         } catch (Exception e) {
             log.error("Config reload from git failed: {}", e.getMessage(), e);
         } finally {
             reloading.set(false);
+            deleteQuietly(cloneDir);
         }
     }
 
     /**
-     * Clones the configured git repo (on first call) or pulls it (on subsequent calls). Returns the path to the
-     * requested YAML file within the working tree, or {@code null} if the file doesn't exist.
+     * Clones the configured git repo into {@code cloneDir}, reads the requested YAML file, and returns its path.
+     * Returns {@code null} if the file doesn't exist in the repo.
+     *
+     * <p>A fresh clone is performed on every call — no local state is retained between reloads. This avoids pull
+     * failures caused by force-pushes on the remote branch.
+     *
+     * <p>Authentication is opt-in via environment variables — no config fields required:
+     *
+     * <ul>
+     *   <li>{@code GITPROXY_RELOAD_GIT_AUTH_USERNAME} — git username (or a token username placeholder)
+     *   <li>{@code GITPROXY_RELOAD_GIT_AUTH_PASSWORD} — personal access token or password
+     * </ul>
+     *
+     * If neither variable is set the clone proceeds without credentials (suitable for public repos or SSH-based URLs
+     * where the JVM's SSH agent handles auth).
      */
-    private Path fetchGitConfig() throws GitAPIException, IOException {
+    private Path fetchGitConfig(Path cloneDir) throws GitAPIException, IOException {
         ReloadConfig.GitSourceConfig gitCfg = reloadConfig.getGit();
+        UsernamePasswordCredentialsProvider creds = gitCredentials();
 
-        if (gitRepoCache == null) {
-            gitRepoCache = Files.createTempDirectory("git-proxy-java-config-git-");
-            log.info("Cloning config repo {} branch={} into {}", gitCfg.getUrl(), gitCfg.getBranch(), gitRepoCache);
-            Git.cloneRepository()
-                    .setURI(gitCfg.getUrl())
-                    .setBranch(gitCfg.getBranch())
-                    .setDirectory(gitRepoCache.toFile())
-                    .call()
-                    .close();
-            log.info("Config repo cloned successfully");
-        } else {
-            log.debug("Pulling config repo {}", gitCfg.getUrl());
-            try (Git git = Git.open(gitRepoCache.toFile())) {
-                git.pull().call();
-            }
-        }
+        log.info(
+                "Cloning config repo {} branch={} into {} (auth={})",
+                gitCfg.getUrl(),
+                gitCfg.getBranch(),
+                cloneDir,
+                creds != null ? "yes" : "no");
+        var clone = Git.cloneRepository()
+                .setURI(gitCfg.getUrl())
+                .setBranch(gitCfg.getBranch())
+                .setDirectory(cloneDir.toFile())
+                .setDepth(1);
+        if (creds != null) clone.setCredentialsProvider(creds);
+        clone.call().close();
 
-        Path configFile = gitRepoCache.resolve(gitCfg.getFilePath());
+        Path configFile = cloneDir.resolve(gitCfg.getFilePath());
         if (!Files.exists(configFile)) {
-            log.warn("Config file {} not found in cloned repo at {}", gitCfg.getFilePath(), gitRepoCache);
+            log.warn("Config file {} not found in cloned repo at {}", gitCfg.getFilePath(), cloneDir);
             return null;
         }
         return configFile;
+    }
+
+    private static void deleteQuietly(Path dir) {
+        if (dir == null) return;
+        try (var walk = Files.walk(dir)) {
+            walk.sorted(Comparator.reverseOrder()).forEach(p -> {
+                try {
+                    Files.delete(p);
+                } catch (IOException ignored) {
+                }
+            });
+        } catch (IOException e) {
+            log.debug("Failed to delete temp clone dir {}: {}", dir, e.getMessage());
+        }
+    }
+
+    /**
+     * Reads {@code GITPROXY_RELOAD_GIT_AUTH_USERNAME} and {@code GITPROXY_RELOAD_GIT_AUTH_PASSWORD} from the
+     * environment. Returns a credentials provider if both are set, or {@code null} if either is absent.
+     */
+    private static UsernamePasswordCredentialsProvider gitCredentials() {
+        String username = System.getenv("GITPROXY_RELOAD_GIT_AUTH_USERNAME");
+        String password = System.getenv("GITPROXY_RELOAD_GIT_AUTH_PASSWORD");
+        if (username != null && !username.isBlank() && password != null && !password.isBlank()) {
+            return new UsernamePasswordCredentialsProvider(username, password);
+        }
+        if ((username != null) != (password != null)) {
+            log.warn("GITPROXY_RELOAD_GIT_AUTH_USERNAME and GITPROXY_RELOAD_GIT_AUTH_PASSWORD must both be set "
+                    + "for git auth to work — proceeding without credentials");
+        }
+        return null;
     }
 
     // -----------------------------------------------------------------------
     // Apply reload
     // -----------------------------------------------------------------------
 
-    private void applyReload(GitProxyConfig newConfig) {
-        CommitConfig newCommitConfig = buildCommitConfig(newConfig);
-        configHolder.update(newCommitConfig);
+    private void applyReload(GitProxyConfig newConfig, Section section) {
+        var builder = new JettyConfigurationBuilder(newConfig);
+        // Validate all provider cross-references before applying any changes. If the new config has
+        // a bad reference, this throws and the reload is aborted — the live config is not modified.
+        builder.validateProviderReferences();
+
+        switch (section) {
+            case COMMIT -> reloadCommit(builder);
+            case DIFF_SCAN -> reloadDiffScan(builder);
+            case SECRET_SCAN -> reloadSecretScanning(builder);
+            case RULES -> reloadRules(builder, newConfig);
+            case PERMISSIONS -> reloadPermissions(builder, newConfig);
+            case ATTESTATIONS -> reloadAttestations(builder, newConfig);
+            case ALL -> {
+                reloadCommit(builder);
+                reloadDiffScan(builder);
+                reloadSecretScanning(builder);
+                reloadRules(builder, newConfig);
+                reloadPermissions(builder, newConfig);
+                reloadAttestations(builder, newConfig);
+            }
+        }
+
         warnOnRestartRequired(newConfig);
+        log.info("Config reload complete — section: {}", section);
     }
 
-    private CommitConfig buildCommitConfig(GitProxyConfig cfg) {
-        // Delegate to a fresh JettyConfigurationBuilder scoped to the new config — this reuses the
-        // existing commit-config build logic without duplicating pattern compilation etc.
-        return new JettyConfigurationBuilder(cfg).buildCommitConfig();
+    private void reloadCommit(JettyConfigurationBuilder builder) {
+        configHolder.update(builder.buildCommitConfig());
+    }
+
+    private void reloadDiffScan(JettyConfigurationBuilder builder) {
+        configHolder.update(builder.buildDiffScanConfig());
+    }
+
+    private void reloadSecretScanning(JettyConfigurationBuilder builder) {
+        configHolder.update(builder.buildSecretScanConfig());
+    }
+
+    private void reloadRules(JettyConfigurationBuilder builder, GitProxyConfig newConfig) {
+        if (repoRegistry == null) {
+            log.warn("repoRegistry not available — rules reload skipped");
+            return;
+        }
+        repoRegistry.seedFromConfig(builder.buildConfigRules(newConfig));
+        log.info("Rules reloaded from config");
+    }
+
+    private void reloadPermissions(JettyConfigurationBuilder builder, GitProxyConfig newConfig) {
+        if (repoPermissionService == null) {
+            log.warn("repoPermissionService not available — permissions reload skipped");
+            return;
+        }
+        repoPermissionService.seedFromConfig(builder.buildConfigPermissions(newConfig));
+        log.info("Permissions reloaded from config");
+    }
+
+    private void reloadAttestations(JettyConfigurationBuilder builder, GitProxyConfig newConfig) {
+        configHolder.update(builder.buildAttestations(newConfig));
     }
 
     /**
@@ -280,10 +421,5 @@ public class LiveConfigLoader {
                 .equals(startupConfig.getDatabase().getType())) {
             log.warn("Config reload: database.type changed — restart required");
         }
-        if (!newConfig.getRules().equals(startupConfig.getRules())) {
-            log.warn(
-                    "Config reload: rules.allow changed — URL rule changes take effect on restart (provider hot-swap not yet supported)");
-        }
-        log.info("Config reload complete — commit rules, auth config now active");
     }
 }

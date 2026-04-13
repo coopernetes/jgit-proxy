@@ -20,6 +20,8 @@ import org.finos.gitproxy.approval.AutoApprovalGateway;
 import org.finos.gitproxy.approval.ServiceNowApprovalGateway;
 import org.finos.gitproxy.approval.UiApprovalGateway;
 import org.finos.gitproxy.config.CommitConfig;
+import org.finos.gitproxy.config.DiffScanConfig;
+import org.finos.gitproxy.config.SecretScanConfig;
 import org.finos.gitproxy.db.CompositeRepoRegistry;
 import org.finos.gitproxy.db.FetchStore;
 import org.finos.gitproxy.db.MongoStoreFactory;
@@ -65,6 +67,7 @@ public class JettyConfigurationBuilder {
 
     private final GitProxyConfig config;
     private List<GitProxyProvider> cachedProviders;
+    private ProviderRegistry cachedProviderRegistry;
     private DataSource cachedDataSource;
     private MongoStoreFactory cachedMongoStoreFactory;
     private PushStore cachedPushStore;
@@ -112,9 +115,19 @@ public class JettyConfigurationBuilder {
      */
     public ConfigHolder buildConfigHolder() {
         if (cachedConfigHolder == null) {
-            cachedConfigHolder = new ConfigHolder(buildCommitConfig());
+            cachedConfigHolder = new ConfigHolder(
+                    buildCommitConfig(), buildDiffScanConfig(), buildSecretScanConfig(), buildAttestations(config));
         }
         return cachedConfigHolder;
+    }
+
+    /**
+     * Builds the global attestation-questions list from the top-level {@code attestations:} YAML section. Used at
+     * startup and during hot-reload. Per-provider variants are not supported in this release.
+     */
+    public List<AttestationQuestion> buildAttestations(GitProxyConfig cfg) {
+        if (cfg.getAttestations() == null) return List.of();
+        return List.copyOf(cfg.getAttestations());
     }
 
     /** Returns the {@link ReloadConfig} from the parsed config file. */
@@ -165,30 +178,81 @@ public class JettyConfigurationBuilder {
     }
 
     /**
-     * Returns the set of configured provider IDs (e.g. {@code "gitea/gitea"}, {@code "github/github.com"}). Used to
-     * validate that rules, permissions, and SCM identities in the YAML config reference known providers. Crashes the
-     * application if any mismatch is detected — misconfiguration must be caught at startup.
+     * Builds and caches a {@link ProviderRegistry} keyed by each provider's friendly name (the YAML config map key,
+     * e.g. {@code "github"}). The registry's {@link ProviderRegistry#resolveProvider} default method also accepts
+     * canonical {@code type/host} IDs (e.g. {@code "github/github.com"}) for backwards compatibility.
      */
-    private java.util.Set<String> configuredProviderIds() {
-        return buildProviders().stream()
-                .map(GitProxyProvider::getProviderId)
-                .collect(java.util.stream.Collectors.toSet());
+    public ProviderRegistry buildProviderRegistry() {
+        if (cachedProviderRegistry != null) return cachedProviderRegistry;
+        Map<String, GitProxyProvider> byName = new LinkedHashMap<>();
+        buildProviders().forEach(p -> byName.put(p.getName(), p));
+        cachedProviderRegistry = new InMemoryProviderRegistry(byName);
+        return cachedProviderRegistry;
     }
 
     /**
-     * Asserts that {@code providerId} is a configured provider ID. Throws {@link IllegalStateException} (crashing the
-     * application) if not. A {@code null} or blank provider means "applies to all providers" and is always valid.
+     * Validates all cross-references to providers in the loaded config — {@code permissions:}, {@code rules:}, and
+     * {@code users.scm-identities:} — against the configured providers list. Call this immediately after constructing
+     * the builder (before any DB or server setup) so the app crashes with a clear message rather than failing later
+     * deep in the startup sequence.
+     *
+     * <p>This is a read-only pass: it builds the {@link ProviderRegistry} (cheap) and checks every reference, but
+     * writes nothing and opens no resources.
+     *
+     * @throws IllegalStateException if any provider reference cannot be resolved
      */
-    private void requireKnownProvider(String context, String providerId) {
-        if (providerId == null || providerId.isBlank()) return;
-        java.util.Set<String> known = configuredProviderIds();
-        if (!known.contains(providerId)) {
+    public void validateProviderReferences() {
+        buildProviderRegistry(); // warm the cache
+
+        config.getUsers()
+                .forEach(uc -> uc.getScmIdentities().forEach(s -> {
+                    if (!"proxy".equals(s.getProvider())) {
+                        resolveToProviderId("User '" + uc.getUsername() + "' scm-identity", s.getProvider());
+                    }
+                }));
+
+        config.getPermissions()
+                .forEach(p -> resolveToProviderId("Permission for user '" + p.getUsername() + "'", p.getProvider()));
+
+        config.getRules()
+                .getAllow()
+                .forEach(rule -> rule.getProviders()
+                        .forEach(pid -> resolveToProviderId("ALLOW rule (order=" + rule.getOrder() + ")", pid)));
+
+        config.getRules()
+                .getDeny()
+                .forEach(rule -> rule.getProviders()
+                        .forEach(pid -> resolveToProviderId("DENY rule (order=" + rule.getOrder() + ")", pid)));
+
+        log.debug(
+                "Provider reference validation passed ({} users, {} permissions, {} allow rules, {} deny rules)",
+                config.getUsers().size(),
+                config.getPermissions().size(),
+                config.getRules().getAllow().size(),
+                config.getRules().getDeny().size());
+    }
+
+    /**
+     * Resolves a provider reference (either a friendly name like {@code "github"} or a canonical {@code type/host} ID
+     * like {@code "github/github.com"}) to the canonical provider ID. Returns {@code null} for null/blank input
+     * (meaning "applies to all providers"). Throws {@link IllegalStateException} on startup if the reference is unknown
+     * — misconfiguration must be caught early.
+     */
+    private String resolveToProviderId(String context, String nameOrId) {
+        if (nameOrId == null || nameOrId.isBlank()) return null;
+        GitProxyProvider resolved = buildProviderRegistry().resolveProvider(nameOrId);
+        if (resolved == null) {
+            String known = buildProviderRegistry().getProviders().stream()
+                    .map(p -> "'" + p.getName() + "' (" + p.getProviderId() + ")")
+                    .collect(Collectors.joining(", "));
             throw new IllegalStateException(String.format(
-                    "%s references unknown provider ID '%s'. "
-                            + "Provider IDs must be in type/host format (e.g. 'gitea/gitea'). "
-                            + "Configured provider IDs: %s",
-                    context, providerId, known));
+                    "%s references unknown provider '%s'. "
+                            + "Use the friendly name from providers: config (e.g. 'github') "
+                            + "or the type/host ID (e.g. 'github/github.com'). "
+                            + "Configured providers: %s",
+                    context, nameOrId, known));
         }
+        return resolved.getProviderId();
     }
 
     /** Creates URL rule filters for a given provider from configuration (both allow and deny rules). */
@@ -204,12 +268,11 @@ public class JettyConfigurationBuilder {
         for (RuleConfig rule : rules) {
             if (!rule.isEnabled()) continue;
 
-            List<String> providerNames = rule.getProviders();
-            // Validate every provider ID in the rule at startup
-            for (String pid : providerNames) {
-                requireKnownProvider(access.name() + " rule (order=" + rule.getOrder() + ")", pid);
-            }
-            if (!providerNames.isEmpty() && !providerNames.contains(provider.getProviderId())) {
+            // Resolve friendly names / type/host IDs to canonical IDs — validates at startup
+            List<String> resolvedProviderIds = rule.getProviders().stream()
+                    .map(n -> resolveToProviderId(access.name() + " rule (order=" + rule.getOrder() + ")", n))
+                    .toList();
+            if (!resolvedProviderIds.isEmpty() && !resolvedProviderIds.contains(provider.getProviderId())) {
                 continue;
             }
 
@@ -261,21 +324,6 @@ public class JettyConfigurationBuilder {
                 .block(buildBlockConfig(cs.getMessage().getBlock()))
                 .build();
 
-        CommitConfig.DiffConfig diffConfig = CommitConfig.DiffConfig.builder()
-                .block(buildBlockConfig(cs.getDiff().getBlock()))
-                .build();
-
-        CommitSettings.SecretScanningSettings ss = cs.getSecretScanning();
-        CommitConfig.SecretScanningConfig secretScanning = CommitConfig.SecretScanningConfig.builder()
-                .enabled(ss.isEnabled())
-                .autoInstall(ss.isAutoInstall())
-                .installDir(ss.getInstallDir())
-                .version(ss.getVersion())
-                .scannerPath(ss.getScannerPath())
-                .configFile(ss.getConfigFile())
-                .timeoutSeconds(ss.getTimeoutSeconds())
-                .build();
-
         CommitConfig.IdentityVerificationMode identityVerificationMode =
                 CommitConfig.IdentityVerificationMode.fromString(cs.getIdentityVerification());
 
@@ -288,22 +336,53 @@ public class JettyConfigurationBuilder {
                                 .build())
                         .build())
                 .message(messageConfig)
-                .diff(diffConfig)
-                .secretScanning(secretScanning)
                 .build();
 
         log.info(
-                "Loaded commit config: domain.allow={}, local.block={}, message.literals={}, message.patterns={},"
-                        + " diff.literals={}, diff.patterns={}, secretScanning.enabled={}",
+                "Loaded commit config: domain.allow={}, local.block={}, message.literals={}, message.patterns={}",
                 domainAllow != null ? domainAllow : "(none)",
                 localBlock != null ? localBlock : "(none)",
                 commitConfig.getMessage().getBlock().getLiterals().size(),
-                commitConfig.getMessage().getBlock().getPatterns().size(),
-                commitConfig.getDiff().getBlock().getLiterals().size(),
-                commitConfig.getDiff().getBlock().getPatterns().size(),
-                secretScanning.isEnabled());
+                commitConfig.getMessage().getBlock().getPatterns().size());
 
         return commitConfig;
+    }
+
+    /**
+     * Builds the {@link DiffScanConfig} from {@code diff-scan:} in git-proxy.yml. Compiles literal and regex-pattern
+     * block lists applied against push diff added-lines.
+     */
+    public DiffScanConfig buildDiffScanConfig() {
+        DiffScanConfig cfg = DiffScanConfig.builder()
+                .block(buildBlockConfig(config.getDiffScan().getBlock()))
+                .build();
+        log.info(
+                "Loaded diff-scan config: literals={}, patterns={}",
+                cfg.getBlock().getLiterals().size(),
+                cfg.getBlock().getPatterns().size());
+        return cfg;
+    }
+
+    /** Builds the {@link SecretScanConfig} from {@code secret-scan:} in git-proxy.yml. */
+    public SecretScanConfig buildSecretScanConfig() {
+        SecretScanSettings ss = config.getSecretScan();
+        String inlineConfig = ss.getInlineConfig();
+        String configFile = ss.getConfigFile();
+        if (inlineConfig != null && !inlineConfig.isBlank() && configFile != null && !configFile.isBlank()) {
+            log.warn("secret-scan: both inline-config and config-file are set — inline-config takes precedence");
+        }
+        SecretScanConfig cfg = SecretScanConfig.builder()
+                .enabled(ss.isEnabled())
+                .autoInstall(ss.isAutoInstall())
+                .installDir(ss.getInstallDir())
+                .version(ss.getVersion())
+                .scannerPath(ss.getScannerPath())
+                .configFile(configFile)
+                .inlineConfig(inlineConfig)
+                .timeoutSeconds(ss.getTimeoutSeconds())
+                .build();
+        log.info("Loaded secret-scan config: enabled={}", cfg.isEnabled());
+        return cfg;
     }
 
     /**
@@ -348,7 +427,8 @@ public class JettyConfigurationBuilder {
                 getProxyConnectTimeoutSeconds(),
                 storeForwardCache,
                 proxyCache,
-                buildUpstreamTls());
+                buildUpstreamTls(),
+                buildProviderRegistry());
     }
 
     /**
@@ -394,21 +474,7 @@ public class JettyConfigurationBuilder {
         store.initialize();
         cachedRepoPermissionService = new RepoPermissionService(store);
 
-        List<RepoPermission> configPerms = config.getPermissions().stream()
-                .map(p -> {
-                    requireKnownProvider("Permission for user '" + p.getUsername() + "'", p.getProvider());
-                    return RepoPermission.builder()
-                            .username(p.getUsername())
-                            .provider(p.getProvider())
-                            .path(p.getPath())
-                            .pathType(RepoPermission.PathType.valueOf(
-                                    p.getPathType().toUpperCase()))
-                            .operations(RepoPermission.Operations.valueOf(
-                                    p.getOperations().toUpperCase()))
-                            .source(RepoPermission.Source.CONFIG)
-                            .build();
-                })
-                .toList();
+        List<RepoPermission> configPerms = buildConfigPermissions(config);
         cachedRepoPermissionService.seedFromConfig(configPerms);
 
         log.info("RepoPermissionService initialized with {} config permission(s)", configPerms.size());
@@ -467,12 +533,45 @@ public class JettyConfigurationBuilder {
      * Builds a {@link RepoRegistry}, seeding it with rules derived from the YAML allow and deny rules config. JDBC
      * backends share the same {@link DataSource} as the push store.
      */
+    /**
+     * Builds the list of CONFIG-sourced {@link AccessRule}s from the {@code rules:} YAML section. Used both at startup
+     * (seeding the registry) and during hot-reload (re-seeding via {@link RepoRegistry#seedFromConfig}).
+     */
+    public List<AccessRule> buildConfigRules(GitProxyConfig cfg) {
+        List<AccessRule> rules = new ArrayList<>();
+        appendAccessRules(rules, cfg.getRules().getAllow(), AccessRule.Access.ALLOW);
+        appendAccessRules(rules, cfg.getRules().getDeny(), AccessRule.Access.DENY);
+        return rules;
+    }
+
+    /**
+     * Builds the list of CONFIG-sourced {@link RepoPermission}s from the {@code permissions:} YAML section. Used both
+     * at startup (seeding the service) and during hot-reload.
+     */
+    public List<RepoPermission> buildConfigPermissions(GitProxyConfig cfg) {
+        return cfg.getPermissions().stream()
+                .map(p -> {
+                    String resolvedId =
+                            resolveToProviderId("Permission for user '" + p.getUsername() + "'", p.getProvider());
+                    return RepoPermission.builder()
+                            .username(p.getUsername())
+                            .provider(resolvedId)
+                            .path(p.getPath())
+                            .pathType(RepoPermission.PathType.valueOf(
+                                    p.getPathType().toUpperCase()))
+                            .operations(RepoPermission.Operations.valueOf(
+                                    p.getOperations().toUpperCase()))
+                            .source(RepoPermission.Source.CONFIG)
+                            .build();
+                })
+                .toList();
+    }
+
     public RepoRegistry buildRepoRegistry() {
         if (cachedRepoRegistry != null) return cachedRepoRegistry;
         // CONFIG rules live only in memory — never written to DB, no stale duplicates on restart.
         InMemoryRepoRegistry configRegistry = new InMemoryRepoRegistry();
-        seedRulesIntoRegistry(configRegistry, config.getRules().getAllow(), AccessRule.Access.ALLOW);
-        seedRulesIntoRegistry(configRegistry, config.getRules().getDeny(), AccessRule.Access.DENY);
+        buildConfigRules(config).forEach(configRegistry::save);
 
         String type = config.getDatabase().getType();
         RepoRegistry dbRegistry;
@@ -506,19 +605,20 @@ public class JettyConfigurationBuilder {
         return cachedFetchStore;
     }
 
-    private void seedRulesIntoRegistry(
-            InMemoryRepoRegistry registry, List<RuleConfig> rules, AccessRule.Access access) {
+    private void appendAccessRules(List<AccessRule> result, List<RuleConfig> rules, AccessRule.Access access) {
         for (RuleConfig rule : rules) {
             if (!rule.isEnabled()) continue;
             AccessRule.Operations ops = toOperations(rule.getOperations());
-            List<String> providers =
+            List<String> rawProviders =
                     rule.getProviders().isEmpty() ? java.util.Collections.singletonList(null) : rule.getProviders();
-            for (String provider : providers) {
-                requireKnownProvider(access.name() + " rule (order=" + rule.getOrder() + ")", provider);
+            for (String rawProvider : rawProviders) {
+                // null → applies to all providers (no resolution needed)
+                String resolvedId =
+                        resolveToProviderId(access.name() + " rule (order=" + rule.getOrder() + ")", rawProvider);
                 for (String rawSlug : rule.getSlugs()) {
                     String slug = rawSlug.startsWith("/") ? rawSlug : "/" + rawSlug;
-                    registry.save(AccessRule.builder()
-                            .provider(provider)
+                    result.add(AccessRule.builder()
+                            .provider(resolvedId)
                             .slug(slug)
                             .access(access)
                             .operations(ops)
@@ -527,8 +627,8 @@ public class JettyConfigurationBuilder {
                             .build());
                 }
                 for (String owner : rule.getOwners()) {
-                    registry.save(AccessRule.builder()
-                            .provider(provider)
+                    result.add(AccessRule.builder()
+                            .provider(resolvedId)
                             .owner(owner)
                             .access(access)
                             .operations(ops)
@@ -537,8 +637,8 @@ public class JettyConfigurationBuilder {
                             .build());
                 }
                 for (String name : rule.getNames()) {
-                    registry.save(AccessRule.builder()
-                            .provider(provider)
+                    result.add(AccessRule.builder()
+                            .provider(resolvedId)
                             .name(name)
                             .access(access)
                             .operations(ops)
@@ -576,13 +676,13 @@ public class JettyConfigurationBuilder {
                     List<ScmIdentity> scmIdentities = new ArrayList<>();
                     uc.getScmIdentities().stream()
                             .map(s -> {
-                                // "proxy" is a synthetic provider for push-username lookup; all others must be known
-                                if (!"proxy".equals(s.getProvider())) {
-                                    requireKnownProvider(
-                                            "User '" + uc.getUsername() + "' scm-identity", s.getProvider());
-                                }
+                                // "proxy" is a synthetic provider for push-username lookup — no resolution needed
+                                String resolvedProvider = "proxy".equals(s.getProvider())
+                                        ? "proxy"
+                                        : resolveToProviderId(
+                                                "User '" + uc.getUsername() + "' scm-identity", s.getProvider());
                                 return ScmIdentity.builder()
-                                        .provider(s.getProvider())
+                                        .provider(resolvedProvider)
                                         .username(s.getUsername())
                                         .build();
                             })
@@ -795,7 +895,7 @@ public class JettyConfigurationBuilder {
         }
     }
 
-    private static CommitConfig.BlockConfig buildBlockConfig(CommitSettings.BlockSettings block) {
+    private static CommitConfig.BlockConfig buildBlockConfig(BlockSettings block) {
         List<Pattern> patterns =
                 block.getPatterns().stream().map(Pattern::compile).collect(Collectors.toList());
         return CommitConfig.BlockConfig.builder()

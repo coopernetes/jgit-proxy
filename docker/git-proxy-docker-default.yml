@@ -21,7 +21,7 @@ users:
     emails:
       - testuser@example.com
     scm-identities:
-      - provider: forgejo/gitea
+      - provider: gitea
         username: test-user
 
   - username: user2
@@ -29,7 +29,7 @@ users:
     emails:
       - user2@example.com
     scm-identities:
-      - provider: forgejo/gitea
+      - provider: gitea
         username: user2
 
   - username: user3
@@ -37,7 +37,7 @@ users:
     emails:
       - user3@example.com
     scm-identities:
-      - provider: forgejo/gitea
+      - provider: gitea
         username: user3
 
   - username: reviewer
@@ -47,51 +47,51 @@ users:
 permissions:
   # test-user: LITERAL — only /test-owner/test-repo
   - username: test-user
-    provider: forgejo/gitea
+    provider: gitea
     path: /test-owner/test-repo
     operations: PUSH
 
   # user2: GLOB — any repo under otherorg
   - username: user2
-    provider: forgejo/gitea
+    provider: gitea
     path: /otherorg/*
     path-type: GLOB
     operations: PUSH
 
   # user3: REGEX — test-owner repos matching test-repo.*
   - username: user3
-    provider: forgejo/gitea
+    provider: gitea
     path: /test-owner/test-repo.*
     path-type: REGEX
     operations: PUSH
 
   # reviewer: APPROVE on all the same paths
   - username: reviewer
-    provider: forgejo/gitea
+    provider: gitea
     path: /test-owner/test-repo
     operations: REVIEW
   - username: reviewer
-    provider: forgejo/gitea
+    provider: gitea
     path: /otherorg/*
     path-type: GLOB
     operations: REVIEW
 
-  # LDAP testuser (maps to forgejo/gitea/test-user): same literal grant as test-user above.
+  # LDAP testuser (maps to gitea/test-user): same literal grant as test-user above.
   # When docker-default,ldap profiles are combined, GITEA_TESTUSER_TOKEN resolves to
   # "testuser" (the LDAP proxy user). Only LITERAL /test-owner/test-repo is granted
   # so that push-permission-literal.sh still passes the deny-on-other-repo case.
   - username: testuser
-    provider: forgejo/gitea
+    provider: gitea
     path: /test-owner/test-repo
     operations: PUSH
 
   # admin APPROVE grants for LDAP setup (admin approves via dashboard).
   - username: admin
-    provider: forgejo/gitea
+    provider: gitea
     path: /test-owner/test-repo
     operations: REVIEW
   - username: admin
-    provider: forgejo/gitea
+    provider: gitea
     path: /otherorg/*
     path-type: GLOB
     operations: REVIEW
@@ -142,7 +142,7 @@ commit:
         - '(?i)https?://[a-z0-9.-]*\.corp\.example\.com\b'
   # Enables Gitleaks secret scanning. Full configuration reference can be found in the docs:
   #  docs/CONFIGURATION.md#commit-validation
-  secret-scanning:
+  secret-scan:
     enabled: true
 
 rules:
@@ -153,7 +153,7 @@ rules:
         - FETCH
         - PUSH
       providers:
-        - forgejo/gitea
+        - gitea
       slugs:
         - /test-owner/test-repo
         - /test-owner/test-repo-2
@@ -163,7 +163,7 @@ rules:
         - FETCH
         - PUSH
       providers:
-        - forgejo/gitea
+        - gitea
       owners:
         - otherorg
     - enabled: true
@@ -171,7 +171,7 @@ rules:
       operations:
         - FETCH
       providers:
-        - github/github.com
+        - github
       owners:
         - finos
 
@@ -185,7 +185,7 @@ rules:
         - FETCH
         - PUSH
       providers:
-        - forgejo/gitea
+        - gitea
       slugs:
         - /otherorg/other-secret
 
@@ -196,7 +196,7 @@ rules:
       operations:
         - PUSH
       providers:
-        - forgejo/gitea
+        - gitea
       names:
         - "*-readonly"
         - "*-archived"
@@ -208,6 +208,6 @@ rules:
       operations:
         - PUSH
       providers:
-        - forgejo/gitea
+        - gitea
       names:
         - "regex:(?i)(^|-)secret(-|$).*"

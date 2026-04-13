@@ -62,6 +62,16 @@ public class CompositeRepoRegistry implements RepoRegistry {
         return merged(configRegistry.findEnabledForProvider(provider), dbRegistry.findEnabledForProvider(provider));
     }
 
+    /**
+     * Re-seeds the in-memory config registry with a new set of CONFIG rules. DB-sourced rules are not affected. This
+     * override is necessary because the default {@link RepoRegistry#seedFromConfig} would incorrectly attempt to delete
+     * config rules via the DB registry.
+     */
+    @Override
+    public void seedFromConfig(List<AccessRule> rules) {
+        configRegistry.seedFromConfig(rules);
+    }
+
     private static List<AccessRule> merged(List<AccessRule> config, List<AccessRule> db) {
         List<AccessRule> combined = new ArrayList<>(config.size() + db.size());
         combined.addAll(config);

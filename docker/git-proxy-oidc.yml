@@ -36,7 +36,7 @@ auth:
 # even if the user has no DB record yet.  Pre-seed here to get scm-identities in place
 # before first login so the identity chain works immediately.
 #
-# testuser's scm-identity (gitea/test-user) closes the identity chain:
+# testuser's scm-identity (gitea scm-identity test-user) closes the identity chain:
 #   git push credentials (test-user:<token>) → Gitea API → "test-user"
 #   → scm_identities lookup → proxy user "testuser" → PUSH permission check
 users:
@@ -45,7 +45,7 @@ users:
     emails:
       - testuser@example.com
     scm-identities:
-      - provider: forgejo/gitea
+      - provider: gitea
         username: test-user
   - username: admin
     password-hash: "{noop}unused"
@@ -57,20 +57,20 @@ users:
 # Mirrors docker-default: testuser pushes, admin approves via dashboard.
 permissions:
   - username: testuser
-    provider: forgejo/gitea
+    provider: gitea
     path: /test-owner/test-repo
     operations: PUSH
   - username: testuser
-    provider: forgejo/gitea
+    provider: gitea
     path: /otherorg/*
     path-type: GLOB
     operations: PUSH
   - username: admin
-    provider: forgejo/gitea
+    provider: gitea
     path: /test-owner/test-repo
     operations: REVIEW
   - username: admin
-    provider: forgejo/gitea
+    provider: gitea
     path: /otherorg/*
     path-type: GLOB
     operations: REVIEW

@@ -3,6 +3,7 @@ package org.finos.gitproxy.db;
 import java.util.List;
 import java.util.Optional;
 import org.finos.gitproxy.db.model.AccessRule;
+import org.finos.gitproxy.db.model.AccessRule.Source;
 
 /**
  * Storage abstraction for repository access rules. Implementations may be backed by JDBC or an in-memory store.
@@ -35,4 +36,13 @@ public interface RepoRegistry {
 
     /** Initialize the store (run migrations). Called once at startup. */
     void initialize();
+
+    /**
+     * Seeds rules from config on startup or on a hot-reload. Clears all CONFIG-sourced rules and re-inserts to keep
+     * YAML authoritative; DB-sourced rules are left untouched.
+     */
+    default void seedFromConfig(List<AccessRule> rules) {
+        findAll().stream().filter(r -> r.getSource() == Source.CONFIG).forEach(r -> delete(r.getId()));
+        rules.forEach(this::save);
+    }
 }

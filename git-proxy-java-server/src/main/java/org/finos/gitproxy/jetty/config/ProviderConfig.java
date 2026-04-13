@@ -1,7 +1,5 @@
 package org.finos.gitproxy.jetty.config;
 
-import java.util.ArrayList;
-import java.util.List;
 import lombok.Data;
 
 /** Binds a single entry under {@code providers:} in git-proxy.yml. */
@@ -29,10 +27,4 @@ public class ProviderConfig {
      * repository exists at all (security by obscurity for sensitive environments).
      */
     private int blockedInfoRefsStatus = 403;
-
-    /**
-     * Attestation questions presented to reviewers before they can approve a push for this provider. Questions are
-     * rendered dynamically in the dashboard approval form. Required questions block submission until answered.
-     */
-    private List<AttestationQuestion> attestationQuestions = new ArrayList<>();
 }

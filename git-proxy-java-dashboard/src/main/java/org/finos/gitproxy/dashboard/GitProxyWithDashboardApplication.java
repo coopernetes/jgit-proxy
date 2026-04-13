@@ -14,8 +14,6 @@ import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.util.component.LifeCycle;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.finos.gitproxy.approval.UiApprovalGateway;
-import org.finos.gitproxy.config.InMemoryProviderConfigurationSource;
-import org.finos.gitproxy.config.ProviderConfigurationSource;
 import org.finos.gitproxy.db.RepoRegistry;
 import org.finos.gitproxy.jetty.GitProxyContext;
 import org.finos.gitproxy.jetty.GitProxyJettyApplication;
@@ -26,6 +24,8 @@ import org.finos.gitproxy.jetty.config.JettyConfigurationBuilder;
 import org.finos.gitproxy.jetty.reload.ConfigHolder;
 import org.finos.gitproxy.jetty.reload.LiveConfigLoader;
 import org.finos.gitproxy.provider.GitProxyProvider;
+import org.finos.gitproxy.provider.InMemoryProviderRegistry;
+import org.finos.gitproxy.provider.ProviderRegistry;
 import org.springframework.security.web.context.AbstractSecurityWebApplicationInitializer;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.filter.DelegatingFilterProxy;
@@ -51,6 +51,7 @@ public class GitProxyWithDashboardApplication {
 
         GitProxyConfig gitProxyConfig = GitProxyConfigLoader.load();
         var configBuilder = new JettyConfigurationBuilder(gitProxyConfig);
+        configBuilder.validateProviderReferences(); // fail fast before any DB or port setup
 
         var threadPool = new QueuedThreadPool();
         threadPool.setName("git-proxy-java-dashboard");
@@ -79,7 +80,7 @@ public class GitProxyWithDashboardApplication {
         GitProxyContext ctx = configBuilder.buildProxyContext(new UiApprovalGateway(pushStore));
 
         List<GitProxyProvider> providers = configBuilder.buildProviders();
-        var providerConfig = new InMemoryProviderConfigurationSource(providers);
+        var providerConfig = new InMemoryProviderRegistry(providers);
 
         var context = new ServletContextHandler("/", true, false);
 
@@ -87,7 +88,12 @@ public class GitProxyWithDashboardApplication {
         GitProxyServletRegistrar.registerProviders(context, ctx, configBuilder, providers);
 
         ConfigHolder configHolder = configBuilder.buildConfigHolder();
-        var liveConfigLoader = new LiveConfigLoader(configHolder, gitProxyConfig, configBuilder.getReloadConfig());
+        var liveConfigLoader = new LiveConfigLoader(
+                configHolder,
+                gitProxyConfig,
+                configBuilder.getReloadConfig(),
+                ctx.repoRegistry(),
+                ctx.repoPermissionService());
         liveConfigLoader.start();
         server.addEventListener(new LifeCycle.Listener() {
             @Override
@@ -122,7 +128,7 @@ public class GitProxyWithDashboardApplication {
     private static void registerSpringServlet(
             ServletContextHandler context,
             GitProxyContext ctx,
-            ProviderConfigurationSource providers,
+            ProviderRegistry providers,
             GitProxyConfig gitProxyConfig,
             ConfigHolder configHolder,
             LiveConfigLoader liveConfigLoader,

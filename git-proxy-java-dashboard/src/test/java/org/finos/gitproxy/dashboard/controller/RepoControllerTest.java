@@ -8,7 +8,6 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Optional;
-import org.finos.gitproxy.config.ProviderConfigurationSource;
 import org.finos.gitproxy.db.FetchStore;
 import org.finos.gitproxy.db.FetchStore.RepoFetchSummary;
 import org.finos.gitproxy.db.PushStore;
@@ -16,6 +15,7 @@ import org.finos.gitproxy.db.RepoRegistry;
 import org.finos.gitproxy.db.model.AccessRule;
 import org.finos.gitproxy.db.model.PushRecord;
 import org.finos.gitproxy.provider.GitProxyProvider;
+import org.finos.gitproxy.provider.ProviderRegistry;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,7 +40,7 @@ class RepoControllerTest {
     PushStore pushStore;
 
     @Mock
-    ProviderConfigurationSource providerSource;
+    ProviderRegistry providerSource;
 
     // ── GET /api/repos/rules ──────────────────────────────────────────────────────
 

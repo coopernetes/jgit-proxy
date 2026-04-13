@@ -142,6 +142,7 @@ class EnrichPushCommitsFilterTest {
         when(mockCache.getOrClone(any())).thenReturn(cacheRepo);
 
         GitRequestDetails details = makeDetails(fromSha, toSha);
+
         // Empty body - no PACK signature; unpackPushData short-circuits and objects are found from the pre-insert.
         RequestBodyWrapper request = wrapRequest(new byte[0], details);
         HttpServletResponse response = mock(HttpServletResponse.class);
@@ -187,6 +188,7 @@ class EnrichPushCommitsFilterTest {
         when(mockCache.getOrClone(any())).thenReturn(cacheRepo);
 
         GitRequestDetails details = makeDetails(fromSha, toSha);
+
         // The pack bytes start with "PACK" - findPackSignature finds offset 0.
         RequestBodyWrapper request = wrapRequest(packOut.toByteArray(), details);
         HttpServletResponse response = mock(HttpServletResponse.class);
@@ -270,6 +272,7 @@ class EnrichPushCommitsFilterTest {
         when(mockCache.getOrClone(any())).thenReturn(cacheRepo);
 
         GitRequestDetails details = makeDetails(fromSha, toSha);
+
         RequestBodyWrapper request = wrapRequest(bodyOut.toByteArray(), details);
         HttpServletResponse response = mock(HttpServletResponse.class);
 

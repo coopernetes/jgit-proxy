@@ -7,6 +7,7 @@ import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.db.RepoRegistry;
 import org.finos.gitproxy.git.LocalRepositoryCache;
 import org.finos.gitproxy.permission.RepoPermissionService;
+import org.finos.gitproxy.provider.ProviderRegistry;
 import org.finos.gitproxy.service.PushIdentityResolver;
 import org.finos.gitproxy.tls.SslUtil;
 import org.finos.gitproxy.user.UserStore;
@@ -36,4 +37,5 @@ public record GitProxyContext(
         int proxyConnectTimeoutSeconds,
         LocalRepositoryCache storeForwardCache,
         LocalRepositoryCache proxyCache,
-        SslUtil.UpstreamTls upstreamTls) {}
+        SslUtil.UpstreamTls upstreamTls,
+        ProviderRegistry providerRegistry) {}

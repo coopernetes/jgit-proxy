@@ -214,6 +214,7 @@ function ConnectivityRow({ result }: { name: string; result: ProviderConnectivit
 export function Admin() {
   const [reloadStatus, setReloadStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
   const [reloadMessage, setReloadMessage] = useState<string | null>(null)
+  const [reloadSection, setReloadSection] = useState<string>('all')
 
   const [connStatus, setConnStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [connCheckedAt, setConnCheckedAt] = useState<string | null>(null)
@@ -244,7 +245,7 @@ export function Admin() {
     setReloadStatus('loading')
     setReloadMessage(null)
     try {
-      const result = await triggerConfigReload()
+      const result = await triggerConfigReload(reloadSection)
       setReloadMessage(result.message)
       setReloadStatus('ok')
     } catch (e) {
@@ -294,19 +295,33 @@ export function Admin() {
         <div>
           <h2 className="text-lg font-medium text-gray-700">Configuration Reload</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Reloads hot-reloadable config (commit rules, auth settings) from the configured source
-            without restarting the server. Provider, server, and database changes still require a
-            restart.
+            Reloads config from the configured source (file or git) without restarting the server.
+            Select a section to reload only that portion, or choose <em>All sections</em> to reload
+            everything. Provider, server, and database changes still require a restart.
           </p>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <select
+            value={reloadSection}
+            onChange={(e) => setReloadSection(e.target.value)}
+            disabled={reloadStatus === 'loading'}
+            className="px-3 py-2 border border-gray-300 rounded text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:opacity-50"
+          >
+            <option value="all">All sections</option>
+            <option value="commit">Commit rules</option>
+            <option value="diff-scan">Diff scan</option>
+            <option value="secret-scan">Secret scan</option>
+            <option value="rules">Rules</option>
+            <option value="permissions">Permissions</option>
+          </select>
+
           <button
             onClick={handleReload}
             disabled={reloadStatus === 'loading'}
             className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white text-sm rounded transition-colors"
           >
-            {reloadStatus === 'loading' ? 'Reloading…' : 'Reload config now'}
+            {reloadStatus === 'loading' ? 'Reloading…' : 'Reload config'}
           </button>
 
           {reloadMessage && (

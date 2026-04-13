@@ -11,7 +11,7 @@ import org.finos.gitproxy.db.model.PushStatus;
 import org.finos.gitproxy.db.model.PushStep;
 import org.finos.gitproxy.jetty.config.AttestationQuestion;
 import org.finos.gitproxy.jetty.config.GitProxyConfig;
-import org.finos.gitproxy.jetty.config.ProviderConfig;
+import org.finos.gitproxy.jetty.reload.ConfigHolder;
 import org.finos.gitproxy.permission.RepoPermissionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -33,6 +33,9 @@ public class PushController {
 
     @Autowired
     private GitProxyConfig gitProxyConfig;
+
+    @Autowired
+    private ConfigHolder configHolder;
 
     /** Returns the authenticated username, falling back to {@code body.reviewerUsername}, then {@code "system"}. */
     private static String resolveReviewer(Map<String, String> body) {
@@ -224,15 +227,11 @@ public class PushController {
      * @return a 400 response if a required question is missing, {@code null} if all required questions are answered
      */
     private ResponseEntity<?> checkAttestationAnswers(PushRecord record, Map<String, String> answers) {
-        String providerName = record.getProvider();
-        if (providerName == null) return null;
-        var providerCfgs = gitProxyConfig.getProviders();
-        if (providerCfgs == null) return null;
-        ProviderConfig cfg = providerCfgs.get(providerName);
-        if (cfg == null || cfg.getAttestationQuestions().isEmpty()) return null;
+        List<AttestationQuestion> questions = configHolder.getAttestations();
+        if (questions == null || questions.isEmpty()) return null;
 
         Map<String, String> submitted = answers != null ? answers : Map.of();
-        for (AttestationQuestion question : cfg.getAttestationQuestions()) {
+        for (AttestationQuestion question : questions) {
             if (!question.isRequired()) continue;
             String answer = submitted.get(question.getId());
             if (answer == null || answer.isBlank()) {

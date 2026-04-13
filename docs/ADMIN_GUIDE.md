@@ -482,7 +482,7 @@ volumeMounts:
 
 ### Gitleaks binary permissions
 
-When `secret-scanning.enabled: true`, the proxy needs to execute the gitleaks binary. The bundled binary (inside
+When `secret-scan.enabled: true`, the proxy needs to execute the gitleaks binary. The bundled binary (inside
 the JAR) is extracted to `java.io.tmpdir` at startup — that directory must allow executable files (`noexec`
 prevents this).
 
@@ -490,13 +490,107 @@ If the temp dir is `noexec`, point gitleaks at a writable, exec-allowed path:
 
 ```yaml
 commit:
-  secret-scanning:
+  secret-scan:
     enabled: true
     scanner-path: /app/.data/gitleaks   # explicit path bypasses auto-extraction
 ```
 
 Or pre-install gitleaks and put it on `PATH` — the proxy will find it via system path lookup before falling back
 to the bundled binary.
+
+---
+
+## Externalized configuration
+
+git-proxy-java follows 12-factor config principles: the application ships with safe defaults baked into the JAR,
+and operators layer environment-specific values on top without modifying the image.
+
+### How config is loaded
+
+Sources are merged in priority order (lowest → highest):
+
+| Priority | Source | Mechanism |
+|---|---|---|
+| 1 (lowest) | `git-proxy.yml` | Bundled in the JAR — base defaults |
+| 2 | Profile YAMLs named in `GITPROXY_CONFIG_PROFILES` | Classpath lookup (see below) |
+| 3 | `GITPROXY_*` environment variables | Strip prefix, lowercase, `_` → `.` |
+| 4 (highest) | Hot-reload overlay (`reload.file.path` or `reload.git`) | Filesystem path; applied on every reload |
+
+A higher-priority source only overrides the specific keys it defines — other base values are preserved.
+
+### Profile-based config files — the `/app/conf/` pattern
+
+The Docker image prepends `/app/conf/` to the JVM classpath. Any YAML file mounted there is treated as a
+classpath resource and loaded automatically when its profile is activated.
+
+**Step 1 — Mount the file:**
+
+```yaml
+# docker-compose.yml or Kubernetes pod spec
+volumes:
+  - ./my-config.yml:/app/conf/git-proxy-my-config.yml:ro
+# Or in Kubernetes, mount a ConfigMap:
+# - name: git-proxy-config
+#   mountPath: /app/conf
+```
+
+**Step 2 — Activate the profile:**
+
+```yaml
+environment:
+  GITPROXY_CONFIG_PROFILES: my-config
+```
+
+The loader looks for `git-proxy-{profile}.yml` on the classpath. With `/app/conf/` prepended, your mounted file
+is found first.
+
+> **Important:** a file mounted at `/app/conf/` is silently ignored unless the matching profile name is set in
+> `GITPROXY_CONFIG_PROFILES`. There is no auto-discovery — the profile name is the activation key.
+
+**Multiple profiles** are comma-separated; later profiles take priority over earlier ones:
+
+```
+GITPROXY_CONFIG_PROFILES=docker-default,ldap
+```
+
+This loads `git-proxy-docker-default.yml` then `git-proxy-ldap.yml`; `ldap` wins on any key both files define.
+
+> **List merge caveat:** Gestalt replaces lists at the key level — it does not append. If two profile files both
+> define `permissions:`, the later file's list replaces the earlier one entirely. Keep all entries for a given
+> list key in a single profile file. A common split that avoids this: one profile for organizational config
+> (users, permissions, rules) and a second for environment-specific connectivity (auth provider URL, database,
+> TLS) which never defines list keys.
+
+### Environment variable overrides
+
+Any `GITPROXY_` prefixed env var overrides the equivalent config key at the highest priority (above profiles,
+below hot-reload overlays). The mapping is: strip `GITPROXY_`, lowercase, replace `_` with `.`:
+
+```
+GITPROXY_SERVER_PORT=9090              → server.port
+GITPROXY_DATABASE_TYPE=postgres        → database.type
+GITPROXY_SECRET__SCAN_ENABLED=false   → secret-scan.enabled
+```
+
+Use env vars for values that differ per-environment (secrets, hostnames, ports) and profile YAML files for
+structural config (users, permissions, rules) that is too complex to express as a flat key-value pair.
+
+### Hot-reload overlay
+
+The `reload:` block configures a separate high-priority overlay that is re-read at runtime without restarting
+the server. See [CONFIGURATION.md — Hot reload](CONFIGURATION.md#hot-reload) for the full reference.
+
+The overlay file path can be a ConfigMap mount too:
+
+```yaml
+reload:
+  file:
+    enabled: true
+    path: /app/conf/git-proxy-runtime.yml
+```
+
+This lets operations teams push rule or permission changes by updating a ConfigMap and triggering
+`POST /api/config/reload` — no pod restart needed.
 
 ---
 

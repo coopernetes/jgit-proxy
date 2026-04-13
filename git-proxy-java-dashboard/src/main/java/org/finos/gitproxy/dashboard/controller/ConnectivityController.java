@@ -22,9 +22,9 @@ import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import lombok.extern.slf4j.Slf4j;
-import org.finos.gitproxy.config.ProviderConfigurationSource;
 import org.finos.gitproxy.jetty.config.GitProxyConfig;
 import org.finos.gitproxy.provider.GitProxyProvider;
+import org.finos.gitproxy.provider.ProviderRegistry;
 import org.finos.gitproxy.tls.SslUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -62,7 +62,7 @@ public class ConnectivityController {
     private static final int TIMEOUT_MS = 5000;
 
     @Resource(name = "providers")
-    private ProviderConfigurationSource providers;
+    private ProviderRegistry providers;
 
     @Autowired
     private GitProxyConfig gitProxyConfig;

@@ -13,11 +13,14 @@ import lombok.Data;
  * <p>Top-level structure:
  *
  * <pre>
- * server:       → {@link ServerConfig}
- * database:     → {@link DatabaseConfig}
- * providers:    → Map&lt;name, {@link ProviderConfig}&gt;
- * commit:       → {@link CommitSettings}
- * rules:        → {@link RulesConfig}
+ * server:          → {@link ServerConfig}
+ * database:        → {@link DatabaseConfig}
+ * providers:       → Map&lt;name, {@link ProviderConfig}&gt;
+ * commit:          → {@link CommitSettings}   (per-commit: identity, author email, message)
+ * diff-scan:       → {@link DiffScanSettings} (push-level: blocked patterns in diff content)
+ * secret-scan:     → {@link SecretScanSettings} (push-level: gitleaks integration)
+ * attestations:    → List&lt;{@link AttestationQuestion}&gt; (global reviewer prompts)
+ * rules:           → {@link RulesConfig}
  * </pre>
  */
 @Data
@@ -27,7 +30,16 @@ public class GitProxyConfig {
     private DatabaseConfig database = new DatabaseConfig();
     private Map<String, ProviderConfig> providers = new LinkedHashMap<>();
     private CommitSettings commit = new CommitSettings();
+    private DiffScanSettings diffScan = new DiffScanSettings();
+    private SecretScanSettings secretScan = new SecretScanSettings();
     private RulesConfig rules = new RulesConfig();
+
+    /**
+     * Global attestation questions shown to reviewers in the dashboard approval form. Applies to all providers —
+     * per-provider variants are a future enhancement. Required questions block approval submission until answered.
+     * Hot-reloadable via {@code POST /api/config/reload?section=attestations}.
+     */
+    private List<AttestationQuestion> attestations = new ArrayList<>();
 
     /**
      * Authentication provider configuration. Selects the active provider ({@code static}, {@code ldap}, {@code oidc})

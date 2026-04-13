@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
-import org.finos.gitproxy.config.CommitConfig;
+import org.finos.gitproxy.config.DiffScanConfig;
 import org.finos.gitproxy.db.model.PushStep;
 import org.finos.gitproxy.db.model.StepStatus;
 import org.finos.gitproxy.validation.BlockedContentDiffCheck;
@@ -26,7 +26,7 @@ public class DiffScanningHook implements GitProxyHook {
 
     private static final int ORDER = 300;
 
-    private final CommitConfig commitConfig;
+    private final DiffScanConfig diffScanConfig;
     private final ValidationContext validationContext;
     private final PushContext pushContext;
 
@@ -56,8 +56,7 @@ public class DiffScanningHook implements GitProxyHook {
                     continue;
                 }
 
-                BlockedContentDiffCheck check =
-                        new BlockedContentDiffCheck(commitConfig.getDiff().getBlock());
+                BlockedContentDiffCheck check = new BlockedContentDiffCheck(diffScanConfig.getBlock());
                 List<Violation> violations = check.check(diff).orElse(List.of());
 
                 if (!violations.isEmpty()) {

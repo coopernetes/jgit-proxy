@@ -12,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
-import org.finos.gitproxy.config.CommitConfig;
+import org.finos.gitproxy.config.SecretScanConfig;
 import org.finos.gitproxy.db.model.PushStep;
 import org.finos.gitproxy.db.model.StepStatus;
 import org.finos.gitproxy.validation.Violation;
@@ -34,13 +34,12 @@ public class SecretScanningHook implements GitProxyHook {
     private static final int ORDER = 340;
     private static final String STEP_NAME = "scanSecrets";
 
-    private final CommitConfig.SecretScanningConfig config;
+    private final SecretScanConfig config;
     private final ValidationContext validationContext;
     private final PushContext pushContext;
     private final GitleaksRunner runner;
 
-    public SecretScanningHook(
-            CommitConfig.SecretScanningConfig config, ValidationContext validationContext, PushContext pushContext) {
+    public SecretScanningHook(SecretScanConfig config, ValidationContext validationContext, PushContext pushContext) {
         this(config, validationContext, pushContext, new GitleaksRunner());
     }
 

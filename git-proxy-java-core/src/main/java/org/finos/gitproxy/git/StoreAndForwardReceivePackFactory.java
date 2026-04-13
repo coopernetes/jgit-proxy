@@ -17,7 +17,9 @@ import org.eclipse.jgit.transport.resolver.ServiceNotAuthorizedException;
 import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
 import org.finos.gitproxy.approval.ApprovalGateway;
 import org.finos.gitproxy.config.CommitConfig;
+import org.finos.gitproxy.config.DiffScanConfig;
 import org.finos.gitproxy.config.GpgConfig;
+import org.finos.gitproxy.config.SecretScanConfig;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.db.RepoRegistry;
 import org.finos.gitproxy.permission.RepoPermissionService;
@@ -39,6 +41,8 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
 
     private final GitProxyProvider provider;
     private final Supplier<CommitConfig> commitConfigSupplier;
+    private final Supplier<DiffScanConfig> diffScanConfigSupplier;
+    private final Supplier<SecretScanConfig> secretScanConfigSupplier;
     private final GpgConfig gpgConfig;
     private final RepoPermissionService repoPermissionService;
     private final PushIdentityResolver pushIdentityResolver;
@@ -74,6 +78,8 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
         this(
                 provider,
                 () -> commitConfig,
+                DiffScanConfig::defaultConfig,
+                SecretScanConfig::defaultConfig,
                 GpgConfig.defaultConfig(),
                 null,
                 null,
@@ -98,6 +104,8 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
         this(
                 provider,
                 () -> commitConfig,
+                DiffScanConfig::defaultConfig,
+                SecretScanConfig::defaultConfig,
                 gpgConfig,
                 repoPermissionService,
                 pushIdentityResolver,
@@ -113,6 +121,8 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
     public StoreAndForwardReceivePackFactory(
             GitProxyProvider provider,
             Supplier<CommitConfig> commitConfigSupplier,
+            Supplier<DiffScanConfig> diffScanConfigSupplier,
+            Supplier<SecretScanConfig> secretScanConfigSupplier,
             GpgConfig gpgConfig,
             RepoPermissionService repoPermissionService,
             PushIdentityResolver pushIdentityResolver,
@@ -124,6 +134,10 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
             RepoRegistry repoRegistry) {
         this.provider = provider;
         this.commitConfigSupplier = commitConfigSupplier;
+        this.diffScanConfigSupplier =
+                diffScanConfigSupplier != null ? diffScanConfigSupplier : DiffScanConfig::defaultConfig;
+        this.secretScanConfigSupplier =
+                secretScanConfigSupplier != null ? secretScanConfigSupplier : SecretScanConfig::defaultConfig;
         this.gpgConfig = gpgConfig != null ? gpgConfig : GpgConfig.defaultConfig();
         this.repoPermissionService = repoPermissionService;
         this.pushIdentityResolver = pushIdentityResolver;
@@ -219,6 +233,8 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
         // Snapshot current config for this push — all hooks in one push see the same config even if a reload fires
         // mid-push.
         CommitConfig commitConfig = commitConfigSupplier.get();
+        DiffScanConfig diffScanConfig = diffScanConfigSupplier.get();
+        SecretScanConfig secretScanConfig = secretScanConfigSupplier.get();
 
         var identityVerificationHook = new IdentityVerificationHook(
                 pushIdentityResolver, commitConfig.getIdentityVerification(), validationContext, pushContext, provider);
@@ -234,9 +250,9 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
                 new CommitMessageValidationHook(commitConfig, validationContext, pushContext),
                 new ProxyPreReceiveHook(pushContext),
                 new DiffGenerationHook(pushContext),
-                new DiffScanningHook(commitConfig, validationContext, pushContext),
+                new DiffScanningHook(diffScanConfig, validationContext, pushContext),
                 new GpgSignatureHook(gpgConfig, validationContext, pushContext),
-                new SecretScanningHook(commitConfig.getSecretScanning(), validationContext, pushContext)));
+                new SecretScanningHook(secretScanConfig, validationContext, pushContext)));
         if (provider instanceof BitbucketProvider bitbucketProvider) {
             validationHooks.add(new BitbucketCredentialRewriteHook(bitbucketProvider));
         }

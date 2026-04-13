@@ -53,8 +53,10 @@ export async function fetchProviders() {
   return res.json()
 }
 
-export async function triggerConfigReload(): Promise<{ message: string }> {
-  const res = await apiFetch('/api/config/reload', { method: 'POST' })
+export async function triggerConfigReload(section: string = 'all'): Promise<{ message: string }> {
+  const res = await apiFetch(`/api/config/reload?section=${encodeURIComponent(section)}`, {
+    method: 'POST',
+  })
   if (!res.ok) await parseErrorResponse(res, 'Config reload failed')
   return res.json()
 }

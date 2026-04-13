@@ -14,7 +14,9 @@ import org.eclipse.jetty.ee11.servlet.ServletHolder;
 import org.eclipse.jgit.http.server.GitServlet;
 import org.finos.gitproxy.approval.ApprovalGateway;
 import org.finos.gitproxy.config.CommitConfig;
+import org.finos.gitproxy.config.DiffScanConfig;
 import org.finos.gitproxy.config.GpgConfig;
+import org.finos.gitproxy.config.SecretScanConfig;
 import org.finos.gitproxy.db.FetchStore;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.db.RepoRegistry;
@@ -66,6 +68,8 @@ public final class GitProxyServletRegistrar {
 
         ConfigHolder configHolder = configBuilder.buildConfigHolder();
         Supplier<CommitConfig> commitConfigSupplier = configHolder::getCommitConfig;
+        Supplier<DiffScanConfig> diffScanConfigSupplier = configHolder::getDiffScanConfig;
+        Supplier<SecretScanConfig> secretScanConfigSupplier = configHolder::getSecretScanConfig;
 
         for (GitProxyProvider provider : providers) {
             log.info("Registering provider: {}", provider.getName());
@@ -75,6 +79,8 @@ public final class GitProxyServletRegistrar {
                     provider,
                     gitProxyCtx.storeForwardCache(),
                     commitConfigSupplier,
+                    diffScanConfigSupplier,
+                    secretScanConfigSupplier,
                     gitProxyCtx.pushStore(),
                     gitProxyCtx.serviceUrl(),
                     gitProxyCtx.approvalGateway(),
@@ -97,6 +103,8 @@ public final class GitProxyServletRegistrar {
                     gitProxyCtx.proxyCache(),
                     configBuilder,
                     commitConfigSupplier,
+                    diffScanConfigSupplier,
+                    secretScanConfigSupplier,
                     gitProxyCtx.pushStore(),
                     gitProxyCtx.serviceUrl(),
                     gitProxyCtx.approvalGateway(),
@@ -112,6 +120,8 @@ public final class GitProxyServletRegistrar {
             GitProxyProvider provider,
             LocalRepositoryCache cache,
             Supplier<CommitConfig> commitConfigSupplier,
+            Supplier<DiffScanConfig> diffScanConfigSupplier,
+            Supplier<SecretScanConfig> secretScanConfigSupplier,
             PushStore pushStore,
             String serviceUrl,
             ApprovalGateway approvalGateway,
@@ -127,6 +137,8 @@ public final class GitProxyServletRegistrar {
         var factory = new StoreAndForwardReceivePackFactory(
                 provider,
                 commitConfigSupplier,
+                diffScanConfigSupplier,
+                secretScanConfigSupplier,
                 GpgConfig.defaultConfig(),
                 repoPermissionService,
                 pushIdentityResolver,
@@ -194,6 +206,8 @@ public final class GitProxyServletRegistrar {
             LocalRepositoryCache repositoryCache,
             JettyConfigurationBuilder configBuilder,
             Supplier<CommitConfig> commitConfigSupplier,
+            Supplier<DiffScanConfig> diffScanConfigSupplier,
+            Supplier<SecretScanConfig> secretScanConfigSupplier,
             PushStore pushStore,
             String serviceUrl,
             ApprovalGateway approvalGateway,
@@ -237,8 +251,8 @@ public final class GitProxyServletRegistrar {
         filters.add(new CheckHiddenCommitsFilter(provider));
         filters.add(new CheckAuthorEmailsFilter(commitConfigSupplier));
         filters.add(new CheckCommitMessagesFilter(commitConfigSupplier));
-        filters.add(new ScanDiffFilter(provider, commitConfigSupplier));
-        filters.add(new SecretScanningFilter(commitConfigSupplier));
+        filters.add(new ScanDiffFilter(provider, diffScanConfigSupplier));
+        filters.add(new SecretScanningFilter(secretScanConfigSupplier));
         filters.add(new GpgSignatureFilter(GpgConfig.defaultConfig()));
         filters.add(new ValidationSummaryFilter());
         filters.add(new FetchFinalizerFilter());
