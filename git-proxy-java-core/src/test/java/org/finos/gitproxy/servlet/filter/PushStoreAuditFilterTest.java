@@ -2,7 +2,6 @@ package org.finos.gitproxy.servlet.filter;
 
 import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 import static org.finos.gitproxy.servlet.GitProxyServlet.PRE_APPROVED_ATTR;
-import static org.finos.gitproxy.servlet.GitProxyServlet.SELF_CERTIFY_USER_ATTR;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -12,7 +11,6 @@ import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.finos.gitproxy.db.PushStore;
-import org.finos.gitproxy.db.model.Attestation;
 import org.finos.gitproxy.db.model.PushRecord;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
@@ -139,38 +137,6 @@ class PushStoreAuditFilterTest {
         filter.doFilter(req, mock(HttpServletResponse.class), chain);
 
         verifyNoInteractions(pushStore);
-    }
-
-    // ---- self-certify bypass stamps automated attestation ----
-
-    @Test
-    void selfCertifyBypass_stampsAutomatedAttestation() throws Exception {
-        FilterChain chain = mock(FilterChain.class);
-        HttpServletRequest req = pushRequest(pushDetails());
-        when(req.getAttribute(SELF_CERTIFY_USER_ATTR)).thenReturn("alice");
-
-        filter.doFilter(req, mock(HttpServletResponse.class), chain);
-
-        verify(pushStore).save(any(PushRecord.class));
-        verify(pushStore)
-                .approve(
-                        any(),
-                        argThat((Attestation a) -> a.isAutomated()
-                                && "alice".equals(a.getReviewerUsername())
-                                && a.getReason() != null
-                                && a.getReason().contains("alice")));
-    }
-
-    @Test
-    void noBypasAttribute_noApproveCall() throws Exception {
-        FilterChain chain = mock(FilterChain.class);
-        HttpServletRequest req = pushRequest(pushDetails());
-        when(req.getAttribute(SELF_CERTIFY_USER_ATTR)).thenReturn(null);
-
-        filter.doFilter(req, mock(HttpServletResponse.class), chain);
-
-        verify(pushStore).save(any(PushRecord.class));
-        verify(pushStore, never()).approve(any(), any());
     }
 
     // ---- store failure does not propagate (audit must not break pushes) ----

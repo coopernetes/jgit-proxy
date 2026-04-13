@@ -2,7 +2,6 @@ package org.finos.gitproxy.servlet.filter;
 
 import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 import static org.finos.gitproxy.servlet.GitProxyServlet.PRE_APPROVED_ATTR;
-import static org.finos.gitproxy.servlet.GitProxyServlet.SELF_CERTIFY_USER_ATTR;
 
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,7 +10,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.finos.gitproxy.db.PushRecordMapper;
 import org.finos.gitproxy.db.PushStore;
-import org.finos.gitproxy.db.model.Attestation;
 import org.finos.gitproxy.db.model.PushRecord;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
@@ -55,22 +53,6 @@ public class PushStoreAuditFilter implements Filter {
         try {
             PushRecord record = PushRecordMapper.fromRequestDetails(requestDetails);
             pushStore.save(record);
-
-            // If a self-certify grant was applied, stamp the automated attestation now that
-            // the record exists. PushFinalizerFilter already set the result to ALLOWED so the
-            // saved status is APPROVED.
-            String bypassUser = (String) httpRequest.getAttribute(SELF_CERTIFY_USER_ATTR);
-            if (bypassUser != null) {
-                pushStore.approve(
-                        record.getId(),
-                        Attestation.builder()
-                                .pushId(record.getId())
-                                .type(Attestation.Type.APPROVAL)
-                                .reviewerUsername(bypassUser)
-                                .reason("Self-certified by " + bypassUser)
-                                .automated(true)
-                                .build());
-            }
 
             log.info(
                     "Persisted push record: id={}, repo={}, status={}",

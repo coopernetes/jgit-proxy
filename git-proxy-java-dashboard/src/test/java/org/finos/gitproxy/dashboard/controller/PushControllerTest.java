@@ -175,6 +175,73 @@ class PushControllerTest {
             when(pushStore.findById("missing")).thenReturn(Optional.empty());
             assertEquals(HttpStatus.NOT_FOUND, controller.getById("missing").getStatusCode());
         }
+
+        @Test
+        void canCurrentUserSelfCertify_falseWhenNotAuthenticated() {
+            var push = blockedPush("p1", "alice");
+            when(pushStore.findById("p1")).thenReturn(Optional.of(push));
+            // No SecurityContext authentication set
+            var resp = controller.getById("p1");
+            assertEquals(HttpStatus.OK, resp.getStatusCode());
+            assertEquals(false, resp.getBody().isCanCurrentUserSelfCertify());
+        }
+
+        @Test
+        void canCurrentUserSelfCertify_falseWhenViewerIsNotPusher() {
+            var push = blockedPush("p1", "alice");
+            when(pushStore.findById("p1")).thenReturn(Optional.of(push));
+            loginAs("bob", false, true); // role granted, but bob is not the pusher
+            var resp = controller.getById("p1");
+            assertEquals(false, resp.getBody().isCanCurrentUserSelfCertify());
+        }
+
+        @Test
+        void canCurrentUserSelfCertify_falseWhenRoleMissing() throws Exception {
+            var push = blockedPush("p1", "alice");
+            when(pushStore.findById("p1")).thenReturn(Optional.of(push));
+            loginAs("alice", false, false); // pusher, but no ROLE_SELF_CERTIFY
+            // Permission service stub intentionally omitted — the role check short-circuits before
+            // computeCanCurrentUserSelfCertify ever consults the permission service.
+            repoPermissionService = mock(RepoPermissionService.class);
+            var field = PushController.class.getDeclaredField("repoPermissionService");
+            field.setAccessible(true);
+            field.set(controller, repoPermissionService);
+
+            var resp = controller.getById("p1");
+            assertEquals(false, resp.getBody().isCanCurrentUserSelfCertify());
+        }
+
+        @Test
+        void canCurrentUserSelfCertify_falseWhenPermMissing() throws Exception {
+            var push = blockedPush("p1", "alice");
+            when(pushStore.findById("p1")).thenReturn(Optional.of(push));
+            loginAs("alice", false, true); // pusher with role
+            repoPermissionService = mock(RepoPermissionService.class);
+            when(repoPermissionService.isBypassReviewAllowed("alice", "github", "github.com/acme/repo.git"))
+                    .thenReturn(false);
+            var field = PushController.class.getDeclaredField("repoPermissionService");
+            field.setAccessible(true);
+            field.set(controller, repoPermissionService);
+
+            var resp = controller.getById("p1");
+            assertEquals(false, resp.getBody().isCanCurrentUserSelfCertify());
+        }
+
+        @Test
+        void canCurrentUserSelfCertify_trueWhenRoleAndPermBothGranted() throws Exception {
+            var push = blockedPush("p1", "alice");
+            when(pushStore.findById("p1")).thenReturn(Optional.of(push));
+            loginAs("alice", false, true); // pusher with role
+            repoPermissionService = mock(RepoPermissionService.class);
+            when(repoPermissionService.isBypassReviewAllowed("alice", "github", "github.com/acme/repo.git"))
+                    .thenReturn(true);
+            var field = PushController.class.getDeclaredField("repoPermissionService");
+            field.setAccessible(true);
+            field.set(controller, repoPermissionService);
+
+            var resp = controller.getById("p1");
+            assertEquals(true, resp.getBody().isCanCurrentUserSelfCertify());
+        }
     }
 
     // ── POST /api/push/{id}/authorise ─────────────────────────────────────────────

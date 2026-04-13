@@ -114,4 +114,13 @@ public class PushRecord {
 
     /** Attestation record if the push was manually reviewed. */
     private Attestation attestation;
+
+    /**
+     * Transient flag computed by the dashboard {@code PushController#getById} endpoint indicating whether the currently
+     * authenticated user is permitted to self-approve this specific push (i.e. they are the resolved pusher, have
+     * {@code ROLE_SELF_CERTIFY}, and have a {@code SELF_CERTIFY} repo permission for this push's path). Not persisted
+     * to the database. Used by the frontend to gate the self-certify banner and approve button.
+     */
+    @Builder.Default
+    private boolean canCurrentUserSelfCertify = false;
 }

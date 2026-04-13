@@ -103,6 +103,12 @@ public class ApprovalPreReceiveHook implements PreReceiveHook {
 
         // Safety net: already approved before this hook ran (race condition or re-push)
         if (record.getStatus() == PushStatus.APPROVED) {
+            if (!verifySelfApprovalEntitled(record)) {
+                String reason = "Self-approved push rejected: no SELF_CERTIFY permission for this repository";
+                sendAndFlush(rp, msgOut, color(RED, "" + sym(CROSS_MARK) + "  " + reason));
+                rejectAll(commands, reason);
+                return;
+            }
             sendAndFlush(rp, msgOut, color(GREEN, "" + sym(HEAVY_CHECK_MARK) + "  Push already approved - forwarding"));
             return;
         }
@@ -113,34 +119,6 @@ public class ApprovalPreReceiveHook implements PreReceiveHook {
                 // Auto-approval: approve silently, no waiting messages or dashboard links
                 approvalGateway.waitForApproval(validationRecordId, msg -> {}, timeout);
                 return;
-            }
-
-            // Trusted contributor bypass: auto-approve without human review
-            if (repoPermissionService != null) {
-                String username = record.getUser();
-                String provider = record.getProvider();
-                String path = record.getUrl();
-                if (username != null
-                        && provider != null
-                        && path != null
-                        && repoPermissionService.isBypassReviewAllowed(username, provider, path)) {
-                    pushStore.approve(
-                            validationRecordId,
-                            Attestation.builder()
-                                    .pushId(validationRecordId)
-                                    .type(Attestation.Type.APPROVAL)
-                                    .reviewerUsername(username)
-                                    .reason("Self-certified by " + username)
-                                    .automated(true)
-                                    .build());
-                    sendAndFlush(
-                            rp,
-                            msgOut,
-                            color(
-                                    GREEN,
-                                    "" + sym(HEAVY_CHECK_MARK) + "  Self-certified — push approved automatically"));
-                    return;
-                }
             }
 
             sendAndFlush(
@@ -172,8 +150,16 @@ public class ApprovalPreReceiveHook implements PreReceiveHook {
             }
 
             switch (result) {
-                case APPROVED ->
+                case APPROVED -> {
+                    var approvedRecord = pushStore.findById(validationRecordId).orElse(null);
+                    if (approvedRecord != null && !verifySelfApprovalEntitled(approvedRecord)) {
+                        String reason = "Self-approved push rejected: no SELF_CERTIFY permission for this repository";
+                        sendAndFlush(rp, msgOut, color(RED, "" + sym(CROSS_MARK) + "  " + reason));
+                        rejectAll(commands, reason);
+                        return;
+                    }
                     sendAndFlush(rp, msgOut, color(GREEN, "" + sym(HEAVY_CHECK_MARK) + "  Push approved by reviewer"));
+                }
                 case REJECTED -> {
                     var updated = pushStore.findById(validationRecordId).orElse(null);
                     String reason = updated != null && updated.getAttestation() != null
@@ -198,6 +184,39 @@ public class ApprovalPreReceiveHook implements PreReceiveHook {
                 }
             }
         }
+    }
+
+    /**
+     * Defense in depth: if the approver is the pusher, re-verify that a {@code SELF_CERTIFY} repo permission still
+     * exists for the pusher on this push's path. {@link org.finos.gitproxy.dashboard.controller.PushController#approve}
+     * already enforces this at approval time, but re-checking here protects against future code paths or bugs that mark
+     * a record APPROVED without going through that gate.
+     *
+     * <p>The {@code ROLE_SELF_CERTIFY} role check is intentionally NOT performed at the hook layer — it requires Spring
+     * Security context (only available in the dashboard) and may live in IdP-derived authorities that aren't persisted
+     * to the user store. The hook re-verifies only the per-repo permission, which is the more granular authoritative
+     * gate.
+     *
+     * @return {@code true} if the push may proceed; {@code false} if the approver was the pusher and no
+     *     {@code SELF_CERTIFY} permission row exists.
+     */
+    private boolean verifySelfApprovalEntitled(org.finos.gitproxy.db.model.PushRecord record) {
+        if (repoPermissionService == null) return true;
+        Attestation att = record.getAttestation();
+        if (att == null) return true;
+        String pusher = record.getResolvedUser();
+        String approver = att.getReviewerUsername();
+        if (pusher == null || approver == null || !pusher.equals(approver)) return true;
+        if (record.getProvider() == null || record.getUrl() == null) return true;
+        boolean entitled = repoPermissionService.isBypassReviewAllowed(pusher, record.getProvider(), record.getUrl());
+        if (!entitled) {
+            log.warn(
+                    "Self-approval rejected at hook: pusher={} provider={} path={} has no SELF_CERTIFY permission",
+                    pusher,
+                    record.getProvider(),
+                    record.getUrl());
+        }
+        return entitled;
     }
 
     private void rejectAll(Collection<ReceiveCommand> commands, String reason) {

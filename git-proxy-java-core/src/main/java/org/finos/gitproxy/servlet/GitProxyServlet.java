@@ -23,11 +23,6 @@ public class GitProxyServlet extends AsyncProxyServlet.Transparent {
     public static final String GIT_REQUEST_ATTR = "gitproxy.gitRequest";
     public static final String ERROR_ATTR = "gitproxy.error";
     public static final String PRE_APPROVED_ATTR = "gitproxy.preApproved";
-    /**
-     * Request attribute set by {@code PushFinalizerFilter} when a self-certify grant was applied. Value is the resolved
-     * proxy username.
-     */
-    public static final String SELF_CERTIFY_USER_ATTR = "gitproxy.selfCertifyUser";
     /** Request attribute holding the UUID of the original APPROVED push record for a transparent-proxy re-push. */
     public static final String APPROVED_PUSH_ID_ATTR = "gitproxy.approvedPushId";
 

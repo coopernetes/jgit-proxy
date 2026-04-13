@@ -71,6 +71,12 @@ export interface PushRecord {
   attestation?: Attestation
   commits?: Commit[]
   steps?: Step[]
+  /**
+   * Server-computed flag (only set on GET /api/push/{id}): the current authenticated user is the resolved pusher,
+   * holds ROLE_SELF_CERTIFY, AND has a SELF_CERTIFY repo permission for this push's path. Gates the self-certify
+   * banner and approve button in the UI.
+   */
+  canCurrentUserSelfCertify?: boolean
 }
 
 export interface Provider {

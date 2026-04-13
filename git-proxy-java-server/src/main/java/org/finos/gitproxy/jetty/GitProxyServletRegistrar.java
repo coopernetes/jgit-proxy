@@ -242,7 +242,7 @@ public final class GitProxyServletRegistrar {
         filters.add(new GpgSignatureFilter(GpgConfig.defaultConfig()));
         filters.add(new ValidationSummaryFilter());
         filters.add(new FetchFinalizerFilter());
-        filters.add(new PushFinalizerFilter(serviceUrl, approvalGateway, repoPermissionService));
+        filters.add(new PushFinalizerFilter(serviceUrl, approvalGateway));
         filters.add(new AuditLogFilter());
 
         boolean failFast = configBuilder != null && configBuilder.isFailFast();

@@ -45,10 +45,9 @@ import org.springframework.web.server.ResponseStatusException;
  *   <li><b>TLS</b> — complete the TLS handshake (HTTPS providers only). Reports negotiated protocol and cipher, or the
  *       specific exception class for certificate / SNI failures.
  *   <li><b>HTTP</b> — send {@code GET /} and record the status code and response time.
- *   <li><b>Git probe</b> (targeted check only) — send {@code GET /info/refs?service=git-upload-pack} and
- *       {@code GET /info/refs?service=git-receive-pack} with {@code User-Agent: git/2.x.x} to a specific repo URL.
- *       Distinguishes appliances that pass generic HTTP but block git-specific URL patterns, query strings, or
- *       user-agent strings.
+ *   <li><b>Git probe</b> (targeted check only) — send {@code GET /info/refs?service=git-upload-pack} and {@code GET
+ *       /info/refs?service=git-receive-pack} with {@code User-Agent: git/2.x.x} to a specific repo URL. Distinguishes
+ *       appliances that pass generic HTTP but block git-specific URL patterns, query strings, or user-agent strings.
  * </ol>
  *
  * <p>Every step is logged at INFO level. Targeted checks additionally return a structured {@code steps} log in the API
@@ -73,8 +72,8 @@ public class ConnectivityController {
      * optional git probe step.
      *
      * @param providerName optional — name of the provider to target; if absent all providers are checked
-     * @param repoPath     optional — repo path (e.g. {@code /owner/repo.git}) appended to the provider base URI for
-     *                     the git probe step; requires {@code provider}
+     * @param repoPath optional — repo path (e.g. {@code /owner/repo.git}) appended to the provider base URI for the git
+     *     probe step; requires {@code provider}
      */
     @GetMapping("/api/admin/connectivity")
     public Map<String, Object> check(
@@ -92,8 +91,8 @@ public class ConnectivityController {
             GitProxyProvider provider = providers.getProviders().stream()
                     .filter(p -> p.getName().equals(providerName))
                     .findFirst()
-                    .orElseThrow(() -> new ResponseStatusException(
-                            HttpStatus.BAD_REQUEST, "Unknown provider: " + providerName));
+                    .orElseThrow(() ->
+                            new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown provider: " + providerName));
             log.info("--- Provider: {} ({}) [targeted] ---", provider.getName(), provider.getUri());
             List<Map<String, Object>> steps = new ArrayList<>();
             Map<String, Object> result = checkProvider(provider, sslContext, steps);

@@ -62,9 +62,7 @@ function HttpBadge({ http }: { http: HttpResult | null }) {
 
 function GitProbeBadge({ label, result }: { label: string; result: GitProbeResult }) {
   const ok = result.status === 'ok'
-  const detail = ok
-    ? `${result.httpStatus} ${ms(result.durationMs)}`
-    : (result.error ?? 'ERROR')
+  const detail = ok ? `${result.httpStatus} ${ms(result.durationMs)}` : (result.error ?? 'ERROR')
   return (
     <span
       className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
@@ -200,11 +198,12 @@ function ConnectivityRow({ result }: { name: string; result: ProviderConnectivit
               fetch content-type: {result.gitProbe.uploadPack.contentType}
             </div>
           )}
-          {result.gitProbe.receivePack.status === 'ok' && result.gitProbe.receivePack.contentType && (
-            <div className="text-xs text-gray-400 font-mono">
-              push content-type: {result.gitProbe.receivePack.contentType}
-            </div>
-          )}
+          {result.gitProbe.receivePack.status === 'ok' &&
+            result.gitProbe.receivePack.contentType && (
+              <div className="text-xs text-gray-400 font-mono">
+                push content-type: {result.gitProbe.receivePack.contentType}
+              </div>
+            )}
         </>
       )}
       {result.steps && result.steps.length > 0 && <DiagnosticLog steps={result.steps} />}
@@ -227,7 +226,9 @@ export function Admin() {
   const [repoPath, setRepoPath] = useState<string>('')
   const [targetStatus, setTargetStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [targetCheckedAt, setTargetCheckedAt] = useState<string | null>(null)
-  const [targetResults, setTargetResults] = useState<Record<string, ProviderConnectivity> | null>(null)
+  const [targetResults, setTargetResults] = useState<Record<string, ProviderConnectivity> | null>(
+    null,
+  )
   const [targetError, setTargetError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -391,7 +392,9 @@ export function Admin() {
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-gray-600">
                 Repo path{' '}
-                <span className="font-normal text-gray-400">(optional — skips git probe if blank)</span>
+                <span className="font-normal text-gray-400">
+                  (optional — skips git probe if blank)
+                </span>
               </label>
               <div className="flex items-stretch">
                 <span className="inline-flex items-center px-3 rounded-l border border-r-0 border-gray-300 bg-gray-50 text-gray-400 text-xs font-mono select-none">

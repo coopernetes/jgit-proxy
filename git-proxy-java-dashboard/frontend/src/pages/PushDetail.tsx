@@ -883,13 +883,17 @@ export function PushDetail({ currentUser }: PushDetailProps) {
           {record.status === 'PENDING' &&
             (() => {
               const isAdmin = currentUser?.authorities?.includes('ROLE_ADMIN') ?? false
-              const isSelfCertifier =
-                currentUser?.authorities?.includes('ROLE_SELF_CERTIFY') ?? false
+              // canCurrentUserSelfCertify is computed server-side and requires BOTH the
+              // ROLE_SELF_CERTIFY authority AND a SELF_CERTIFY repo permission row for this push's
+              // path. A user with the role but no per-repo permission gets `false` here, so the
+              // self-certify banner stays hidden and the approve button is gated behind the
+              // standard self-review block.
+              const canSelfCertify = record.canCurrentUserSelfCertify ?? false
               const isPusher =
                 !!currentUser?.username &&
                 !!record.resolvedUser &&
                 currentUser.username === record.resolvedUser
-              const isSelfReview = isPusher && !isAdmin && !isSelfCertifier
+              const isSelfReview = isPusher && !isAdmin && !canSelfCertify
               const canCancel = isAdmin || isPusher
               const attestationsComplete = attestationQuestions
                 .filter((q) => q.required)
@@ -927,7 +931,7 @@ export function PushDetail({ currentUser }: PushDetailProps) {
                       </span>
                     </div>
                   )}
-                  {isSelfCertifier && isPusher && !isAdmin && (
+                  {canSelfCertify && isPusher && !isAdmin && (
                     <div className="flex gap-2 text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded px-3 py-2 mb-3">
                       <span>ℹ</span>
                       <span>

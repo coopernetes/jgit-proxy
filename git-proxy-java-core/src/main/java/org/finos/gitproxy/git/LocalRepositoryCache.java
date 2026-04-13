@@ -122,9 +122,7 @@ public class LocalRepositoryCache {
         CachedRepository cached = cache.get(cacheKey);
         if (cached != null && cached.isValid()) {
             log.debug("Using cached repository for: {}", remoteUrl);
-            if (credentials != null) {
-                refreshIfStale(cached, cacheKey, credentials);
-            }
+            refreshIfStale(cached, cacheKey, credentials);
             cached.repository.incrementOpen();
             return cached.repository;
         }

@@ -85,7 +85,7 @@ public class CheckHiddenCommitsFilter extends AbstractProviderAwareGitProxyFilte
                 return;
             }
 
-            Set<String> allNew = collectAllNewCommits(repository, toCommit);
+            Set<String> allNew = collectAllNewCommits(repository, toCommit, requestDetails.getCommitFrom());
 
             Set<String> hidden = new HashSet<>(allNew);
             hidden.removeAll(introduced);
@@ -115,9 +115,14 @@ public class CheckHiddenCommitsFilter extends AbstractProviderAwareGitProxyFilte
 
     /**
      * Collect all commits reachable from {@code toCommit} that are not reachable from any existing ref in the upstream
-     * clone. These correspond to the commits that were new to the upstream in this pack.
+     * clone or from {@code fromCommit} (the old branch tip). These correspond to the commits that were genuinely new
+     * and not already present at the upstream.
+     *
+     * <p>{@code fromCommit} is marked uninteresting explicitly because the local clone's refs may be stale (e.g. after
+     * a recently forwarded push the remote ref has advanced but the cache hasn't been re-fetched). Without this,
+     * commits reachable only from the old tip — but not from any cached ref — would be falsely flagged as hidden.
      */
-    private Set<String> collectAllNewCommits(Repository repo, String toCommit) throws IOException {
+    private Set<String> collectAllNewCommits(Repository repo, String toCommit, String fromCommit) throws IOException {
         Set<String> result = new HashSet<>();
 
         try (RevWalk walk = new RevWalk(repo)) {
@@ -136,6 +141,19 @@ public class CheckHiddenCommitsFilter extends AbstractProviderAwareGitProxyFilte
                     walk.markUninteresting(walk.parseCommit(id));
                 } catch (Exception e) {
                     // Not a commit (annotated tag pointing to a blob/tree, etc.) - skip
+                }
+            }
+
+            // Always mark commitFrom (old branch tip) as uninteresting — it is already at the
+            // upstream by definition, even when the local clone's refs are stale.
+            if (fromCommit != null && !fromCommit.isBlank() && !fromCommit.matches("^0+$")) {
+                try {
+                    ObjectId fromId = repo.resolve(fromCommit);
+                    if (fromId != null) {
+                        walk.markUninteresting(walk.parseCommit(fromId));
+                    }
+                } catch (Exception e) {
+                    log.debug("Could not resolve commitFrom {} as uninteresting boundary — skipping", fromCommit);
                 }
             }
 

@@ -122,9 +122,30 @@ public class PushController {
                 .findById(id)
                 .map(record -> {
                     stripDiffContent(record);
+                    record.setCanCurrentUserSelfCertify(computeCanCurrentUserSelfCertify(record));
                     return ResponseEntity.ok(record);
                 })
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Computes whether the currently authenticated user is permitted to self-approve this specific push. Mirrors the
+     * server-side enforcement in {@link #checkReviewerIdentity}: the user must be the resolved pusher, hold the
+     * {@code ROLE_SELF_CERTIFY} authority (capability gate), and have a matching {@code SELF_CERTIFY} repo permission
+     * row (per-repo entitlement). Admins do not need self-certify — they can approve anything via the regular path.
+     */
+    private boolean computeCanCurrentUserSelfCertify(PushRecord record) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) return false;
+        String reviewer = auth.getName();
+        String pusher = record.getResolvedUser();
+        if (reviewer == null || pusher == null || !pusher.equals(reviewer)) return false;
+        boolean hasRole = auth.getAuthorities().stream().anyMatch(a -> "ROLE_SELF_CERTIFY".equals(a.getAuthority()));
+        if (!hasRole) return false;
+        return repoPermissionService != null
+                && record.getProvider() != null
+                && record.getUrl() != null
+                && repoPermissionService.isBypassReviewAllowed(reviewer, record.getProvider(), record.getUrl());
     }
 
     /**

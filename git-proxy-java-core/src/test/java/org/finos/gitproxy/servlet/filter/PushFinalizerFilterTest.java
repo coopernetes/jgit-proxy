@@ -3,7 +3,6 @@ package org.finos.gitproxy.servlet.filter;
 import static org.finos.gitproxy.git.GitClientUtils.ZERO_OID;
 import static org.finos.gitproxy.servlet.GitProxyServlet.GIT_REQUEST_ATTR;
 import static org.finos.gitproxy.servlet.GitProxyServlet.PRE_APPROVED_ATTR;
-import static org.finos.gitproxy.servlet.GitProxyServlet.SELF_CERTIFY_USER_ATTR;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -26,7 +25,6 @@ import org.finos.gitproxy.approval.AutoApprovalGateway;
 import org.finos.gitproxy.db.PushStoreFactory;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
-import org.finos.gitproxy.permission.RepoPermissionService;
 import org.finos.gitproxy.provider.GitProxyProvider;
 import org.junit.jupiter.api.Test;
 
@@ -196,80 +194,19 @@ class PushFinalizerFilterTest {
     }
 
     @Test
-    void selfCertify_granted_allowsPushAndSetsAttribute() throws Exception {
+    void selfCertify_perm_doesNotBypassReview() throws Exception {
+        // The push-time bypass for SELF_CERTIFY was removed: self-certify is enforced exclusively in the dashboard
+        // (PushController.checkReviewerIdentity). The pre-receive hook re-verifies the per-repo permission as defense
+        // in depth before forwarding an approved self-review. From the proxy filter chain's perspective, every clean
+        // push with no prior approval blocks pending review regardless of any SELF_CERTIFY grants.
         GitRequestDetails details = pendingPushDetailsWithUser("alice", "github");
-        RepoPermissionService perms = mock(RepoPermissionService.class);
-        when(perms.isBypassReviewAllowed("alice", "github/github.com", "/owner/repo"))
-                .thenReturn(true);
-        PushFinalizerFilter filter =
-                new PushFinalizerFilter("http://localhost:8080", mock(ApprovalGateway.class), perms);
-        HttpServletRequest req = mockPushRequest(details);
-        FakeResponse fakeResponse = new FakeResponse();
-
-        filter.doHttpFilter(req, fakeResponse.mock);
-
-        assertEquals(GitRequestDetails.GitResult.ALLOWED, details.getResult());
-        verify(req).setAttribute(SELF_CERTIFY_USER_ATTR, "alice");
-        assertFalse(fakeResponse.committed.get(), "Self-certify must not send a git error to the client");
-    }
-
-    @Test
-    void selfCertify_notGranted_blocksPendingReview() throws Exception {
-        GitRequestDetails details = pendingPushDetailsWithUser("alice", "github");
-        RepoPermissionService perms = mock(RepoPermissionService.class);
-        when(perms.isBypassReviewAllowed("alice", "github/github.com", "/owner/repo"))
-                .thenReturn(false);
-        PushFinalizerFilter filter =
-                new PushFinalizerFilter("http://localhost:8080", mock(ApprovalGateway.class), perms);
+        PushFinalizerFilter filter = new PushFinalizerFilter("http://localhost:8080", mock(ApprovalGateway.class));
         FakeResponse fakeResponse = new FakeResponse();
 
         filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
 
         assertEquals(GitRequestDetails.GitResult.REVIEW, details.getResult());
         assertTrue(fakeResponse.committed.get());
-    }
-
-    @Test
-    void selfCertify_nullProvider_fallsThroughToReview() throws Exception {
-        // repoPermissionService non-null, resolvedUser set, but no provider → provider ternary takes null branch
-        // compound condition: username!=null && provider!=null → false → bypass skipped
-        GitRequestDetails details = pendingPushDetails();
-        details.setResolvedUser("alice"); // so username != null; provider is still null
-        RepoPermissionService perms = mock(RepoPermissionService.class);
-        PushFinalizerFilter filter =
-                new PushFinalizerFilter("http://localhost:8080", mock(ApprovalGateway.class), perms);
-        FakeResponse fakeResponse = new FakeResponse();
-
-        filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
-
-        assertEquals(GitRequestDetails.GitResult.REVIEW, details.getResult());
-        verifyNoInteractions(perms);
-    }
-
-    @Test
-    void selfCertify_nullRepoRef_fallsThroughToReview() throws Exception {
-        // repoPermissionService non-null, provider set, but repoRef is null → path ternary takes null branch → bypass
-        // skipped
-        GitRequestDetails details = new GitRequestDetails();
-        details.setOperation(HttpOperation.PUSH);
-        details.setCommitTo("abc123");
-        details.setResolvedUser("alice");
-        GitProxyProvider provider = mock(GitProxyProvider.class);
-        when(provider.getName()).thenReturn("github");
-        when(provider.getType()).thenReturn("github");
-        when(provider.getUri()).thenReturn(java.net.URI.create("https://github.com"));
-        when(provider.getProviderId()).thenReturn("github/github.com");
-        details.setProvider(provider);
-        // repoRef intentionally not set
-        RepoPermissionService perms = mock(RepoPermissionService.class);
-        PushFinalizerFilter filter =
-                new PushFinalizerFilter("http://localhost:8080", mock(ApprovalGateway.class), perms);
-        FakeResponse fakeResponse = new FakeResponse();
-
-        filter.doHttpFilter(mockPushRequest(details), fakeResponse.mock);
-
-        assertEquals(GitRequestDetails.GitResult.REVIEW, details.getResult());
-        verifyNoInteractions(perms);
     }
 
     @Test
