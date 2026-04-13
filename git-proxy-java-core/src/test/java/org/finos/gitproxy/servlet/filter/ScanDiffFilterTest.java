@@ -23,6 +23,7 @@ import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.finos.gitproxy.config.CommitConfig;
+import org.finos.gitproxy.config.DiffScanConfig;
 import org.finos.gitproxy.db.model.PushStep;
 import org.finos.gitproxy.db.model.StepStatus;
 import org.finos.gitproxy.git.GitRequestDetails;
@@ -150,18 +151,16 @@ class ScanDiffFilterTest {
     }
 
     private ScanDiffFilter filterWithLiteral(String literal) {
-        CommitConfig config = CommitConfig.builder()
-                .diff(CommitConfig.DiffConfig.builder()
-                        .block(CommitConfig.BlockConfig.builder()
-                                .literals(List.of(literal))
-                                .build())
+        DiffScanConfig config = DiffScanConfig.builder()
+                .block(CommitConfig.BlockConfig.builder()
+                        .literals(List.of(literal))
                         .build())
                 .build();
         return new ScanDiffFilter(new GitHubProvider("/proxy"), config);
     }
 
     private ScanDiffFilter filterNoRules() {
-        return new ScanDiffFilter(new GitHubProvider("/proxy"), CommitConfig.defaultConfig());
+        return new ScanDiffFilter(new GitHubProvider("/proxy"), DiffScanConfig.defaultConfig());
     }
 
     // ---- clean diff → PASS step recorded, no issue ----

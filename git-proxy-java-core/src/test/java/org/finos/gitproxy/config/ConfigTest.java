@@ -3,11 +3,7 @@ package org.finos.gitproxy.config;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Pattern;
-import org.finos.gitproxy.provider.GitHubProvider;
-import org.finos.gitproxy.provider.GitLabProvider;
-import org.finos.gitproxy.provider.GitProxyProvider;
 import org.junit.jupiter.api.Test;
 
 class ConfigTest {
@@ -149,47 +145,5 @@ class ConfigTest {
         GpgConfig config =
                 GpgConfig.builder().trustedKeysInline("-----BEGIN PGP...").build();
         assertEquals("-----BEGIN PGP...", config.getTrustedKeysInline());
-    }
-
-    // --- InMemoryProviderConfigurationSource ---
-
-    @Test
-    void providerConfig_fromMap_getProvider_returnsCorrect() {
-        GitProxyProvider github = new GitHubProvider("/proxy");
-        var source = new InMemoryProviderConfigurationSource(Map.of("github", github));
-        assertSame(github, source.getProvider("github"));
-    }
-
-    @Test
-    void providerConfig_fromMap_unknownProvider_returnsNull() {
-        var source = new InMemoryProviderConfigurationSource(Map.of());
-        assertNull(source.getProvider("unknown"));
-    }
-
-    @Test
-    void providerConfig_fromList_getProvider_returnsCorrect() {
-        GitProxyProvider github = new GitHubProvider("/proxy");
-        GitProxyProvider gitlab = new GitLabProvider("/proxy");
-        var source = new InMemoryProviderConfigurationSource(List.of(github, gitlab));
-        assertSame(github, source.getProvider("github"));
-        assertSame(gitlab, source.getProvider("gitlab"));
-    }
-
-    @Test
-    void providerConfig_fromList_getProviders_returnsAll() {
-        GitProxyProvider github = new GitHubProvider("/proxy");
-        GitProxyProvider gitlab = new GitLabProvider("/proxy");
-        var source = new InMemoryProviderConfigurationSource(List.of(github, gitlab));
-        assertEquals(2, source.getProviders().size());
-        assertTrue(source.getProviders().containsAll(List.of(github, gitlab)));
-    }
-
-    @Test
-    void providerConfig_getProviders_returnsDefensiveCopy() {
-        GitProxyProvider github = new GitHubProvider("/proxy");
-        var source = new InMemoryProviderConfigurationSource(List.of(github));
-        List<GitProxyProvider> list1 = source.getProviders();
-        List<GitProxyProvider> list2 = source.getProviders();
-        assertNotSame(list1, list2);
     }
 }

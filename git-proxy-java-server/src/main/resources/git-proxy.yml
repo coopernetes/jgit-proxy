@@ -12,7 +12,7 @@ server:
   heartbeat-interval-seconds: 10
   # HTTP session persistence backend. Options:
   #   none   — in-memory sessions (default); sessions are lost on restart and not shared across instances
-  #   jdbc   — persisted to the configured JDBC database (h2-file or postgres); no new infrastructure needed
+  #   jdbc   — persisted to the configured JDBC database (h2-file or postgres);
   #   redis  — persisted to a Redis or Valkey instance; configure connection via server.redis.*
   # Use jdbc or redis when running multiple instances sharing a database so that authenticated sessions
   # survive pod restarts and remain valid across all pods.
@@ -50,57 +50,51 @@ database:
   #   idle-timeout: 600000      # ms — retire idle connections after this period (default: 600000)
   #   max-lifetime: 1800000     # ms — rotate connections to avoid stale TCP/auth state (default: 1800000)
 
-# The below is a minimal configuration needed for the app to start and is the default shipped with the jar.
-# By default, the app supports proxying to GitHub, GitLab, Codeberg & Gitea.
+# By default, the app supports proxying to GitHub, GitLab, codeberg.org & gitea.com out of the box
+# Private or alternative providers can be added (e.g. internal GitHub Enterprise or GitLab EE) by adding a new entry
 providers:
   github:
     enabled: true
-    attestation-questions:
-      - id: reviewed-content
-        type: checkbox
-        label: "I have reviewed the diff and it contains no sensitive or proprietary information"
-        required: true
-      - id: policy-compliance
-        type: checkbox
-        label: "This push complies with our open source contribution policy"
-        required: true
+  # Additional providers that may host FOSS projects.
   gitlab:
     enabled: true
   codeberg:
     enabled: true
   gitea:
     enabled: true
-#  bitbucket:
-#    enabled: true
+  # bitbucket.org support is limited due to lack of free (non-commercial) access. Disabled by default.
+  # Bitbucket Server/Data Center instances can be added as custom providers
+  bitbucket:
+    enabled: false
 #  internal-gitlab:
 #    enabled: true
 #    type: gitlab
-#    servlet-path: /enterprise
 #    uri: https://gitlab.internal.example.com
-#
-# Attestation questions example — shown to reviewers before they can approve a push.
-# Configure per-provider under providers.<name>.attestation-questions.
-# Supported types: checkbox (default), text, dropdown.
-#  github:
-#    attestation-questions:
-#      - id: reviewed-content
-#        type: checkbox
-#        label: "I have reviewed the diff and it contains no sensitive or proprietary information"
-#        required: true
-#      - id: policy-compliance
-#        type: checkbox
-#        label: "This push complies with our open source contribution policy"
-#        required: true
-#      - id: ticket-ref
-#        type: text
-#        label: "Internal ticket or justification reference"
-#        required: false
 #  debian-gitlab:
 #    enabled: true
 #    servlet-path: /debian
 #    uri: https://salsa.debian.org/
 
-# Commit validation rules applied by both the store-and-forward and transparent proxy pipelines.
+# Global attestation questions shown to reviewers in the dashboard approval form before they can
+# approve a push. Applies to all providers — per-provider variants are a future enhancement.
+# Supported types: checkbox (default), text, dropdown. Required questions block submission until answered.
+# Hot-reloadable via POST /api/config/reload?section=attestations.
+attestations: []
+#  - id: reviewed-content
+#    type: checkbox
+#    label: "I have reviewed the diff and it contains no sensitive or proprietary information"
+#    required: true
+#  - id: policy-compliance
+#    type: checkbox
+#    label: "This push complies with our open source contribution policy"
+#    required: true
+#  - id: ticket-ref
+#    type: text
+#    label: "Internal ticket or justification reference"
+#    required: false
+
+# Per-commit validation rules applied by both the store-and-forward and transparent proxy pipelines.
+# These checks run once per commit in a push (author email, commit message content).
 commit:
   author:
     email:
@@ -119,14 +113,6 @@ commit:
       # Block commit messages matching any of these regex patterns.
       patterns: []
 #        - '(?i)(password|secret|token)\s*[=:]\s*\S+'
-  diff:
-    block:
-      # Literals and patterns scanned against added lines (+) in the push diff.
-      # Add entries here to block secrets, internal hostnames, etc. from being pushed.
-      literals: []
-#        - "internal.corp.example.com"
-      patterns: []
-#        - '(?i)https?://[a-z0-9.-]*\.corp\.example\.com\b'
 
   # Resolves the pusher's real SCM identity by calling the upstream provider's user API with the
   # supplied token, then cross-checks the returned username and all commit author/committer emails
@@ -138,21 +124,39 @@ commit:
   # See docs/CONFIGURATION.md#identity-verification for token scope requirements and rollout guidance.
   # identity-verification: warn
 
-  # Secret scanning via gitleaks (https://github.com/gitleaks/gitleaks).
-  # The JAR ships with a bundled gitleaks binary (DEFAULT_VERSION) so scanning works out of the box.
-  # Binary resolution order:
-  #   1. scanner-path — explicit path, bypasses everything else
-  #   2. version-pinned download — if version + auto-install: true, downloads that version on startup
-  #   3. bundled JAR binary — always present (DEFAULT_VERSION)
-  #   4. system PATH — gitleaks already installed on host/container
-  secret-scanning:
-    enabled: true
-    # version: 8.22.0        # pin a specific version; combined with auto-install: true, downloads it on startup
-    # auto-install: true     # allow downloading the version above (default: true); set false to use bundled or PATH only
-    # install-dir: ~/.cache/git-proxy-java/gitleaks  # where to cache downloaded versions
-    # scanner-path: /usr/local/bin/gitleaks       # skip all resolution, use this binary directly
-    # config-file: /app/conf/.gitleaks.toml       # custom rules; use [extend] useDefault=true to keep built-ins
-    # timeout-seconds: 30
+# Push-level diff content scanning. Runs once per push against the aggregate diff (all commits combined).
+# Blocks pushes that introduce lines matching any configured literal or regex pattern.
+diff-scan:
+  block:
+    # Literals and patterns scanned against added lines (+) in the push diff.
+    # Add entries here to block internal hostnames, hardcoded strings, etc.
+    literals: []
+#      - "internal.corp.example.com"
+    patterns: []
+#      - '(?i)https?://[a-z0-9.-]*\.corp\.example\.com\b'
+
+# Secret scanning via gitleaks (https://github.com/gitleaks/gitleaks).
+# Runs once per push. The JAR ships with a bundled gitleaks binary so scanning works out of the box.
+# Binary resolution order:
+#   1. scanner-path — explicit path, bypasses everything else
+#   2. version-pinned download — if version + auto-install: true, downloads it on startup
+#   3. bundled JAR binary — always present (DEFAULT_VERSION)
+#   4. system PATH — gitleaks already installed on host/container
+secret-scan:
+  enabled: true
+  # version: 8.22.0        # pin a specific version; combined with auto-install: true, downloads it on startup
+  # auto-install: true     # allow downloading the version above (default: true); set false to use bundled or PATH only
+  # install-dir: ~/.cache/git-proxy-java/gitleaks  # where to cache downloaded versions
+  # scanner-path: /usr/local/bin/gitleaks       # skip all resolution, use this binary directly
+  # config-file: /app/conf/.gitleaks.toml       # external TOML rules; ignored when inline-config is set
+  # inline-config: |                            # inline TOML (wins over config-file); hot-reloadable
+  #   title = "my-org"
+  #   [extend]
+  #   useDefault = true
+  #   [[rules]]
+  #   id = "my-org-api-key"
+  #   regex = '''MY_ORG_[A-Z0-9]{32}'''
+  # timeout-seconds: 30
 
 # User accounts for authentication and push authorization.
 # When this list is non-empty, only listed users may authenticate to the dashboard
@@ -175,8 +179,8 @@ users:
 #     push-usernames:
 #       - alice           # HTTP Basic-auth username used when pushing via git
 #     scm-identities:
-#       - provider: github/github.com
-#         username: alice-gh
+#       - provider: github          # use the friendly name from providers: config
+#         username: alice-gh        # (or the type/host ID "github/github.com" also works)
 
 # Live config reload. Allows hot-reloading commit rules and auth config without restarting the server.
 # Provider, server, and database changes always require a restart.

@@ -12,7 +12,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
-import org.finos.gitproxy.config.CommitConfig;
+import org.finos.gitproxy.config.SecretScanConfig;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.GitleaksRunner;
 import org.finos.gitproxy.git.HttpOperation;
@@ -31,30 +31,30 @@ public class SecretScanningFilter extends AbstractGitProxyFilter {
 
     private static final int ORDER = 340;
 
-    private final Supplier<CommitConfig.SecretScanningConfig> configSupplier;
+    private final Supplier<SecretScanConfig> configSupplier;
     private final GitleaksRunner runner;
 
-    /** Live-reload constructor — secret scanning config is read from the supplier on every request. */
-    public SecretScanningFilter(Supplier<CommitConfig> commitConfigSupplier, GitleaksRunner runner) {
+    /** Live-reload constructor — config is read from the supplier on every request. */
+    public SecretScanningFilter(Supplier<SecretScanConfig> configSupplier, GitleaksRunner runner) {
         super(ORDER, Set.of(HttpOperation.PUSH));
-        this.configSupplier = () -> commitConfigSupplier.get().getSecretScanning();
+        this.configSupplier = configSupplier;
         this.runner = runner;
     }
 
     /** Live-reload constructor with default {@link GitleaksRunner}. */
-    public SecretScanningFilter(Supplier<CommitConfig> commitConfigSupplier) {
-        this(commitConfigSupplier, new GitleaksRunner());
+    public SecretScanningFilter(Supplier<SecretScanConfig> configSupplier) {
+        this(configSupplier, new GitleaksRunner());
     }
 
     /** Fixed-config constructor. Useful in tests; wraps the value in a constant supplier. */
-    public SecretScanningFilter(CommitConfig.SecretScanningConfig config, GitleaksRunner runner) {
+    public SecretScanningFilter(SecretScanConfig config, GitleaksRunner runner) {
         super(ORDER, Set.of(HttpOperation.PUSH));
         this.configSupplier = () -> config;
         this.runner = runner;
     }
 
     /** Fixed-config constructor with default {@link GitleaksRunner}. Useful in tests. */
-    public SecretScanningFilter(CommitConfig.SecretScanningConfig config) {
+    public SecretScanningFilter(SecretScanConfig config) {
         this(config, new GitleaksRunner());
     }
 

@@ -21,7 +21,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import org.finos.gitproxy.config.CommitConfig;
+import org.finos.gitproxy.config.SecretScanConfig;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
@@ -80,7 +80,7 @@ public class GitleaksRunner {
      * @return {@link Optional#empty()} if the scanner is unavailable or errored (fail-open); otherwise an optional
      *     containing the (possibly empty) list of findings
      */
-    public Optional<List<Finding>> scan(String diff, CommitConfig.SecretScanningConfig config) {
+    public Optional<List<Finding>> scan(String diff, SecretScanConfig config) {
         if (diff == null || diff.isBlank()) {
             return Optional.of(Collections.emptyList());
         }
@@ -93,9 +93,11 @@ public class GitleaksRunner {
         }
 
         Path reportFile = null;
+        Path inlineConfigFile = null;
         try {
             reportFile = Files.createTempFile("gitleaks-report-", ".json");
-            List<String> cmd = buildCommand(binaryPath, reportFile, config);
+            inlineConfigFile = writeInlineConfigIfNeeded(config);
+            List<String> cmd = buildCommand(binaryPath, reportFile, resolveConfigFile(config, inlineConfigFile));
             log.debug("Running gitleaks: {}", cmd);
 
             ProcessBuilder pb = new ProcessBuilder(cmd);
@@ -144,22 +146,18 @@ public class GitleaksRunner {
             log.warn("Failed to run gitleaks - secret scanning skipped (fail-open): {}", e.getMessage(), e);
             return Optional.empty();
         } finally {
-            if (reportFile != null) {
-                try {
-                    Files.deleteIfExists(reportFile);
-                } catch (IOException ignored) {
-                }
-            }
+            deleteQuietly(reportFile);
+            deleteQuietly(inlineConfigFile);
         }
     }
 
     /**
      * Scans a commit range in a local git repository for secrets using {@code gitleaks git}.
      *
-     * <p>Unlike {@link #scan(String, CommitConfig.SecretScanningConfig)}, this mode runs gitleaks natively against the
-     * git object graph, so path-based allowlists and per-file context in gitleaks rules are applied correctly. No
-     * post-hoc diff enrichment is needed - gitleaks populates {@code File}, {@code StartLine}, and {@code Commit} in
-     * each finding directly.
+     * <p>Unlike {@link #scan(String, SecretScanConfig)}, this mode runs gitleaks natively against the git object graph,
+     * so path-based allowlists and per-file context in gitleaks rules are applied correctly. No post-hoc diff
+     * enrichment is needed - gitleaks populates {@code File}, {@code StartLine}, and {@code Commit} in each finding
+     * directly.
      *
      * <p>For a new-branch push ({@code commitFrom} equals {@link GitClientUtils#ZERO_OID }), the scan covers all
      * commits reachable from {@code commitTo} that are not yet reachable from any existing ref ({@code --not --all}).
@@ -172,8 +170,7 @@ public class GitleaksRunner {
      * @return {@link Optional#empty()} if the scanner is unavailable or errored (fail-open); otherwise the (possibly
      *     empty) list of findings
      */
-    public Optional<List<Finding>> scanGit(
-            Path repoDir, String commitFrom, String commitTo, CommitConfig.SecretScanningConfig config) {
+    public Optional<List<Finding>> scanGit(Path repoDir, String commitFrom, String commitTo, SecretScanConfig config) {
         Path binaryPath = resolveBinaryPath(config);
         if (binaryPath == null) {
             log.warn("gitleaks binary not available - secret scanning skipped (fail-open). "
@@ -186,9 +183,12 @@ public class GitleaksRunner {
         String logOpts = ZERO_OID.equals(commitFrom) ? commitTo + " --not --all" : commitFrom + ".." + commitTo;
 
         Path reportFile = null;
+        Path inlineConfigFile = null;
         try {
             reportFile = Files.createTempFile("gitleaks-report-", ".json");
-            List<String> cmd = buildGitCommand(binaryPath, logOpts, reportFile, config);
+            inlineConfigFile = writeInlineConfigIfNeeded(config);
+            List<String> cmd =
+                    buildGitCommand(binaryPath, logOpts, reportFile, resolveConfigFile(config, inlineConfigFile));
             log.debug("Running gitleaks git: {}", cmd);
 
             ProcessBuilder pb = new ProcessBuilder(cmd);
@@ -227,12 +227,8 @@ public class GitleaksRunner {
             log.warn("Failed to run gitleaks git - secret scanning skipped (fail-open): {}", e.getMessage(), e);
             return Optional.empty();
         } finally {
-            if (reportFile != null) {
-                try {
-                    Files.deleteIfExists(reportFile);
-                } catch (IOException ignored) {
-                }
-            }
+            deleteQuietly(reportFile);
+            deleteQuietly(inlineConfigFile);
         }
     }
 
@@ -240,7 +236,7 @@ public class GitleaksRunner {
     // Binary resolution
     // -------------------------------------------------------------------------
 
-    private Path resolveBinaryPath(CommitConfig.SecretScanningConfig config) {
+    private Path resolveBinaryPath(SecretScanConfig config) {
         // 1. Explicit scanner-path - always wins
         if (config.getScannerPath() != null && !config.getScannerPath().isBlank()) {
             log.debug("gitleaks: using configured scanner-path={}", config.getScannerPath());
@@ -296,7 +292,7 @@ public class GitleaksRunner {
         return null;
     }
 
-    private static Path resolveInstallDir(CommitConfig.SecretScanningConfig config) {
+    private static Path resolveInstallDir(SecretScanConfig config) {
         String dir = config.getInstallDir();
         if (dir != null && !dir.isBlank()) {
             return Path.of(dir.replace("~", System.getProperty("user.home")));
@@ -304,7 +300,7 @@ public class GitleaksRunner {
         return Path.of(DEFAULT_INSTALL_DIR);
     }
 
-    private Path autoInstall(CommitConfig.SecretScanningConfig config, Path installDir) {
+    private Path autoInstall(SecretScanConfig config, Path installDir) {
         String version =
                 (config.getVersion() != null && !config.getVersion().isBlank()) ? config.getVersion() : DEFAULT_VERSION;
 
@@ -424,8 +420,7 @@ public class GitleaksRunner {
     // Command building
     // -------------------------------------------------------------------------
 
-    private static List<String> buildCommand(
-            Path binaryPath, Path reportFile, CommitConfig.SecretScanningConfig config) {
+    private static List<String> buildCommand(Path binaryPath, Path reportFile, Path configFilePath) {
         List<String> cmd = new ArrayList<>();
         cmd.add(binaryPath.toString());
         cmd.add("detect");
@@ -435,16 +430,15 @@ public class GitleaksRunner {
         cmd.add("--report-path");
         cmd.add(reportFile.toString());
 
-        if (config.getConfigFile() != null && !config.getConfigFile().isBlank()) {
+        if (configFilePath != null) {
             cmd.add("--config");
-            cmd.add(config.getConfigFile());
+            cmd.add(configFilePath.toString());
         }
 
         return cmd;
     }
 
-    private static List<String> buildGitCommand(
-            Path binaryPath, String logOpts, Path reportFile, CommitConfig.SecretScanningConfig config) {
+    private static List<String> buildGitCommand(Path binaryPath, String logOpts, Path reportFile, Path configFilePath) {
         List<String> cmd = new ArrayList<>();
         cmd.add(binaryPath.toString());
         cmd.add("git");
@@ -456,12 +450,43 @@ public class GitleaksRunner {
         cmd.add("--no-banner");
         cmd.add("--redact");
 
-        if (config.getConfigFile() != null && !config.getConfigFile().isBlank()) {
+        if (configFilePath != null) {
             cmd.add("--config");
-            cmd.add(config.getConfigFile());
+            cmd.add(configFilePath.toString());
         }
 
         return cmd;
+    }
+
+    /**
+     * Writes {@code config.inlineConfig} to a temporary TOML file and returns its path. Returns {@code null} if
+     * {@code inlineConfig} is blank. The caller is responsible for deleting the file (via {@link #deleteQuietly}).
+     */
+    private static Path writeInlineConfigIfNeeded(SecretScanConfig config) throws IOException {
+        String inline = config.getInlineConfig();
+        if (inline == null || inline.isBlank()) return null;
+        Path tmp = Files.createTempFile("gitleaks-config-", ".toml");
+        Files.writeString(tmp, inline);
+        return tmp;
+    }
+
+    /**
+     * Resolves the effective gitleaks config file path. {@code inlineConfigFile} (already written) takes precedence
+     * over {@code config.configFile}.
+     */
+    private static Path resolveConfigFile(SecretScanConfig config, Path inlineConfigFile) {
+        if (inlineConfigFile != null) return inlineConfigFile;
+        String cf = config.getConfigFile();
+        if (cf != null && !cf.isBlank()) return Path.of(cf);
+        return null;
+    }
+
+    private static void deleteQuietly(Path path) {
+        if (path == null) return;
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException ignored) {
+        }
     }
 
     // -------------------------------------------------------------------------

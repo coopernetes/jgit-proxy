@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
-import org.finos.gitproxy.config.ProviderConfigurationSource;
 import org.finos.gitproxy.db.FetchStore;
 import org.finos.gitproxy.db.FetchStore.RepoFetchSummary;
 import org.finos.gitproxy.db.PushStore;
@@ -17,6 +16,7 @@ import org.finos.gitproxy.db.RepoRegistry;
 import org.finos.gitproxy.db.model.AccessRule;
 import org.finos.gitproxy.db.model.PushQuery;
 import org.finos.gitproxy.db.model.PushRecord;
+import org.finos.gitproxy.provider.ProviderRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -39,7 +39,7 @@ public class RepoController {
     private PushStore pushStore;
 
     @Resource(name = "providers")
-    private ProviderConfigurationSource providerSource;
+    private ProviderRegistry providerSource;
 
     /** List all access rules. */
     @GetMapping("/rules")

@@ -18,7 +18,9 @@ import org.finos.gitproxy.approval.ApprovalGateway;
 import org.finos.gitproxy.approval.AutoApprovalGateway;
 import org.finos.gitproxy.approval.UiApprovalGateway;
 import org.finos.gitproxy.config.CommitConfig;
+import org.finos.gitproxy.config.DiffScanConfig;
 import org.finos.gitproxy.config.GpgConfig;
+import org.finos.gitproxy.config.SecretScanConfig;
 import org.finos.gitproxy.db.PushStore;
 import org.finos.gitproxy.db.PushStoreFactory;
 import org.finos.gitproxy.git.*;
@@ -146,6 +148,8 @@ class JettyProxyFixture implements AutoCloseable {
         gitServlet.setReceivePackFactory(new StoreAndForwardReceivePackFactory(
                 provider,
                 () -> commitConfig,
+                DiffScanConfig::defaultConfig,
+                SecretScanConfig::defaultConfig,
                 GpgConfig.defaultConfig(),
                 null,
                 null,
@@ -200,7 +204,7 @@ class JettyProxyFixture implements AutoCloseable {
         addFilter(context, proxyMapping, new CheckHiddenCommitsFilter(provider));
         addFilter(context, proxyMapping, new CheckAuthorEmailsFilter(commitConfig));
         addFilter(context, proxyMapping, new CheckCommitMessagesFilter(commitConfig));
-        addFilter(context, proxyMapping, new ScanDiffFilter(provider, commitConfig));
+        addFilter(context, proxyMapping, new ScanDiffFilter(provider, DiffScanConfig.defaultConfig()));
         addFilter(context, proxyMapping, new GpgSignatureFilter(GpgConfig.defaultConfig()));
         addFilter(context, proxyMapping, new ValidationSummaryFilter());
         addFilter(context, proxyMapping, new FetchFinalizerFilter());

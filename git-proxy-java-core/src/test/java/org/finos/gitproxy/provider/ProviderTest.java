@@ -118,33 +118,69 @@ class ProviderTest {
         assertEquals("/proxy/git.corp.com", p.servletPath());
     }
 
-    // --- InMemoryProviderRepository ---
+    // --- InMemoryProviderRegistry ---
 
     @Test
-    void inMemoryRepo_getProvider_returnsCorrectProvider() {
+    void registry_fromMap_getByFriendlyName() {
         var github = new GitHubProvider("/proxy");
-        var repo = new InMemoryProviderRepository(Map.of("github", github));
-        assertSame(github, repo.getProvider("github"));
+        var registry = new InMemoryProviderRegistry(Map.of("github", github));
+        assertSame(github, registry.getProvider("github"));
     }
 
     @Test
-    void inMemoryRepo_getProvider_unknownName_returnsNull() {
-        var repo = new InMemoryProviderRepository(Map.of());
-        assertNull(repo.getProvider("unknown"));
+    void registry_fromMap_unknownName_returnsNull() {
+        var registry = new InMemoryProviderRegistry(Map.of());
+        assertNull(registry.getProvider("unknown"));
     }
 
     @Test
-    void inMemoryRepo_getProviders_returnsAll() {
+    void registry_fromList_getByName() {
         var github = new GitHubProvider("/proxy");
         var gitlab = new GitLabProvider("/proxy");
-        var repo = new InMemoryProviderRepository(Map.of("github", github, "gitlab", gitlab));
-        assertEquals(2, repo.getProviders().size());
-        assertTrue(repo.getProviders().containsAll(List.of(github, gitlab)));
+        var registry = new InMemoryProviderRegistry(List.of(github, gitlab));
+        assertSame(github, registry.getProvider("github"));
+        assertSame(gitlab, registry.getProvider("gitlab"));
     }
 
     @Test
-    void inMemoryRepo_getProviders_empty() {
-        var repo = new InMemoryProviderRepository(Map.of());
-        assertTrue(repo.getProviders().isEmpty());
+    void registry_getProviders_returnsAll() {
+        var github = new GitHubProvider("/proxy");
+        var gitlab = new GitLabProvider("/proxy");
+        var registry = new InMemoryProviderRegistry(Map.of("github", github, "gitlab", gitlab));
+        assertEquals(2, registry.getProviders().size());
+        assertTrue(registry.getProviders().containsAll(List.of(github, gitlab)));
+    }
+
+    @Test
+    void registry_getProviders_empty() {
+        var registry = new InMemoryProviderRegistry(Map.of());
+        assertTrue(registry.getProviders().isEmpty());
+    }
+
+    @Test
+    void registry_resolveProvider_byFriendlyName() {
+        var github = new GitHubProvider("/proxy");
+        var registry = new InMemoryProviderRegistry(Map.of("github", github));
+        assertSame(github, registry.resolveProvider("github"));
+    }
+
+    @Test
+    void registry_resolveProvider_byTypeHostId() {
+        var github = new GitHubProvider("/proxy");
+        var registry = new InMemoryProviderRegistry(Map.of("github", github));
+        // "github/github.com" is the canonical type/host ID
+        assertSame(github, registry.resolveProvider("github/github.com"));
+    }
+
+    @Test
+    void registry_resolveProvider_unknown_returnsNull() {
+        var registry = new InMemoryProviderRegistry(Map.of());
+        assertNull(registry.resolveProvider("nonexistent/host.example.com"));
+    }
+
+    @Test
+    void registry_resolveProvider_null_returnsNull() {
+        var registry = new InMemoryProviderRegistry(Map.of());
+        assertNull(registry.resolveProvider(null));
     }
 }

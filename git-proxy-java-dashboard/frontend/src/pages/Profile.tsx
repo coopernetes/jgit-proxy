@@ -155,7 +155,8 @@ export function Profile() {
                   </span>
                   {isSelfCertify && (
                     <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-56 rounded bg-gray-800 px-2 py-1.5 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                      This role allows you to self-approve your own pushes, but an admin must also grant the Self-certify permission on each individual repository.
+                      This role allows you to self-approve your own pushes, but an admin must also
+                      grant the Self-certify permission on each individual repository.
                       <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                     </span>
                   )}

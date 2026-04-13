@@ -17,11 +17,11 @@ users:
 # admin can push and approve on the Gitea test repos.
 permissions:
   - username: admin
-    provider: forgejo/gitea
+    provider: gitea
     path: /test-owner/test-repo
     operations: PUSH_AND_REVIEW
   - username: admin
-    provider: forgejo/gitea
+    provider: gitea
     path: /otherorg/*
     path-type: GLOB
     operations: PUSH_AND_REVIEW

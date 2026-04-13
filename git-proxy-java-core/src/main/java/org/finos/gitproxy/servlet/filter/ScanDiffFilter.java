@@ -14,7 +14,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.Repository;
-import org.finos.gitproxy.config.CommitConfig;
+import org.finos.gitproxy.config.DiffScanConfig;
 import org.finos.gitproxy.db.model.PushStep;
 import org.finos.gitproxy.db.model.StepStatus;
 import org.finos.gitproxy.git.CommitInspectionService;
@@ -40,21 +40,20 @@ import org.finos.gitproxy.validation.Violation;
 public class ScanDiffFilter extends AbstractProviderAwareGitProxyFilter {
 
     private static final int ORDER = 300;
+    private static final String PROXY_PATH_PREFIX = "/proxy";
 
-    private final Supplier<CommitConfig> commitConfigSupplier;
+    private final Supplier<DiffScanConfig> diffScanConfigSupplier;
 
     /** Live-reload constructor — config is read from the supplier on every request. */
-    public ScanDiffFilter(GitProxyProvider provider, Supplier<CommitConfig> commitConfigSupplier) {
+    public ScanDiffFilter(GitProxyProvider provider, Supplier<DiffScanConfig> diffScanConfigSupplier) {
         super(ORDER, Set.of(HttpOperation.PUSH), provider, PROXY_PATH_PREFIX);
-        this.commitConfigSupplier = commitConfigSupplier;
+        this.diffScanConfigSupplier = diffScanConfigSupplier;
     }
 
     /** Fixed-config constructor. Useful in tests; wraps the value in a constant supplier. */
-    public ScanDiffFilter(GitProxyProvider provider, CommitConfig commitConfig) {
-        this(provider, () -> commitConfig != null ? commitConfig : CommitConfig.defaultConfig());
+    public ScanDiffFilter(GitProxyProvider provider, DiffScanConfig diffScanConfig) {
+        this(provider, () -> diffScanConfig != null ? diffScanConfig : DiffScanConfig.defaultConfig());
     }
-
-    private static final String PROXY_PATH_PREFIX = "/proxy";
 
     @Override
     public String getStepName() {
@@ -96,9 +95,8 @@ public class ScanDiffFilter extends AbstractProviderAwareGitProxyFilter {
                     .build();
             requestDetails.getSteps().add(diffStep);
 
-            CommitConfig.BlockConfig block =
-                    commitConfigSupplier.get().getDiff().getBlock();
-            BlockedContentDiffCheck check = new BlockedContentDiffCheck(block);
+            BlockedContentDiffCheck check =
+                    new BlockedContentDiffCheck(diffScanConfigSupplier.get().getBlock());
             List<Violation> violations = check.check(diff).orElse(List.of());
 
             if (!violations.isEmpty()) {

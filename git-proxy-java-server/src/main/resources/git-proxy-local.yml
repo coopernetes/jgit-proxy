@@ -2,21 +2,19 @@ logging:
   level:
     org.finos.gitproxy: DEBUG
 
-providers:
-  github/github.com:
-    attestation-questions:
-      - id: reviewed-content
-        type: checkbox
-        label: "I have reviewed the diff and it contains no sensitive or proprietary information"
-        required: true
-      - id: policy-compliance
-        type: checkbox
-        label: "This push complies with our open source contribution policy"
-        required: true
-      - id: ticket-ref
-        type: text
-        label: "Internal ticket or justification reference"
-        required: false
+attestations:
+  - id: reviewed-content
+    type: checkbox
+    label: "I have reviewed the diff and it contains no sensitive or proprietary information"
+    required: true
+  - id: policy-compliance
+    type: checkbox
+    label: "This push complies with our open source contribution policy"
+    required: true
+  - id: ticket-ref
+    type: text
+    label: "Internal ticket or justification reference"
+    required: false
 
 server:
   # Allow the Vite dev server to make cross-origin requests to the backend.
@@ -45,9 +43,9 @@ users:
   - username: thomas-cooper
     password-hash: "{noop}password"
     scm-identities:
-      - provider: github/github.com
+      - provider: github
         username: coopernetes
-      - provider: gitlab/gitlab.com
+      - provider: gitlab
         username: coopernetes
       # codeberg intentionally omitted — used to test unresolved-identity scenario
     emails:
@@ -77,15 +75,17 @@ commit:
       # Commit messages matching any of these patterns are rejected.
       patterns:
         - '(?i)(password|secret|token)\s*[=:]\s*\S+'
-  diff:
-    block:
-      # Example: block internal hostnames/URLs from leaking into public repos.
-      literals:
-        - "internal.corp.example.com"
-      patterns:
-        - '(?i)https?://[a-z0-9.-]*\.corp\.example\.com\b'
-  secret-scanning:
-    enabled: true
+
+diff-scan:
+  block:
+    # Example: block internal hostnames/URLs from leaking into public repos.
+    literals:
+      - "internal.corp.example.com"
+    patterns:
+      - '(?i)https?://[a-z0-9.-]*\.corp\.example\.com\b'
+
+secret-scan:
+  enabled: true
 
 # Repo permissions for local dev / smoke testing.
 #
@@ -101,50 +101,50 @@ commit:
 #                      block before it's evaluated in push-identity-codeberg.sh)
 permissions:
   - username: thomas-cooper
-    provider: github/github.com
+    provider: github
     path: /finos/git-proxy
     operations: PUSH
   - username: thomas-cooper
-    provider: github/github.com
+    provider: github
     path: /coopernetes/test-repo
     operations: PUSH
   - username: thomas-cooper
-    provider: github/github.com
+    provider: github
     path: /coopernetes/testing-123
     operations: PUSH
   - username: thomas-cooper
-    provider: github/github.com
+    provider: github
     path: /coopernetes/git-proxy-java
     operations: PUSH
   - username: thomas-cooper
-    provider: gitlab/gitlab.com
+    provider: gitlab
     path: /coopernetes/*
     path-type: GLOB
     operations: PUSH
   - username: thomas-cooper
-    provider: forgejo/codeberg.org
+    provider: codeberg
     path: \/coopernetes\/test\-repo\-([\w]+) # matches /coopernetes/test-repo-codeberg & any test-repo-<something>
     path-type: REGEX
     operations: PUSH
   - username: reviewer
-    provider: github/github.com
+    provider: github
     path: /finos/git-proxy
     operations: REVIEW
   - username: reviewer
-    provider: github/github.com
+    provider: github
     path: /coopernetes/test-repo
     operations: REVIEW
   - username: reviewer
-    provider: github/github.com
+    provider: github
     path: /coopernetes/testing-123
     operations: REVIEW
   - username: reviewer
-    provider: gitlab/gitlab.com
+    provider: gitlab
     path: /coopernetes/*
     path-type: GLOB
     operations: REVIEW
   - username: reviewer
-    provider: forgejo/codeberg.org
+    provider: codeberg
     path: /coopernetes/test-repo-codeberg
     path-type: REGEX
     operations: REVIEW
@@ -157,7 +157,7 @@ rules:
         - FETCH
         - PUSH
       providers:
-        - github/github.com
+        - github
       slugs:
         - /finos/git-proxy
         - /coopernetes/git-proxy-java
@@ -169,7 +169,7 @@ rules:
         - FETCH
         - PUSH
       providers:
-        - gitlab/gitlab.com
+        - gitlab
       slugs:
         - /coopernetes/test-repo-gitlab
     - enabled: true
@@ -178,7 +178,7 @@ rules:
         - FETCH
         - PUSH
       providers:
-        - forgejo/codeberg.org
+        - codeberg
       slugs:
         - /coopernetes/test-repo-codeberg
     - enabled: true
@@ -188,7 +188,7 @@ rules:
       owners:
         - finos
       providers:
-        - github/github.com
+        - github
 
   deny:
     # Guard: never allow pushes to this proxy's own source repository through the proxy.
@@ -198,7 +198,7 @@ rules:
       operations:
         - PUSH
       providers:
-        - github/github.com
+        - github
       slugs:
         - /coopernetes/git-proxy-java
 
@@ -209,6 +209,6 @@ rules:
       operations:
         - PUSH
       providers:
-        - github/github.com
+        - github
       names:
         - "*.github.io"

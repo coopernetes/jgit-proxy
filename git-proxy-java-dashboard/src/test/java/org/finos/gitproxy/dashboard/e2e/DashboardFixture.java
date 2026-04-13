@@ -10,7 +10,6 @@ import org.eclipse.jetty.ee11.servlet.ServletContextHandler;
 import org.eclipse.jetty.ee11.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
-import org.finos.gitproxy.config.InMemoryProviderConfigurationSource;
 import org.finos.gitproxy.dashboard.SecurityConfig;
 import org.finos.gitproxy.dashboard.SpringWebConfig;
 import org.finos.gitproxy.db.PushStoreFactory;
@@ -21,6 +20,7 @@ import org.finos.gitproxy.jetty.config.JettyConfigurationBuilder;
 import org.finos.gitproxy.jetty.reload.LiveConfigLoader;
 import org.finos.gitproxy.permission.InMemoryRepoPermissionStore;
 import org.finos.gitproxy.permission.RepoPermissionService;
+import org.finos.gitproxy.provider.InMemoryProviderRegistry;
 import org.finos.gitproxy.user.ReadOnlyUserStore;
 import org.finos.gitproxy.user.StaticUserStore;
 import org.finos.gitproxy.user.UserEntry;
@@ -69,13 +69,13 @@ class DashboardFixture implements AutoCloseable {
         appContext.register(SpringWebConfig.class, SecurityConfig.class);
         var configBuilder = new JettyConfigurationBuilder(config);
         var configHolder = configBuilder.buildConfigHolder();
-        var liveConfigLoader = new LiveConfigLoader(configHolder, config, config.getReload());
+        var liveConfigLoader = new LiveConfigLoader(configHolder, config, config.getReload(), null, null);
 
         appContext.addBeanFactoryPostProcessor(bf -> {
             bf.registerSingleton("userStore", userStore);
             bf.registerSingleton("gitProxyConfig", config);
             bf.registerSingleton("pushStore", PushStoreFactory.inMemory());
-            bf.registerSingleton("providers", new InMemoryProviderConfigurationSource(List.of()));
+            bf.registerSingleton("providers", new InMemoryProviderRegistry(List.of()));
             bf.registerSingleton("configHolder", configHolder);
             bf.registerSingleton("liveConfigLoader", liveConfigLoader);
             bf.registerSingleton("repoRegistry", new InMemoryRepoRegistry());

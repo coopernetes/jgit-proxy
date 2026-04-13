@@ -43,6 +43,7 @@ public class GitProxyJettyApplication {
 
         GitProxyConfig gitProxyConfig = GitProxyConfigLoader.load();
         var configBuilder = new JettyConfigurationBuilder(gitProxyConfig);
+        configBuilder.validateProviderReferences(); // fail fast before any DB or port setup
 
         var threadPool = new QueuedThreadPool();
         threadPool.setName("git-proxy-java-server");
@@ -67,7 +68,11 @@ public class GitProxyJettyApplication {
         GitProxyServletRegistrar.registerProviders(context, ctx, configBuilder, providers);
 
         var liveConfigLoader = new LiveConfigLoader(
-                configBuilder.buildConfigHolder(), gitProxyConfig, configBuilder.getReloadConfig());
+                configBuilder.buildConfigHolder(),
+                gitProxyConfig,
+                configBuilder.getReloadConfig(),
+                ctx.repoRegistry(),
+                ctx.repoPermissionService());
         liveConfigLoader.start();
         server.addEventListener(new LifeCycle.Listener() {
             @Override

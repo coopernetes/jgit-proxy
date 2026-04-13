@@ -8,7 +8,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.finos.gitproxy.config.CommitConfig.SecretScanningConfig;
+import org.finos.gitproxy.config.SecretScanConfig;
 import org.finos.gitproxy.git.GitleaksRunner;
 
 /**
@@ -22,10 +22,10 @@ import org.finos.gitproxy.git.GitleaksRunner;
 @RequiredArgsConstructor
 public class SecretScanCheck implements DiffCheck {
 
-    private final SecretScanningConfig config;
+    private final SecretScanConfig config;
     private final GitleaksRunner runner;
 
-    public SecretScanCheck(SecretScanningConfig config) {
+    public SecretScanCheck(SecretScanConfig config) {
         this(config, new GitleaksRunner());
     }
 

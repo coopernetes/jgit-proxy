@@ -391,6 +391,13 @@ export function Repos() {
   const [rules, setRules] = useState<AccessRule[]>([])
   const [loadedTab, setLoadedTab] = useState<Tab | null>(null)
   const [showAddRule, setShowAddRule] = useState(false)
+  const [providers, setProviders] = useState<{ name: string; id: string; host: string }[]>([])
+
+  useEffect(() => {
+    fetchProviders()
+      .then((data: { name: string; id: string; host: string }[]) => setProviders(data))
+      .catch(() => {})
+  }, [])
 
   const loading = loadedTab !== tab
 
@@ -466,7 +473,9 @@ export function Repos() {
                   className="bg-white rounded-lg shadow border border-gray-200 px-6 py-4 flex items-center justify-between"
                 >
                   <div>
-                    <div className="text-xs text-gray-400 mb-0.5">{repo.provider}</div>
+                    <div className="text-xs text-gray-400 mb-0.5">
+                      {providers.find((p) => p.id === repo.provider)?.host ?? repo.provider}
+                    </div>
                     <div className="font-semibold text-gray-800">
                       {repo.owner}/{repo.repoName}
                     </div>
@@ -538,7 +547,13 @@ export function Repos() {
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-xs text-gray-400">
-                          provider: <span className="text-gray-600">{rule.provider ?? 'all'}</span>
+                          provider:{' '}
+                          <span className="text-gray-600">
+                            {rule.provider
+                              ? (providers.find((p) => p.id === rule.provider)?.host ??
+                                rule.provider)
+                              : 'all'}
+                          </span>
                         </span>
                         {rule.description && (
                           <span className="text-xs text-gray-400">— {rule.description}</span>

@@ -17,6 +17,7 @@ import org.finos.gitproxy.db.model.PushRecord;
 import org.finos.gitproxy.db.model.PushStatus;
 import org.finos.gitproxy.jetty.config.GitProxyConfig;
 import org.finos.gitproxy.jetty.config.ServerConfig;
+import org.finos.gitproxy.jetty.reload.ConfigHolder;
 import org.finos.gitproxy.permission.RepoPermissionService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Nested;
@@ -42,6 +43,9 @@ class PushControllerTest {
 
     @Mock
     GitProxyConfig gitProxyConfig;
+
+    @Mock
+    ConfigHolder configHolder;
 
     // Not injected by default — individual tests that need it set it on the controller directly.
     RepoPermissionService repoPermissionService;
