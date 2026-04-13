@@ -410,6 +410,7 @@ public class SecurityConfig {
                     oauth2.clientRegistrationRepository(new InMemoryClientRegistrationRepository(registration))
                             .authorizedClientRepository(new HttpSessionOAuth2AuthorizedClientRepository())
                             .successHandler(successHandler)
+                            .failureUrl("/login.html?error")
                             .userInfoEndpoint(userInfo ->
                                     userInfo.oidcUserService(buildOidcUserService(roleMappings, groupsClaim)));
 
