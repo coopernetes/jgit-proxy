@@ -106,7 +106,8 @@ public class ProfileController {
     public ResponseEntity<?> removeScmIdentity(@PathVariable String provider, @PathVariable String scmUsername) {
         if (!(userStore instanceof UserStore mutable)) return NOT_MUTABLE;
         try {
-            mutable.removeScmIdentity(currentUsername(), provider, scmUsername);
+            // Provider IDs are `{type}/{host}`; frontend swaps `/` → `@` to survive URL path routing.
+            mutable.removeScmIdentity(currentUsername(), provider.replace('@', '/'), scmUsername);
         } catch (LockedByConfigException e) {
             return LOCKED_BY_CONFIG;
         }

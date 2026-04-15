@@ -415,8 +415,8 @@ public class SecurityConfig {
                                     userInfo.oidcUserService(buildOidcUserService(roleMappings, groupsClaim)));
 
                     if (usePrivateKeyJwt) {
-                        RSAKey rsaKey = loadRsaKey(
-                                oidcCfg.getPrivateKeyPath(), oidcCfg.getCertPath(), oidcCfg.getKeyId());
+                        RSAKey rsaKey =
+                                loadRsaKey(oidcCfg.getPrivateKeyPath(), oidcCfg.getCertPath(), oidcCfg.getKeyId());
                         Function<ClientRegistration, JWK> jwkResolver = reg ->
                                 ClientAuthenticationMethod.PRIVATE_KEY_JWT.equals(reg.getClientAuthenticationMethod())
                                         ? rsaKey
@@ -597,6 +597,7 @@ public class SecurityConfig {
      * embedded in the private key — no separate public key file is needed.
      *
      * <p>Key-ID precedence when {@code private-key-path} is set:
+     *
      * <ol>
      *   <li>{@code certPath} non-blank → SHA-256 thumbprint set as {@code x5t#S256} (Entra ID)
      *   <li>{@code keyId} non-blank → used as explicit {@code kid} (Keycloak, Okta, Auth0, Dex)

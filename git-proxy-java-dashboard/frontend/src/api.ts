@@ -1,3 +1,12 @@
+/**
+ * Provider IDs are internally `{type}/{host}` (e.g. `github/github.com`). The `/` breaks URL path
+ * routing — Spring Security's StrictHttpFirewall rejects `%2F` with HTTP 400. Swap `/` for `@` on
+ * the wire; the controller swaps it back before touching the store.
+ */
+function providerToPathKey(provider: string): string {
+  return provider.replace(/\//g, '@')
+}
+
 /** Reads the XSRF-TOKEN cookie set by Spring Security's CookieCsrfTokenRepository. */
 function getCsrfToken(): string | null {
   const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/)
@@ -156,7 +165,7 @@ export async function addScmIdentity(provider: string, username: string) {
 
 export async function removeScmIdentity(provider: string, scmUsername: string) {
   const res = await apiFetch(
-    `/api/me/identities/${encodeURIComponent(provider)}/${encodeURIComponent(scmUsername)}`,
+    `/api/me/identities/${encodeURIComponent(providerToPathKey(provider))}/${encodeURIComponent(scmUsername)}`,
     { method: 'DELETE' },
   )
   if (!res.ok) await parseErrorResponse(res, 'Failed to remove SCM identity')
@@ -222,7 +231,7 @@ export async function removeUserEmail(username: string, email: string) {
 
 export async function removeUserIdentity(username: string, provider: string, scmUsername: string) {
   const res = await apiFetch(
-    `/api/users/${encodeURIComponent(username)}/identities/${encodeURIComponent(provider)}/${encodeURIComponent(scmUsername)}`,
+    `/api/users/${encodeURIComponent(username)}/identities/${encodeURIComponent(providerToPathKey(provider))}/${encodeURIComponent(scmUsername)}`,
     { method: 'DELETE' },
   )
   if (!res.ok) await parseErrorResponse(res, 'Failed to remove SCM identity')

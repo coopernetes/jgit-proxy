@@ -196,7 +196,8 @@ public class UserController {
             return ResponseEntity.notFound().build();
         }
         try {
-            mutable.removeScmIdentity(username, provider, scmUsername);
+            // Provider IDs are `{type}/{host}`; frontend swaps `/` → `@` to survive URL path routing.
+            mutable.removeScmIdentity(username, provider.replace('@', '/'), scmUsername);
         } catch (LockedByConfigException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
         }

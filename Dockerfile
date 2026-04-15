@@ -55,16 +55,17 @@ WORKDIR /app
 COPY --from=builder \
     /workspace/git-proxy-java-dashboard/build/install/git-proxy-java-dashboard/ /app/
 
-# Create the conf directory; mount a git-proxy-local.yml here to override config.
+# Create the conf directory; mount a git-proxy-{profile}.yml here to override config.
 # Example: -v ./docker/git-proxy-local.yml:/app/conf/git-proxy-local.yml:ro
+# docker run -e GITPROXY_CONFIG_PROFILE=local -v ./docker/git-proxy-local.yml:/app/conf/git-proxy-local.yml:ro ...
 RUN mkdir -p /app/conf
 
 # Data directory for file-based databases (h2-file, sqlite), log output, and
 # JGit home (used for lock files and system config). Owned by GID 0 with
 # group-write so the image works under OpenShift's arbitrary-UID security model.
-RUN mkdir -p /app/.data /app/logs /app/home \
-    && chown -R 1000:0 /app/.data /app/logs /app/home \
-    && chmod -R g+rwX /app/.data /app/logs /app/home
+RUN bash -c 'mkdir -p /app/{.data,logs,home} \
+    && chown -R 1000:0 /app/{.data,logs,home} \
+    && chmod g+rwX /app/{.data,logs,home}'
 
 ENV HOME=/app/home
 
