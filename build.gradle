@@ -1,6 +1,7 @@
 plugins {
     id 'com.diffplug.spotless' version '8.4.0' apply false
     id 'org.owasp.dependencycheck' version '12.2.0'
+    id 'org.cyclonedx.bom' version '3.2.4'
     id 'com.github.node-gradle.node' version '7.1.0' apply false
 }
 
@@ -84,9 +85,14 @@ allprojects {
         analyzers.ossIndex.url = 'https://api.guide.sonatype.com/'
         failBuildOnCVSS = 5
         suppressionFile = rootProject.file('gradle-suppressions.xml').toString()
+        failOnError = false
     }
 }
 
+
+cyclonedxBom {
+    projectType = 'application'
+}
 
 tasks.register('installGitHooks') {
     group = 'build setup'

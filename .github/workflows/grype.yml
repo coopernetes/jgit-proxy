@@ -15,7 +15,7 @@ on:
 
 jobs:
   grype:
-    name: Grype / Container Scan
+    name: Container Scan
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

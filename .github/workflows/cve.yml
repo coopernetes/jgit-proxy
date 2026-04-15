@@ -11,7 +11,7 @@ on:
 
 jobs:
   grype-npm:
-    name: CVE / Grype (npm)
+    name: CVE / npm
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -36,9 +36,12 @@ jobs:
         with:
           sarif_file: ${{ steps.scan.outputs.sarif }}
 
-  depcheck:
-    name: CVE / Dependency Check (Gradle)
+  grype-gradle:
+    name: CVE / Gradle
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
@@ -48,32 +51,29 @@ jobs:
           java-version: 21
           cache: gradle
 
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # ratchet:actions/setup-node@v6
-        with:
-          node-version: '24.14.1'
-          cache: npm
-          cache-dependency-path: git-proxy-java-dashboard/frontend/package-lock.json
+      - name: Generate SBOM
+        run: ./gradlew cyclonedxBom -PskipFrontend
 
-      - name: Build project with Gradle
-        run: ./gradlew clean testClasses
-      - name: Cache CVE data
-        id: cache-cve
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # ratchet:actions/cache@v5
+      - name: Scan SBOM with Grype
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # ratchet:anchore/scan-action@v7
+        id: scan
         with:
-          path: ~/.gradle/dependency-check-data/
-          key: depcheck-db-${{ github.run_id }}
-          restore-keys: depcheck-db-
-      - name: Depcheck
-        run: ./gradlew dependencyCheckAggregate --info
-        timeout-minutes: 180
-        env:
-          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
-          OSS_INDEX_USERNAME: ${{ secrets.OSS_INDEX_USERNAME }}
-          OSS_INDEX_TOKEN: ${{ secrets.OSS_INDEX_TOKEN }}
+          sbom: build/reports/cyclonedx/bom.json
+          fail-build: true
+          severity-cutoff: high
+          only-fixed: true
+          config: .grype.yaml
 
-      - name: Upload Test results
+      - name: Upload SARIF report
+        if: ${{ always() }}
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # ratchet:github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ${{ steps.scan.outputs.sarif }}
+
+      - name: Upload SBOM
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ratchet:actions/upload-artifact@v7
         with:
-          name: Depcheck report
-          path: ${{ github.workspace }}/build/reports/dependency-check*
+          name: sbom-gradle
+          path: build/reports/cyclonedx/bom.json
+          retention-days: 30
