@@ -25,6 +25,14 @@ Gradle itself is included via the wrapper — no separate installation needed.
 
 Formatting is enforced in CI. Always run `spotlessApply` before pushing.
 
+When working on Java-only changes in the dashboard module, pass `-PskipFrontend` to skip the
+Node/npm frontend build steps (requires Node to be available otherwise):
+
+```shell
+./gradlew :git-proxy-java-dashboard:compileJava -PskipFrontend
+./gradlew :git-proxy-java-dashboard:build -PskipFrontend
+```
+
 ## Running the server locally
 
 ### Proxy only (no dashboard)
