@@ -2,9 +2,9 @@ package org.finos.gitproxy.git;
 
 import static org.finos.gitproxy.git.GitClientUtils.ZERO_OID;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
@@ -12,6 +12,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.lib.PersonIdent;
+import org.eclipse.jgit.transport.PacketLineIn;
 import org.eclipse.jgit.util.RawParseUtils;
 
 @Slf4j
@@ -74,18 +75,14 @@ public class GitReceivePackParser {
     }
 
     public static Commit parsePackData(byte[] data) throws IOException {
-        int pos = findPackSignature(data);
+        int pos = findPackDataOffset(data);
 
         // Check if pack signature was found
         if (pos == -1) {
             throw new IOException("No PACK signature found in data");
         }
 
-        // Read pack header
-        byte[] header = new byte[12];
-        System.arraycopy(data, pos, header, 0, 12);
-
-        // Skip version and entry count validation
+        // Skip pack header (signature + version + entry count)
         pos += 12;
 
         // Only parse the first commit object
@@ -97,31 +94,38 @@ public class GitReceivePackParser {
     }
 
     /**
-     * Find the start of PACK data. Checks offset 0 first (normal case after ParseGitRequestFilter consumes the pkt-line
-     * section), then falls back to walking any remaining pkt-lines to find the flush boundary.
+     * Find the start of PACK data in a git receive-pack request body. Accepts either a body that already starts with
+     * the PACK signature (the normal case after {@code ParseGitRequestFilter} has consumed the pkt-line section) or a
+     * full receive-pack body containing pkt-line command frames followed by a flush (0000) and then PACK data.
      *
-     * <p>CVE-2025-54584: replaces the former naive byte-scan for 'P','A','C','K' which could be spoofed by a crafted
-     * ref name or commit content containing those bytes.
+     * <p>Uses JGit's {@link PacketLineIn} to walk the pkt-line framing, which also protects against CVE-2025-54584 (the
+     * prior byte-scan for 'P','A','C','K' could be spoofed by a crafted ref name such as {@code refs/heads/PACK-evil}).
+     *
+     * @return byte offset of the PACK signature, or -1 if none is found
      */
-    private static int findPackSignature(byte[] data) {
+    public static int findPackDataOffset(byte[] data) {
+        if (data == null || data.length < 4) {
+            return -1;
+        }
         // Fast path: PACK signature at the start (normal after flush was consumed upstream)
-        if (data.length >= 4 && data[0] == 'P' && data[1] == 'A' && data[2] == 'C' && data[3] == 'K') {
+        if (data[0] == 'P' && data[1] == 'A' && data[2] == 'C' && data[3] == 'K') {
             return 0;
         }
-        // Fallback: walk past any remaining pkt-lines to find the flush boundary
-        int pos = 0;
-        while (pos + 4 <= data.length) {
-            int len = parsePacketLength(data, pos);
-            if (len < 0) break;
-            if (len == 0) {
-                pos += 4;
-                break;
+        // Walk pkt-line framing via JGit until we hit the flush packet
+        ByteArrayInputStream bais = new ByteArrayInputStream(data);
+        PacketLineIn pli = new PacketLineIn(bais);
+        try {
+            while (true) {
+                String line = pli.readString();
+                if (PacketLineIn.isEnd(line)) {
+                    break;
+                }
             }
-            if (len < 4 || pos + len > data.length) break;
-            pos += len;
+        } catch (IOException e) {
+            return -1;
         }
-        if (pos > 0
-                && pos + 4 <= data.length
+        int pos = data.length - bais.available();
+        if (pos + 4 <= data.length
                 && data[pos] == 'P'
                 && data[pos + 1] == 'A'
                 && data[pos + 2] == 'C'
@@ -129,14 +133,6 @@ public class GitReceivePackParser {
             return pos;
         }
         return -1;
-    }
-
-    private static int parsePacketLength(byte[] data, int pos) {
-        try {
-            return Integer.parseInt(new String(data, pos, 4, StandardCharsets.US_ASCII), 16);
-        } catch (NumberFormatException e) {
-            return -1;
-        }
     }
 
     private static PackEntry parseEntry(byte[] data, int pos) throws IOException {

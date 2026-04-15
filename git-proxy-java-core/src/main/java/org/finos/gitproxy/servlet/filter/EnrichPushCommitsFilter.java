@@ -6,7 +6,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +15,7 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.transport.PackParser;
 import org.finos.gitproxy.git.Commit;
 import org.finos.gitproxy.git.CommitInspectionService;
+import org.finos.gitproxy.git.GitReceivePackParser;
 import org.finos.gitproxy.git.GitRequestDetails;
 import org.finos.gitproxy.git.HttpOperation;
 import org.finos.gitproxy.git.LocalRepositoryCache;
@@ -114,7 +114,7 @@ public class EnrichPushCommitsFilter extends AbstractProviderAwareGitProxyFilter
         }
 
         // Walk past pkt-lines to find the PACK data boundary
-        int packOffset = findPackDataOffset(body);
+        int packOffset = GitReceivePackParser.findPackDataOffset(body);
         if (packOffset < 0) {
             log.debug("No PACK signature found in request body");
             return;
@@ -147,55 +147,6 @@ public class EnrichPushCommitsFilter extends AbstractProviderAwareGitProxyFilter
         }
         log.warn("Request is not a RequestBodyWrapper - cannot extract cached body");
         return null;
-    }
-
-    /**
-     * Find the start of PACK data by walking past the pkt-line section. The git receive-pack request body is:
-     *
-     * <pre>
-     *   pkt-line(s): 4-hex-digit length prefix + data (ref updates + capabilities)
-     *   flush:       0000
-     *   PACK data:   PACK + version + object count + objects...
-     * </pre>
-     *
-     * <p>CVE-2025-54584: replaces the former naive byte-scan for 'P','A','C','K' which could be spoofed by a crafted
-     * ref name (e.g. {@code refs/heads/PACK-evil}).
-     */
-    private int findPackDataOffset(byte[] data) {
-        int pos = 0;
-        while (pos + 4 <= data.length) {
-            int len = parsePacketLength(data, pos);
-            if (len < 0) {
-                // Not a valid pkt-line hex prefix — assume we've reached pack data
-                break;
-            }
-            if (len == 0) {
-                // Flush packet (0000) — pack data starts immediately after
-                pos += 4;
-                break;
-            }
-            if (len < 4 || pos + len > data.length) {
-                break;
-            }
-            pos += len;
-        }
-        // Verify the PACK signature is at the expected position
-        if (pos + 4 <= data.length
-                && data[pos] == 'P'
-                && data[pos + 1] == 'A'
-                && data[pos + 2] == 'C'
-                && data[pos + 3] == 'K') {
-            return pos;
-        }
-        return -1;
-    }
-
-    private static int parsePacketLength(byte[] data, int pos) {
-        try {
-            return Integer.parseInt(new String(data, pos, 4, StandardCharsets.US_ASCII), 16);
-        } catch (NumberFormatException e) {
-            return -1;
-        }
     }
 
     private void addFallbackCommit(GitRequestDetails requestDetails) {
