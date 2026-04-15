@@ -53,6 +53,11 @@ public class GitProxyJettyApplication {
         connector.setPort(configBuilder.getServerPort());
         server.addConnector(connector);
 
+        // Graceful shutdown: drain in-flight requests for up to 30s on SIGTERM before the JVM exits.
+        // Without this, rolling deploys on Kubernetes/OCP hard-kill active git push/proxy streams.
+        server.setStopTimeout(30_000);
+        server.setStopAtShutdown(true);
+
         TlsConfig tls = configBuilder.getTlsConfig();
         if (tls.isServerTlsConfigured()) {
             server.addConnector(buildHttpsConnector(server, tls));
