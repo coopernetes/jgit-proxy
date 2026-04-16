@@ -1,0 +1,28 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "enabledManagers": ["dockerfile", "gradle", "gradle-wrapper", "npm"],
+  "packageRules": [
+    {
+      "matchManagers": ["npm"],
+      "matchFileNames": ["git-proxy-java-dashboard/frontend/package.json"],
+      "labels": ["dependencies", "frontend"]
+    },
+    {
+      "matchManagers": ["gradle", "gradle-wrapper"],
+      "labels": ["dependencies", "java"]
+    },
+    {
+      "matchManagers": ["dockerfile"],
+      "labels": ["dependencies", "docker"],
+      "pinDigests": true
+    },
+    {
+      "matchDepTypes": ["devDependencies"],
+      "automerge": true,
+      "automergeType": "pr",
+      "matchUpdateTypes": ["patch", "minor"]
+    }
+  ],
+  "schedule": ["before 6am on monday"]
+}
