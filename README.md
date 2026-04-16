@@ -1,5 +1,6 @@
 [![CI](https://github.com/coopernetes/git-proxy-java/actions/workflows/ci.yml/badge.svg)](https://github.com/coopernetes/git-proxy-java/actions/workflows/ci.yml)
 [![CVE Scanning](https://github.com/coopernetes/git-proxy-java/actions/workflows/cve.yml/badge.svg)](https://github.com/coopernetes/git-proxy-java/actions/workflows/cve.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/coopernetes/git-proxy-java/badge)](https://scorecard.dev/viewer/?uri=github.com/coopernetes/git-proxy-java)
 [![License](https://img.shields.io/github/license/coopernetes/git-proxy-java)](https://github.com/coopernetes/git-proxy-java/blob/main/LICENSE)
 
 # git-proxy-java
