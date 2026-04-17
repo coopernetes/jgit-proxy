@@ -502,7 +502,7 @@ public class SecurityConfig {
      * mapped group, otherwise authentication is rejected.
      */
     private OidcUserService buildOidcUserService(Map<String, List<String>> roleMappings, String groupsClaim) {
-        return new OidcUserService() {
+        OidcUserService service = new OidcUserService() {
             @Override
             public OidcUser loadUser(OidcUserRequest userRequest) {
                 OidcUser oidcUser = super.loadUser(userRequest);
@@ -539,6 +539,11 @@ public class SecurityConfig {
                         authorities, oidcUser.getIdToken(), oidcUser.getUserInfo(), nameAttributeKey);
             }
         };
+        // graph.microsoft.com/oidc/userinfo (Entra's discovered UserInfo endpoint) returns 200 but
+        // omits preferred_username, causing DefaultOAuth2UserService to throw before the ID token
+        // merge. All required claims are present in the Entra v2.0 ID token with the profile scope.
+        service.setRetrieveUserInfo(req -> false);
+        return service;
     }
 
     /**
