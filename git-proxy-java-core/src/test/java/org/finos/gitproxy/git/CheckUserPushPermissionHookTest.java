@@ -94,8 +94,6 @@ class CheckUserPushPermissionHookTest {
 
     @Test
     void resolverReturnsEmpty_addsNotRegisteredIssue() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "pushUser", "unknown-user");
-        repo.getConfig().save();
         when(resolver.resolve(nullable(GitProxyProvider.class), eq("unknown-user"), any()))
                 .thenReturn(Optional.empty());
 
@@ -104,6 +102,7 @@ class CheckUserPushPermissionHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
         PushContext pushContext = new PushContext();
+        pushContext.setPushUser("unknown-user");
         ValidationContext validationContext = new ValidationContext();
 
         hook(validationContext, pushContext).onPreReceive(rp, List.of(cmd));
@@ -122,9 +121,6 @@ class CheckUserPushPermissionHookTest {
 
     @Test
     void userNotAuthorized_addsUnauthorizedIssue() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "pushUser", "corp-user");
-        repo.getConfig().setString("gitproxy", null, "repoSlug", "/owner/repo");
-        repo.getConfig().save();
         GitProxyProvider github = new GitHubProvider("/push");
         when(resolver.resolve(eq(github), eq("corp-user"), any())).thenReturn(Optional.of(userEntry("alice")));
         when(permService.isAllowedToPush("alice", "github/github.com", "/owner/repo"))
@@ -135,6 +131,8 @@ class CheckUserPushPermissionHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
         PushContext pushContext = new PushContext();
+        pushContext.setPushUser("corp-user");
+        pushContext.setRepoSlug("/owner/repo");
         ValidationContext validationContext = new ValidationContext();
 
         new CheckUserPushPermissionHook(resolver, permService, validationContext, pushContext, github, null)
@@ -153,10 +151,6 @@ class CheckUserPushPermissionHookTest {
 
     @Test
     void resolvedAndAuthorized_recordsPass() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "pushUser", "corp-user");
-        repo.getConfig().setString("gitproxy", null, "pushToken", "ghp_secret");
-        repo.getConfig().setString("gitproxy", null, "repoSlug", "/owner/repo");
-        repo.getConfig().save();
         GitProxyProvider github = new GitHubProvider("/push");
         when(resolver.resolve(eq(github), eq("corp-user"), eq("ghp_secret")))
                 .thenReturn(Optional.of(userEntry("alice")));
@@ -168,6 +162,9 @@ class CheckUserPushPermissionHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
         PushContext pushContext = new PushContext();
+        pushContext.setPushUser("corp-user");
+        pushContext.setPushToken("ghp_secret");
+        pushContext.setRepoSlug("/owner/repo");
         ValidationContext validationContext = new ValidationContext();
 
         new CheckUserPushPermissionHook(resolver, permService, validationContext, pushContext, github, null)
@@ -182,9 +179,6 @@ class CheckUserPushPermissionHookTest {
 
     @Test
     void nullResolver_withPushUser_passesInOpenMode() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "pushUser", "anyone");
-        repo.getConfig().save();
-
         RevCommit c1 = createCommit("init");
         RevCommit c2 = createCommit("second");
         ReceivePack rp = new ReceivePack(repo);
@@ -205,9 +199,6 @@ class CheckUserPushPermissionHookTest {
 
     @Test
     void provider_isPassedToResolver() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "pushUser", "my-user");
-        repo.getConfig().setString("gitproxy", null, "repoSlug", "/owner/repo");
-        repo.getConfig().save();
         GitProxyProvider github = new GitHubProvider("/push");
         when(resolver.resolve(eq(github), eq("my-user"), any())).thenReturn(Optional.of(userEntry("my-user")));
         when(permService.isAllowedToPush("my-user", "github/github.com", "/owner/repo"))
@@ -218,6 +209,8 @@ class CheckUserPushPermissionHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
         PushContext pushContext = new PushContext();
+        pushContext.setPushUser("my-user");
+        pushContext.setRepoSlug("/owner/repo");
         ValidationContext validationContext = new ValidationContext();
 
         new CheckUserPushPermissionHook(resolver, permService, validationContext, pushContext, github, null)

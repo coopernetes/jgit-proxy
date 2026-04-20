@@ -130,8 +130,6 @@ class IdentityVerificationHookTest {
 
     @Test
     void emailsMatch_recordsPass() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "pushUser", "alice-git");
-        repo.getConfig().save();
         when(resolver.resolve(any(GitProxyProvider.class), eq("alice-git"), isNull()))
                 .thenReturn(Optional.of(alice()));
 
@@ -140,6 +138,7 @@ class IdentityVerificationHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
         PushContext pc = new PushContext();
+        pc.setPushUser("alice-git");
         ValidationContext vc = new ValidationContext();
 
         hook(CommitConfig.IdentityVerificationMode.STRICT, vc, pc).onPreReceive(rp, List.of(cmd));
@@ -153,8 +152,6 @@ class IdentityVerificationHookTest {
 
     @Test
     void strictMode_emailMismatch_addsIssue() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "pushUser", "alice-git");
-        repo.getConfig().save();
         when(resolver.resolve(any(GitProxyProvider.class), eq("alice-git"), isNull()))
                 .thenReturn(Optional.of(alice()));
 
@@ -163,6 +160,7 @@ class IdentityVerificationHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
         PushContext pc = new PushContext();
+        pc.setPushUser("alice-git");
         ValidationContext vc = new ValidationContext();
 
         hook(CommitConfig.IdentityVerificationMode.STRICT, vc, pc).onPreReceive(rp, List.of(cmd));
@@ -176,8 +174,6 @@ class IdentityVerificationHookTest {
 
     @Test
     void warnMode_emailMismatch_noIssue_recordsPass() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "pushUser", "alice-git");
-        repo.getConfig().save();
         when(resolver.resolve(any(GitProxyProvider.class), eq("alice-git"), isNull()))
                 .thenReturn(Optional.of(alice()));
 
@@ -186,6 +182,7 @@ class IdentityVerificationHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
         PushContext pc = new PushContext();
+        pc.setPushUser("alice-git");
         ValidationContext vc = new ValidationContext();
 
         hook(CommitConfig.IdentityVerificationMode.WARN, vc, pc).onPreReceive(rp, List.of(cmd));
@@ -199,8 +196,6 @@ class IdentityVerificationHookTest {
 
     @Test
     void deleteCommand_skipped() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "pushUser", "alice-git");
-        repo.getConfig().save();
         when(resolver.resolve(any(GitProxyProvider.class), eq("alice-git"), isNull()))
                 .thenReturn(Optional.of(alice()));
 
@@ -210,6 +205,7 @@ class IdentityVerificationHookTest {
         ReceiveCommand cmd = new ReceiveCommand(
                 c1.getId(), org.eclipse.jgit.lib.ObjectId.zeroId(), "refs/heads/main", ReceiveCommand.Type.DELETE);
         PushContext pc = new PushContext();
+        pc.setPushUser("alice-git");
         ValidationContext vc = new ValidationContext();
 
         hook(CommitConfig.IdentityVerificationMode.STRICT, vc, pc).onPreReceive(rp, List.of(cmd));
@@ -221,8 +217,6 @@ class IdentityVerificationHookTest {
 
     @Test
     void strictMode_authorAndCommitterSameEmail_singleViolation() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "pushUser", "alice-git");
-        repo.getConfig().save();
         when(resolver.resolve(any(GitProxyProvider.class), eq("alice-git"), isNull()))
                 .thenReturn(Optional.of(alice())); // alice only has alice@example.com
 
@@ -232,6 +226,7 @@ class IdentityVerificationHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
         PushContext pc = new PushContext();
+        pc.setPushUser("alice-git");
         ValidationContext vc = new ValidationContext();
 
         hook(CommitConfig.IdentityVerificationMode.STRICT, vc, pc).onPreReceive(rp, List.of(cmd));
@@ -246,8 +241,6 @@ class IdentityVerificationHookTest {
 
     @Test
     void warnMode_emailMismatch_stepContentContainsViolations() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "pushUser", "alice-git");
-        repo.getConfig().save();
         when(resolver.resolve(any(GitProxyProvider.class), eq("alice-git"), isNull()))
                 .thenReturn(Optional.of(alice()));
 
@@ -256,6 +249,7 @@ class IdentityVerificationHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
         PushContext pc = new PushContext();
+        pc.setPushUser("alice-git");
         ValidationContext vc = new ValidationContext();
 
         hook(CommitConfig.IdentityVerificationMode.WARN, vc, pc).onPreReceive(rp, List.of(cmd));
@@ -274,8 +268,6 @@ class IdentityVerificationHookTest {
 
     @Test
     void resolverEmpty_skipsCheck_noStep() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "pushUser", "unknown");
-        repo.getConfig().save();
         when(resolver.resolve(any(GitProxyProvider.class), eq("unknown"), any()))
                 .thenReturn(Optional.empty());
 
@@ -284,6 +276,7 @@ class IdentityVerificationHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
         PushContext pc = new PushContext();
+        pc.setPushUser("unknown");
         ValidationContext vc = new ValidationContext();
 
         hook(CommitConfig.IdentityVerificationMode.STRICT, vc, pc).onPreReceive(rp, List.of(cmd));

@@ -80,8 +80,7 @@ public class PushStorePersistenceHook {
     public PreReceiveHook preReceiveHook() {
         return (ReceivePack rp, Collection<ReceiveCommand> commands) -> {
             String pushId = UUID.randomUUID().toString();
-            // Store push ID in repo config so post-receive can find it
-            rp.getRepository().getConfig().setString("gitproxy", null, "pushId", pushId);
+            pushContext.setPushId(pushId);
 
             try {
                 PushRecord record = buildInitialRecord(pushId, rp, commands);
@@ -102,14 +101,14 @@ public class PushStorePersistenceHook {
      */
     public PreReceiveHook validationResultHook(ValidationContext validationContext) {
         return (ReceivePack rp, Collection<ReceiveCommand> commands) -> {
-            String pushId = rp.getRepository().getConfig().getString("gitproxy", null, "pushId");
+            String pushId = pushContext != null ? pushContext.getPushId() : null;
             if (pushId == null) return;
 
-            // Re-read resolvedUser and scmUsername here — both are set by CheckUserPushPermissionHook
-            // (order 150), which runs after preReceiveHook(), so they were not available when the
-            // RECEIVED record was written. validationResultHook fires after all validation hooks complete.
-            String resolvedUserLate = rp.getRepository().getConfig().getString("gitproxy", null, "resolvedUser");
-            String scmUsernameLate = rp.getRepository().getConfig().getString("gitproxy", null, "scmUsername");
+            // Read resolvedUser and scmUsername from pushContext — both are set by CheckUserPushPermissionHook
+            // (order 150) after preReceiveHook() ran, so they were not available when the RECEIVED record
+            // was written. validationResultHook fires after all validation hooks complete.
+            String resolvedUserLate = pushContext.getResolvedUser();
+            String scmUsernameLate = pushContext.getScmUsername();
 
             try {
                 pushStore.findById(pushId).ifPresent(initial -> {
@@ -156,9 +155,7 @@ public class PushStorePersistenceHook {
                         record.setBlockedMessage(validationContext.getIssues().size() + " validation issue(s) found");
                         record.setSteps(allSteps);
                         pushStore.save(record);
-                        rp.getRepository()
-                                .getConfig()
-                                .setString("gitproxy", null, "validationRecordId", record.getId());
+                        if (pushContext != null) pushContext.setValidationRecordId(record.getId());
                         log.debug(
                                 "Saved validation result record: id={}, status=REJECTED (auto-rejected)",
                                 record.getId());
@@ -221,7 +218,7 @@ public class PushStorePersistenceHook {
                     }
 
                     pushStore.save(record);
-                    rp.getRepository().getConfig().setString("gitproxy", null, "validationRecordId", record.getId());
+                    if (pushContext != null) pushContext.setValidationRecordId(record.getId());
                     log.debug(
                             "Saved validation result record: id={}, status=PENDING (awaiting review)", record.getId());
                 });
@@ -239,7 +236,7 @@ public class PushStorePersistenceHook {
      */
     public PostReceiveHook postReceiveHook() {
         return (ReceivePack rp, Collection<ReceiveCommand> commands) -> {
-            String pushId = rp.getRepository().getConfig().getString("gitproxy", null, "pushId");
+            String pushId = pushContext != null ? pushContext.getPushId() : null;
             if (pushId == null) return;
 
             try {

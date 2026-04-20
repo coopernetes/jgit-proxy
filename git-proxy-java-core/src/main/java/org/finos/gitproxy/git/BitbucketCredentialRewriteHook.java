@@ -30,6 +30,7 @@ public class BitbucketCredentialRewriteHook implements GitProxyHook {
     private static final int ORDER = 148;
 
     private final BitbucketProvider provider;
+    private final PushContext pushContext;
 
     @Override
     public int getOrder() {
@@ -43,12 +44,11 @@ public class BitbucketCredentialRewriteHook implements GitProxyHook {
 
     @Override
     public void onPreReceive(ReceivePack rp, Collection<ReceiveCommand> commands) {
-        var repo = rp.getRepository();
-        String pushEmail = repo.getConfig().getString("gitproxy", null, "pushUser");
-        String pushToken = repo.getConfig().getString("gitproxy", null, "pushToken");
+        String pushEmail = pushContext.getPushUser();
+        String pushToken = pushContext.getPushToken();
 
         if (pushEmail == null || pushToken == null) {
-            log.debug("No push credentials in repo config — skipping Bitbucket upstream username resolution");
+            log.debug("No push credentials in context — skipping Bitbucket upstream username resolution");
             return;
         }
 
@@ -61,7 +61,7 @@ public class BitbucketCredentialRewriteHook implements GitProxyHook {
         }
 
         String upstreamUser = identity.get().login();
-        repo.getConfig().setString("gitproxy", null, "upstreamUser", upstreamUser);
+        pushContext.setUpstreamUser(upstreamUser);
         log.debug("Stored Bitbucket upstream username '{}' for push email '{}'", upstreamUser, pushEmail);
     }
 }

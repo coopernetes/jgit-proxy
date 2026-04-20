@@ -45,13 +45,14 @@ public class ApprovalPreReceiveHook implements PreReceiveHook {
     private final Duration timeout;
     private final String serviceUrl;
     private final RepoPermissionService repoPermissionService;
+    private final PushContext pushContext;
 
     public ApprovalPreReceiveHook(PushStore pushStore, ApprovalGateway approvalGateway) {
-        this(pushStore, approvalGateway, DEFAULT_TIMEOUT, null, null);
+        this(pushStore, approvalGateway, DEFAULT_TIMEOUT, null, null, null);
     }
 
     public ApprovalPreReceiveHook(PushStore pushStore, ApprovalGateway approvalGateway, String serviceUrl) {
-        this(pushStore, approvalGateway, DEFAULT_TIMEOUT, serviceUrl, null);
+        this(pushStore, approvalGateway, DEFAULT_TIMEOUT, serviceUrl, null, null);
     }
 
     public ApprovalPreReceiveHook(
@@ -59,16 +60,25 @@ public class ApprovalPreReceiveHook implements PreReceiveHook {
             ApprovalGateway approvalGateway,
             String serviceUrl,
             RepoPermissionService repoPermissionService) {
-        this(pushStore, approvalGateway, DEFAULT_TIMEOUT, serviceUrl, repoPermissionService);
+        this(pushStore, approvalGateway, DEFAULT_TIMEOUT, serviceUrl, repoPermissionService, null);
+    }
+
+    public ApprovalPreReceiveHook(
+            PushStore pushStore,
+            ApprovalGateway approvalGateway,
+            String serviceUrl,
+            RepoPermissionService repoPermissionService,
+            PushContext pushContext) {
+        this(pushStore, approvalGateway, DEFAULT_TIMEOUT, serviceUrl, repoPermissionService, pushContext);
     }
 
     public ApprovalPreReceiveHook(PushStore pushStore, ApprovalGateway approvalGateway, Duration timeout) {
-        this(pushStore, approvalGateway, timeout, null, null);
+        this(pushStore, approvalGateway, timeout, null, null, null);
     }
 
     public ApprovalPreReceiveHook(
             PushStore pushStore, ApprovalGateway approvalGateway, Duration timeout, String serviceUrl) {
-        this(pushStore, approvalGateway, timeout, serviceUrl, null);
+        this(pushStore, approvalGateway, timeout, serviceUrl, null, null);
     }
 
     public ApprovalPreReceiveHook(
@@ -77,21 +87,31 @@ public class ApprovalPreReceiveHook implements PreReceiveHook {
             Duration timeout,
             String serviceUrl,
             RepoPermissionService repoPermissionService) {
+        this(pushStore, approvalGateway, timeout, serviceUrl, repoPermissionService, null);
+    }
+
+    public ApprovalPreReceiveHook(
+            PushStore pushStore,
+            ApprovalGateway approvalGateway,
+            Duration timeout,
+            String serviceUrl,
+            RepoPermissionService repoPermissionService,
+            PushContext pushContext) {
         this.pushStore = pushStore;
         this.approvalGateway = approvalGateway;
         this.timeout = timeout;
         this.serviceUrl = serviceUrl;
         this.repoPermissionService = repoPermissionService;
+        this.pushContext = pushContext;
     }
 
     @Override
     public void onPreReceive(ReceivePack rp, Collection<ReceiveCommand> commands) {
         OutputStream msgOut = rp.getMessageOutputStream();
 
-        // Read the validation record ID stored by PushStorePersistenceHook.validationResultHook
-        String validationRecordId = rp.getRepository().getConfig().getString("gitproxy", null, "validationRecordId");
+        String validationRecordId = pushContext != null ? pushContext.getValidationRecordId() : null;
         if (validationRecordId == null) {
-            log.warn("No validationRecordId in repo config - skipping approval gate");
+            log.warn("No validationRecordId in push context - skipping approval gate");
             return;
         }
 

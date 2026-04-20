@@ -41,9 +41,9 @@ public class RepositoryUrlRuleHook implements GitProxyHook {
 
     @Override
     public void onPreReceive(ReceivePack rp, Collection<ReceiveCommand> commands) {
-        String repoSlug = rp.getRepository().getConfig().getString("gitproxy", null, "repoSlug");
+        String repoSlug = pushContext.getRepoSlug();
         if (repoSlug == null || repoSlug.isBlank()) {
-            log.warn("No repoSlug in repo config — cannot evaluate URL rules, blocking push (fail-closed)");
+            log.warn("No repoSlug in push context — cannot evaluate URL rules, blocking push (fail-closed)");
             blockPush(rp, commands, "Repository path unavailable");
             return;
         }

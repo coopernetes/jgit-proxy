@@ -74,9 +74,8 @@ public class IdentityVerificationHook implements GitProxyHook {
             return;
         }
 
-        var config = rp.getRepository().getConfig();
-        String pushUser = config.getString("gitproxy", null, "pushUser");
-        String pushToken = config.getString("gitproxy", null, "pushToken");
+        String pushUser = pushContext.getPushUser();
+        String pushToken = pushContext.getPushToken();
 
         if (pushUser == null || pushUser.isEmpty()) {
             log.debug("No push user in repo config — skipping identity verification");
