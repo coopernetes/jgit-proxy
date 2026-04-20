@@ -24,7 +24,6 @@ import org.finos.gitproxy.db.model.Attestation;
 import org.finos.gitproxy.db.model.PushRecord;
 import org.finos.gitproxy.db.model.PushStatus;
 import org.finos.gitproxy.permission.RepoPermissionService;
-import org.finos.gitproxy.git.PushContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -86,7 +85,8 @@ class ApprovalPreReceiveHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
 
-        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofMinutes(30), null, null, pushContext).onPreReceive(rp, List.of(cmd));
+        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofMinutes(30), null, null, pushContext)
+                .onPreReceive(rp, List.of(cmd));
 
         assertEquals(ReceiveCommand.Result.NOT_ATTEMPTED, cmd.getResult());
         verifyNoInteractions(approvalGateway);
@@ -106,7 +106,8 @@ class ApprovalPreReceiveHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
 
-        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofMinutes(30), null, null, pushContext).onPreReceive(rp, List.of(cmd));
+        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofMinutes(30), null, null, pushContext)
+                .onPreReceive(rp, List.of(cmd));
 
         assertEquals(ReceiveCommand.Result.NOT_ATTEMPTED, cmd.getResult());
         verifyNoInteractions(approvalGateway);
@@ -128,7 +129,8 @@ class ApprovalPreReceiveHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
 
-        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5), null, null, pushContext).onPreReceive(rp, List.of(cmd));
+        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5), null, null, pushContext)
+                .onPreReceive(rp, List.of(cmd));
 
         assertEquals(ReceiveCommand.Result.NOT_ATTEMPTED, cmd.getResult());
     }
@@ -151,7 +153,8 @@ class ApprovalPreReceiveHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
 
-        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5), null, null, pushContext).onPreReceive(rp, List.of(cmd));
+        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5), null, null, pushContext)
+                .onPreReceive(rp, List.of(cmd));
 
         assertEquals(ReceiveCommand.Result.REJECTED_OTHER_REASON, cmd.getResult());
     }
@@ -323,7 +326,8 @@ class ApprovalPreReceiveHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
 
-        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5), null, null, pushContext).onPreReceive(rp, List.of(cmd));
+        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5), null, null, pushContext)
+                .onPreReceive(rp, List.of(cmd));
 
         assertEquals(ReceiveCommand.Result.REJECTED_OTHER_REASON, cmd.getResult());
     }

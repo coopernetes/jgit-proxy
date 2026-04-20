@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-
 import lombok.Data;
 import org.finos.gitproxy.db.model.PushStep;
 
