@@ -98,8 +98,8 @@ jobs:
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # ratchet:actions/cache@v5
         with:
           path: ~/.gradle/dependency-check-data/
-          key: depcheck-db-${{ github.run_id }}
-          restore-keys: depcheck-db-
+          key: depcheck-db
+          save-always: true
 
       - name: Run OWASP Dependency Check
         timeout-minutes: 180
