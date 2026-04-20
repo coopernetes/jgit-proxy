@@ -94,15 +94,25 @@ jobs:
           java-version: 21
           cache: gradle
 
+      - name: Cache NVD database
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # ratchet:actions/cache@v5
+        with:
+          path: ~/.gradle/dependency-check-data/
+          key: depcheck-db-${{ github.run_id }}
+          restore-keys: depcheck-db-
+
       - name: Run OWASP Dependency Check
+        timeout-minutes: 180
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
-        run: ./gradlew dependencyCheckAggregate -PskipFrontend
+          OSS_INDEX_USERNAME: ${{ secrets.OSS_INDEX_USERNAME }}
+          OSS_INDEX_TOKEN: ${{ secrets.OSS_INDEX_TOKEN }}
+        run: ./gradlew dependencyCheckAggregate --info
 
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ratchet:actions/upload-artifact@v7
         with:
           name: dependency-check-report
-          path: build/reports/dependency-check-report.html
+          path: ${{ github.workspace }}/build/reports/dependency-check*
           retention-days: 30
