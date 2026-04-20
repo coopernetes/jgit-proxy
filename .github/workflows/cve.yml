@@ -38,6 +38,7 @@ jobs:
 
   grype-gradle:
     name: CVE / Gradle
+    if: false # use this job as a fallback if depcheck has failures due to changes in NVD API or similar issues.
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -76,4 +77,32 @@ jobs:
         with:
           name: sbom-gradle
           path: build/reports/cyclonedx/bom.json
+          retention-days: 30
+
+  depcheck:
+    name: CVE / Gradle
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
+
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # ratchet:actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Run OWASP Dependency Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: ./gradlew dependencyCheckAggregate -PskipFrontend
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ratchet:actions/upload-artifact@v7
+        with:
+          name: dependency-check-report
+          path: build/reports/dependency-check-report.html
           retention-days: 30
