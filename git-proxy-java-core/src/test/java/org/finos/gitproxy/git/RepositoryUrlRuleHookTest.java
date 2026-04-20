@@ -60,8 +60,6 @@ class RepositoryUrlRuleHookTest {
 
     @Test
     void withRepoSlug_allowRuleMatches_recordsPass() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "repoSlug", "/myorg/myrepo");
-        repo.getConfig().save();
 
         var allowRule = AccessRule.builder()
                 .ruleOrder(100)
@@ -70,6 +68,7 @@ class RepositoryUrlRuleHookTest {
                 .owner("myorg")
                 .build();
         var pushContext = new PushContext();
+        pushContext.setRepoSlug("/myorg/myrepo");
         var registry = new InMemoryUrlRuleRegistry();
         registry.save(allowRule);
         var hook = new RepositoryUrlRuleHook(registry, GITHUB, null, pushContext);
@@ -83,8 +82,6 @@ class RepositoryUrlRuleHookTest {
 
     @Test
     void withRepoSlug_noMatchingAllowRule_rejectsCommand() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "repoSlug", "/myorg/myrepo");
-        repo.getConfig().save();
 
         var allowRule = AccessRule.builder()
                 .ruleOrder(100)
@@ -93,6 +90,7 @@ class RepositoryUrlRuleHookTest {
                 .owner("other-org")
                 .build();
         var pushContext = new PushContext();
+        pushContext.setRepoSlug("/myorg/myrepo");
         var registry = new InMemoryUrlRuleRegistry();
         registry.save(allowRule);
         var hook = new RepositoryUrlRuleHook(registry, GITHUB, null, pushContext);
@@ -106,8 +104,6 @@ class RepositoryUrlRuleHookTest {
 
     @Test
     void withRepoSlug_denyRuleAtLowerOrder_rejectsEvenWithAllowRule() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "repoSlug", "/myorg/myrepo");
-        repo.getConfig().save();
 
         var denyRule = AccessRule.builder()
                 .ruleOrder(100)
@@ -122,6 +118,7 @@ class RepositoryUrlRuleHookTest {
                 .owner("myorg")
                 .build();
         var pushContext = new PushContext();
+        pushContext.setRepoSlug("/myorg/myrepo");
         var registry = new InMemoryUrlRuleRegistry();
         registry.save(denyRule);
         registry.save(allowRule);
@@ -136,8 +133,6 @@ class RepositoryUrlRuleHookTest {
 
     @Test
     void fetchOnlyAllowRule_doesNotEngageForPush() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "repoSlug", "/myorg/myrepo");
-        repo.getConfig().save();
 
         var fetchOnlyAllow = AccessRule.builder()
                 .ruleOrder(100)
@@ -146,6 +141,7 @@ class RepositoryUrlRuleHookTest {
                 .owner("myorg")
                 .build();
         var pushContext = new PushContext();
+        pushContext.setRepoSlug("/myorg/myrepo");
         var registry = new InMemoryUrlRuleRegistry();
         registry.save(fetchOnlyAllow);
         var hook = new RepositoryUrlRuleHook(registry, GITHUB, null, pushContext);
@@ -159,8 +155,6 @@ class RepositoryUrlRuleHookTest {
 
     @Test
     void fetchOnlyDenyRule_doesNotBlockPush() throws Exception {
-        repo.getConfig().setString("gitproxy", null, "repoSlug", "/myorg/myrepo");
-        repo.getConfig().save();
 
         var fetchDeny = AccessRule.builder()
                 .ruleOrder(100)
@@ -175,6 +169,7 @@ class RepositoryUrlRuleHookTest {
                 .owner("myorg")
                 .build();
         var pushContext = new PushContext();
+        pushContext.setRepoSlug("/myorg/myrepo");
         var registry = new InMemoryUrlRuleRegistry();
         registry.save(fetchDeny);
         registry.save(pushAllow);

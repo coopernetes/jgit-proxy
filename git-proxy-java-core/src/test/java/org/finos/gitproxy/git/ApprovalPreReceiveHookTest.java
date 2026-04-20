@@ -24,6 +24,7 @@ import org.finos.gitproxy.db.model.Attestation;
 import org.finos.gitproxy.db.model.PushRecord;
 import org.finos.gitproxy.db.model.PushStatus;
 import org.finos.gitproxy.permission.RepoPermissionService;
+import org.finos.gitproxy.git.PushContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -76,8 +77,8 @@ class ApprovalPreReceiveHookTest {
     @Test
     void validationRecordNotInStore_skipsApprovalGate() throws Exception {
         String recordId = UUID.randomUUID().toString();
-        repo.getConfig().setString("gitproxy", null, "validationRecordId", recordId);
-        repo.getConfig().save();
+        PushContext pushContext = new PushContext();
+        pushContext.setValidationRecordId(recordId);
         when(pushStore.findById(recordId)).thenReturn(Optional.empty());
 
         RevCommit c1 = createCommit("init");
@@ -85,7 +86,7 @@ class ApprovalPreReceiveHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
 
-        new ApprovalPreReceiveHook(pushStore, approvalGateway).onPreReceive(rp, List.of(cmd));
+        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofMinutes(30), null, null, pushContext).onPreReceive(rp, List.of(cmd));
 
         assertEquals(ReceiveCommand.Result.NOT_ATTEMPTED, cmd.getResult());
         verifyNoInteractions(approvalGateway);
@@ -94,8 +95,8 @@ class ApprovalPreReceiveHookTest {
     @Test
     void alreadyApproved_passesImmediately() throws Exception {
         String recordId = UUID.randomUUID().toString();
-        repo.getConfig().setString("gitproxy", null, "validationRecordId", recordId);
-        repo.getConfig().save();
+        PushContext pushContext = new PushContext();
+        pushContext.setValidationRecordId(recordId);
         PushRecord record =
                 PushRecord.builder().id(recordId).status(PushStatus.APPROVED).build();
         when(pushStore.findById(recordId)).thenReturn(Optional.of(record));
@@ -105,7 +106,7 @@ class ApprovalPreReceiveHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
 
-        new ApprovalPreReceiveHook(pushStore, approvalGateway).onPreReceive(rp, List.of(cmd));
+        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofMinutes(30), null, null, pushContext).onPreReceive(rp, List.of(cmd));
 
         assertEquals(ReceiveCommand.Result.NOT_ATTEMPTED, cmd.getResult());
         verifyNoInteractions(approvalGateway);
@@ -114,8 +115,8 @@ class ApprovalPreReceiveHookTest {
     @Test
     void blockedPush_gatewayApproves_commandNotRejected() throws Exception {
         String recordId = UUID.randomUUID().toString();
-        repo.getConfig().setString("gitproxy", null, "validationRecordId", recordId);
-        repo.getConfig().save();
+        PushContext pushContext = new PushContext();
+        pushContext.setValidationRecordId(recordId);
         PushRecord record =
                 PushRecord.builder().id(recordId).status(PushStatus.PENDING).build();
         when(pushStore.findById(recordId)).thenReturn(Optional.of(record));
@@ -127,7 +128,7 @@ class ApprovalPreReceiveHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
 
-        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5)).onPreReceive(rp, List.of(cmd));
+        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5), null, null, pushContext).onPreReceive(rp, List.of(cmd));
 
         assertEquals(ReceiveCommand.Result.NOT_ATTEMPTED, cmd.getResult());
     }
@@ -135,8 +136,8 @@ class ApprovalPreReceiveHookTest {
     @Test
     void blockedPush_gatewayRejects_commandRejected() throws Exception {
         String recordId = UUID.randomUUID().toString();
-        repo.getConfig().setString("gitproxy", null, "validationRecordId", recordId);
-        repo.getConfig().save();
+        PushContext pushContext = new PushContext();
+        pushContext.setValidationRecordId(recordId);
         PushRecord record =
                 PushRecord.builder().id(recordId).status(PushStatus.PENDING).build();
         PushRecord updatedRecord =
@@ -150,7 +151,7 @@ class ApprovalPreReceiveHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
 
-        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5)).onPreReceive(rp, List.of(cmd));
+        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5), null, null, pushContext).onPreReceive(rp, List.of(cmd));
 
         assertEquals(ReceiveCommand.Result.REJECTED_OTHER_REASON, cmd.getResult());
     }
@@ -160,8 +161,8 @@ class ApprovalPreReceiveHookTest {
     @Test
     void selfApproved_alreadyApprovedAtHookStart_noPerm_rejected() throws Exception {
         String recordId = UUID.randomUUID().toString();
-        repo.getConfig().setString("gitproxy", null, "validationRecordId", recordId);
-        repo.getConfig().save();
+        PushContext pushContext = new PushContext();
+        pushContext.setValidationRecordId(recordId);
         Attestation att = Attestation.builder()
                 .pushId(recordId)
                 .type(Attestation.Type.APPROVAL)
@@ -185,7 +186,7 @@ class ApprovalPreReceiveHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
 
-        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5), null, perms)
+        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5), null, perms, pushContext)
                 .onPreReceive(rp, List.of(cmd));
 
         assertEquals(ReceiveCommand.Result.REJECTED_OTHER_REASON, cmd.getResult());
@@ -195,8 +196,8 @@ class ApprovalPreReceiveHookTest {
     @Test
     void selfApproved_alreadyApprovedAtHookStart_withPerm_passes() throws Exception {
         String recordId = UUID.randomUUID().toString();
-        repo.getConfig().setString("gitproxy", null, "validationRecordId", recordId);
-        repo.getConfig().save();
+        PushContext pushContext = new PushContext();
+        pushContext.setValidationRecordId(recordId);
         Attestation att = Attestation.builder()
                 .pushId(recordId)
                 .type(Attestation.Type.APPROVAL)
@@ -220,7 +221,7 @@ class ApprovalPreReceiveHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
 
-        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5), null, perms)
+        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5), null, perms, pushContext)
                 .onPreReceive(rp, List.of(cmd));
 
         assertEquals(ReceiveCommand.Result.NOT_ATTEMPTED, cmd.getResult());
@@ -229,8 +230,8 @@ class ApprovalPreReceiveHookTest {
     @Test
     void selfApproved_viaWaitForApproval_noPerm_rejected() throws Exception {
         String recordId = UUID.randomUUID().toString();
-        repo.getConfig().setString("gitproxy", null, "validationRecordId", recordId);
-        repo.getConfig().save();
+        PushContext pushContext = new PushContext();
+        pushContext.setValidationRecordId(recordId);
         // Initial fetch returns PENDING (no attestation yet); after approval, returns APPROVED with attestation
         // showing the pusher self-approved.
         PushRecord pending = PushRecord.builder()
@@ -265,7 +266,7 @@ class ApprovalPreReceiveHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
 
-        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5), null, perms)
+        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5), null, perms, pushContext)
                 .onPreReceive(rp, List.of(cmd));
 
         assertEquals(ReceiveCommand.Result.REJECTED_OTHER_REASON, cmd.getResult());
@@ -276,8 +277,8 @@ class ApprovalPreReceiveHookTest {
     void differentApproverThanPusher_noReVerifyNeeded() throws Exception {
         // Approver != pusher → defense-in-depth check skipped; push is forwarded.
         String recordId = UUID.randomUUID().toString();
-        repo.getConfig().setString("gitproxy", null, "validationRecordId", recordId);
-        repo.getConfig().save();
+        PushContext pushContext = new PushContext();
+        pushContext.setValidationRecordId(recordId);
         Attestation att = Attestation.builder()
                 .pushId(recordId)
                 .type(Attestation.Type.APPROVAL)
@@ -299,7 +300,7 @@ class ApprovalPreReceiveHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
 
-        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5), null, perms)
+        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5), null, perms, pushContext)
                 .onPreReceive(rp, List.of(cmd));
 
         assertEquals(ReceiveCommand.Result.NOT_ATTEMPTED, cmd.getResult());
@@ -309,8 +310,8 @@ class ApprovalPreReceiveHookTest {
     @Test
     void blockedPush_gatewayTimesOut_commandRejected() throws Exception {
         String recordId = UUID.randomUUID().toString();
-        repo.getConfig().setString("gitproxy", null, "validationRecordId", recordId);
-        repo.getConfig().save();
+        PushContext pushContext = new PushContext();
+        pushContext.setValidationRecordId(recordId);
         PushRecord record =
                 PushRecord.builder().id(recordId).status(PushStatus.PENDING).build();
         when(pushStore.findById(recordId)).thenReturn(Optional.of(record));
@@ -322,7 +323,7 @@ class ApprovalPreReceiveHookTest {
         ReceivePack rp = new ReceivePack(repo);
         ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
 
-        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5)).onPreReceive(rp, List.of(cmd));
+        new ApprovalPreReceiveHook(pushStore, approvalGateway, Duration.ofSeconds(5), null, null, pushContext).onPreReceive(rp, List.of(cmd));
 
         assertEquals(ReceiveCommand.Result.REJECTED_OTHER_REASON, cmd.getResult());
     }

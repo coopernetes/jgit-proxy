@@ -64,10 +64,9 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
 
     @Override
     public void onPreReceive(ReceivePack rp, Collection<ReceiveCommand> commands) {
-        var config = rp.getRepository().getConfig();
-        String pushUser = config.getString("gitproxy", null, "pushUser");
-        String pushToken = config.getString("gitproxy", null, "pushToken");
-        String repoSlug = config.getString("gitproxy", null, "repoSlug");
+        String pushUser = pushContext.getPushUser();
+        String pushToken = pushContext.getPushToken();
+        String repoSlug = pushContext.getRepoSlug();
 
         if (identityResolver == null) {
             log.debug("No identity resolver configured (open mode), skipping permission check");
@@ -140,13 +139,13 @@ public class CheckUserPushPermissionHook implements GitProxyHook {
                 user.getUsername(),
                 providerId,
                 repoSlug);
-        config.setString("gitproxy", null, "resolvedUser", user.getUsername());
+        pushContext.setResolvedUser(user.getUsername());
         if (provider != null && user.getScmIdentities() != null) {
             user.getScmIdentities().stream()
                     .filter(id -> provider.getProviderId().equalsIgnoreCase(id.getProvider()))
                     .map(org.finos.gitproxy.user.ScmIdentity::getUsername)
                     .findFirst()
-                    .ifPresent(scmUser -> config.setString("gitproxy", null, "scmUsername", scmUser));
+                    .ifPresent(pushContext::setScmUsername);
         }
         pushContext.addStep(PushStep.builder()
                 .stepName("checkUserPermission")

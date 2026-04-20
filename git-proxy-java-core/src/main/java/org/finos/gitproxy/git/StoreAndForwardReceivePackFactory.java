@@ -157,34 +157,26 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
             creds = extractBasicAuth(req);
         }
 
-        // Store push credentials in repo config so hooks can read them for identity resolution.
-        // pushToken is the PAT/password — stored only in-process repo config, never persisted to disk.
-        String[] userPass = extractUserPass(req);
-        String pushUser = userPass != null ? userPass[0] : null;
-        String pushToken = userPass != null ? userPass[1] : null;
-        if (pushUser != null) {
-            db.getConfig().setString("gitproxy", null, "pushUser", pushUser);
-        }
-        if (pushToken != null) {
-            db.getConfig().setString("gitproxy", null, "pushToken", pushToken);
-        }
+        // Per-request shared contexts — created before credentials are extracted so they can be
+        // stored on pushContext rather than the shared cached Repository config.
+        var validationContext = new ValidationContext();
+        var pushContext = new PushContext();
 
-        // Store the repo slug (/owner/repo) so permission hooks can read it without re-parsing the URL.
+        // Store per-request credentials on pushContext, not the shared Repository config.
+        // Writing to db.getConfig() would race with concurrent pushes to the same cached repo.
+        String[] userPass = extractUserPass(req);
+        pushContext.setPushUser(userPass != null ? userPass[0] : null);
+        pushContext.setPushToken(userPass != null ? userPass[1] : null);
+
         String pathInfo = req.getPathInfo();
         if (pathInfo != null) {
-            // pathInfo is e.g. /owner/repo.git — strip .git suffix
             String slug = pathInfo.replaceAll("\\.git$", "");
-            // Normalise to /owner/repo (at most two path segments after leading /)
             String[] segments = slug.split("/", 4);
             if (segments.length >= 3) {
                 slug = "/" + segments[1] + "/" + segments[2];
             }
-            db.getConfig().setString("gitproxy", null, "repoSlug", slug);
+            pushContext.setRepoSlug(slug);
         }
-
-        // Per-request shared contexts
-        var validationContext = new ValidationContext();
-        var pushContext = new PushContext();
 
         // Persistence hook (records push to database)
         var persistenceHook = pushStore != null ? new PushStorePersistenceHook(pushStore, provider) : null;
@@ -247,7 +239,7 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
                 new GpgSignatureHook(gpgConfig, validationContext, pushContext),
                 new SecretScanningHook(secretScanConfig, validationContext, pushContext)));
         if (provider instanceof BitbucketProvider bitbucketProvider) {
-            validationHooks.add(new BitbucketCredentialRewriteHook(bitbucketProvider));
+            validationHooks.add(new BitbucketCredentialRewriteHook(bitbucketProvider, pushContext));
         }
         validationHooks.sort(Comparator.comparingInt(GitProxyHook::getOrder));
 
@@ -257,7 +249,8 @@ public class StoreAndForwardReceivePackFactory implements ReceivePackFactory<Htt
             hooks.add(persistenceHook.preReceiveHook());
             hooks.addAll(validationHooks);
             hooks.add(persistenceHook.validationResultHook(validationContext));
-            hooks.add(new ApprovalPreReceiveHook(pushStore, approvalGateway, serviceUrl, repoPermissionService));
+            hooks.add(new ApprovalPreReceiveHook(
+                    pushStore, approvalGateway, serviceUrl, repoPermissionService, pushContext));
             preHooks = hooks.toArray(PreReceiveHook[]::new);
         } else {
             preHooks = validationHooks.toArray(PreReceiveHook[]::new);

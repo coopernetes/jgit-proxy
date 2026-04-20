@@ -68,10 +68,10 @@ public class ForwardingPostReceiveHook implements PostReceiveHook {
         Repository repo = rp.getRepository();
 
         // If BitbucketCredentialRewriteHook resolved an upstream username, use it instead of the push email.
-        String upstreamUser = repo.getConfig().getString("gitproxy", null, "upstreamUser");
+        String upstreamUser = pushContext.getUpstreamUser();
         CredentialsProvider effectiveCreds = credentials;
         if (upstreamUser != null) {
-            String pushToken = repo.getConfig().getString("gitproxy", null, "pushToken");
+            String pushToken = pushContext.getPushToken();
             effectiveCreds = new UsernamePasswordCredentialsProvider(upstreamUser, pushToken != null ? pushToken : "");
             log.debug("Using Bitbucket upstream username '{}' for forwarding credentials", upstreamUser);
         }

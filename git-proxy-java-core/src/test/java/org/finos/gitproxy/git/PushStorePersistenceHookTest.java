@@ -43,6 +43,7 @@ class PushStorePersistenceHookTest {
     ObjectId commitId;
     PushStore pushStore;
     PushStorePersistenceHook hook;
+    PushContext pushContext;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -64,6 +65,8 @@ class PushStorePersistenceHookTest {
 
         pushStore = new InMemoryPushStore();
         hook = new PushStorePersistenceHook(pushStore, new GitHubProvider("/push"));
+        pushContext = new PushContext();
+        hook.setPushContext(pushContext);
     }
 
     private ReceivePack makeReceivePack() {
@@ -84,7 +87,7 @@ class PushStorePersistenceHookTest {
         hook.preReceiveHook().onPreReceive(rp, List.of(cmd));
 
         // The push ID is stored in the repo config by the pre-receive hook
-        String pushId = repo.getConfig().getString("gitproxy", null, "pushId");
+        String pushId = pushContext.getPushId();
         assertNotNull(pushId, "push ID should be stamped into repo config");
 
         var record = pushStore.findById(pushId);
@@ -99,7 +102,7 @@ class PushStorePersistenceHookTest {
 
         hook.preReceiveHook().onPreReceive(rp, List.of(cmd));
 
-        String pushId = repo.getConfig().getString("gitproxy", null, "pushId");
+        String pushId = pushContext.getPushId();
         var record = pushStore.findById(pushId).orElseThrow();
 
         assertEquals("refs/heads/test", record.getBranch());
@@ -119,7 +122,7 @@ class PushStorePersistenceHookTest {
         ValidationContext ctx = new ValidationContext(); // no issues
         hook.validationResultHook(ctx).onPreReceive(rp, List.of(cmd));
 
-        String pushId = repo.getConfig().getString("gitproxy", null, "pushId");
+        String pushId = pushContext.getPushId();
         // The validation-result hook creates a new record with a fresh UUID (copyBase pattern);
         // we verify by querying for PENDING status rather than by ID.
         var records = pushStore.find(org.finos.gitproxy.db.model.PushQuery.builder()
@@ -155,7 +158,7 @@ class PushStorePersistenceHookTest {
         ctx.addIssue("checkAuthorEmails", "Email blocked", "noreply@ address is not allowed");
         hook.validationResultHook(ctx).onPreReceive(rp, List.of(cmd));
 
-        String pushId = repo.getConfig().getString("gitproxy", null, "pushId");
+        String pushId = pushContext.getPushId();
         var records = pushStore.find(org.finos.gitproxy.db.model.PushQuery.builder()
                 .status(PushStatus.REJECTED)
                 .build());
