@@ -4,6 +4,7 @@ import static com.rbc.fogwall.servlet.FogwallServlet.GIT_REQUEST_ATTR;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import com.rbc.fogwall.config.BlockConfig;
 import com.rbc.fogwall.config.CommitConfig;
 import com.rbc.fogwall.config.EmailRule;
 import com.rbc.fogwall.db.model.StepStatus;
@@ -115,7 +116,7 @@ class FilterChainIntegrationTest {
                                 .build())
                         .build())
                 .message(CommitConfig.MessageConfig.builder()
-                        .block(CommitConfig.BlockConfig.builder()
+                        .block(BlockConfig.builder()
                                 .literals(List.of("WIP", "DO NOT MERGE", "fixup!", "squash!"))
                                 .patterns(List.of(Pattern.compile("(?i)(password|secret|token)\\s*[=:]\\s*\\S+")))
                                 .build())

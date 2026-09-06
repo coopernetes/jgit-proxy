@@ -1,11 +1,11 @@
 package com.rbc.fogwall.validation;
 
-import com.rbc.fogwall.config.CommitConfig;
+import com.rbc.fogwall.config.BlockConfig;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -20,11 +20,11 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class BlockedContentDiffCheck implements DiffCheck {
 
-    private final CommitConfig.BlockConfig block;
+    private final BlockConfig block;
 
     @Override
     public Optional<List<Violation>> check(String diff) {
-        if (block.getLiterals().isEmpty() && block.getPatterns().isEmpty()) {
+        if (!BlockedContentScanner.isConfigured(block)) {
             return Optional.of(List.of());
         }
 
@@ -43,24 +43,14 @@ public class BlockedContentDiffCheck implements DiffCheck {
             }
             String content = line.substring(1);
 
-            for (String literal : block.getLiterals()) {
-                if (content.toLowerCase().contains(literal.toLowerCase())) {
-                    String location = currentFile != null ? " in " + currentFile : "";
-                    violations.putIfAbsent("blocked term: \"" + literal + "\"" + location, content.strip());
-                }
-            }
-
-            for (Pattern pattern : block.getPatterns()) {
-                if (pattern.matcher(content).find()) {
-                    String location = currentFile != null ? " in " + currentFile : "";
-                    violations.putIfAbsent("blocked pattern: " + pattern.pattern() + location, content.strip());
-                }
+            for (BlockedContentScanner.Match match : BlockedContentScanner.scan(content, currentFile, block)) {
+                violations.putIfAbsent(match.summary(), match.line());
             }
         }
 
         return Optional.of(violations.entrySet().stream()
                 .map(e -> new Violation(e.getKey(), e.getKey(), e.getKey() + "\n  " + e.getValue()))
-                .collect(java.util.stream.Collectors.toList()));
+                .collect(Collectors.toList()));
     }
 
     /** Extracts the {@code b/} path from a {@code diff --git a/... b/...} header line. */

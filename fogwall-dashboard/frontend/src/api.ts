@@ -1,6 +1,7 @@
 import type {
   CacheListResponse,
   CacheRef,
+  ScmApiActionRecord,
   GroupPermissionRule,
   RepoPermission,
   ScmOAuthProviderInfo,
@@ -59,6 +60,12 @@ export async function fetchPush(id: string) {
 export async function fetchDiff(id: string): Promise<{ content: string | null }> {
   const res = await apiFetch(`/api/push/${encodeURIComponent(id)}/diff`)
   if (!res.ok) throw new Error('Diff not found')
+  return res.json()
+}
+
+export async function fetchScmApiActions(params: URLSearchParams): Promise<ScmApiActionRecord[]> {
+  const res = await apiFetch('/api/scm-api-actions?' + params)
+  if (!res.ok) throw new Error('Failed to fetch SCM API actions')
   return res.json()
 }
 

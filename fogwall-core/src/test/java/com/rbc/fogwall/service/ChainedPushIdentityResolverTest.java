@@ -29,14 +29,15 @@ class ChainedPushIdentityResolverTest {
     void firstMatchReturned_secondNotCalled() {
         PushIdentityResolver first = mock(PushIdentityResolver.class);
         PushIdentityResolver second = mock(PushIdentityResolver.class);
-        when(first.resolve(any(), any(), any())).thenReturn(Optional.of(entry("alice")));
+        when(first.resolveIdentity(any(), any(), any()))
+                .thenReturn(Optional.of(new ResolvedScmIdentity(entry("alice"), "alice-gh")));
 
         var resolver = new ChainedPushIdentityResolver(List.of(first, second));
         var result = resolver.resolve(null, "me", "tok");
 
         assertTrue(result.isPresent());
         assertEquals("alice", result.get().getUsername());
-        verify(first).resolve(any(), any(), any());
+        verify(first).resolveIdentity(any(), any(), any());
         verifyNoInteractions(second);
     }
 
@@ -46,8 +47,9 @@ class ChainedPushIdentityResolverTest {
     void firstMisses_secondMatches() {
         PushIdentityResolver first = mock(PushIdentityResolver.class);
         PushIdentityResolver second = mock(PushIdentityResolver.class);
-        when(first.resolve(any(), any(), any())).thenReturn(Optional.empty());
-        when(second.resolve(any(), any(), any())).thenReturn(Optional.of(entry("bob")));
+        when(first.resolveIdentity(any(), any(), any())).thenReturn(Optional.empty());
+        when(second.resolveIdentity(any(), any(), any()))
+                .thenReturn(Optional.of(new ResolvedScmIdentity(entry("bob"), "bob-gh")));
 
         var resolver = new ChainedPushIdentityResolver(List.of(first, second));
         var result = resolver.resolve(null, "me", "tok");
@@ -62,8 +64,8 @@ class ChainedPushIdentityResolverTest {
     void allMiss_returnsEmpty() {
         PushIdentityResolver first = mock(PushIdentityResolver.class);
         PushIdentityResolver second = mock(PushIdentityResolver.class);
-        when(first.resolve(any(), any(), any())).thenReturn(Optional.empty());
-        when(second.resolve(any(), any(), any())).thenReturn(Optional.empty());
+        when(first.resolveIdentity(any(), any(), any())).thenReturn(Optional.empty());
+        when(second.resolveIdentity(any(), any(), any())).thenReturn(Optional.empty());
 
         var resolver = new ChainedPushIdentityResolver(List.of(first, second));
 

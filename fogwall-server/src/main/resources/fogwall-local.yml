@@ -25,6 +25,14 @@ providers:
   gitea:
     enabled: true
     uri: http://localhost:3000          # HTTP/API endpoint
+    # Proposals: open and iterate on PRs through fogwall with tea/fj.
+    # Its own listener on 9445 — the dialect is mounted at that port's root because gh and fj
+    # address the API from the host root and discard any path prefix. Point a CLI at it with:
+    #   tea login add --name fogwall --url http://localhost:9445 --token <your-gitea-token>
+    #   fj -H http://localhost:9445 pr create "title" --body "body"
+    proposals:
+      enabled: true
+      port: 9445
     ssh:
       enabled: true
       uri: ssh://git@localhost:3022     # explicit: the local Gitea container exposes SSH on 3022, not the default 22
@@ -41,6 +49,23 @@ providers:
     enabled: true
     ssh:
       enabled: true
+    # Proposals on their own listener — this is the common case: open a PR against a real
+    # github.com repo through fogwall, inspected and audited, with your own token.
+    #   GH_HOST=localhost:9443 GH_TOKEN=<classic PAT> \
+    #     gh pr create -R localhost:9443/<owner>/<repo> --base main --head <branch> --title ...
+    # GH_HOST takes a host[:port] and never a path, which is why this needs a port of its own.
+    proposals:
+      enabled: true
+      port: 9443
+  # gitlab.com, on its own listener. glab is pointed at a host with `glab auth login --hostname`,
+  # or per-invocation with GITLAB_HOST — same host[:port]-with-no-path constraint as gh.
+  #   GITLAB_HOST=localhost:9444 GITLAB_TOKEN=<PAT> \
+  #     glab mr create -R coopernetes/test-repo --source-branch <branch> --target-branch main --title ...
+  gitlab:
+    enabled: true
+    proposals:
+      enabled: true
+      port: 9444
 # Three users for local development:
 #   admin    — full dashboard access, can approve any push
 #   dev      — a developer account; add your SCM identity here to push through the proxy
@@ -71,6 +96,10 @@ users:
       # Uncomment and set to your real GitHub username to use the github provider above (HTTPS or SSH):
       # - provider: github
       #   username: your-gh-handle
+      # Proposals resolve the caller from their token: fogwall asks the provider who the token belongs to,
+      # then matches that login here. Without an entry the CLI gets a 401 from fogwall, not from the SCM.
+      # - provider: gitlab
+      #   username: your-gitlab-handle
     emails:
       - dev@example.com
     ssh-keys:
@@ -111,6 +140,16 @@ diff-scan:
 
 secret-scan:
   enabled: true
+
+# Proposals — proposing changes (open/edit/comment on a PR) through fogwall.
+proposals:
+  # Content rules for the prose a proposal carries — PR/MR title and description, comment bodies. Separate from
+  # diff-scan.block, which applies to pushed diffs. Secret scanning is governed by secret-scan below.
+  block:
+    literals:
+      - "internal.corp.example.com"
+    patterns:
+      - '(?i)https?://[a-z0-9.-]*\.corp\.example\.com\b'
 
 binary-blob:
   enabled: true
@@ -155,6 +194,31 @@ permissions:
       value: .*
       type: REGEX
     grant: PUSH
+  # PROPOSE is a separate axis from PUSH — pushing to a fork proposes nothing, so opening a PR
+  # needs its own grant, matched against the UPSTREAM the PR targets rather than the fork.
+  - username: dev
+    provider: gitea
+    match:
+      target: SLUG
+      value: .*
+      type: REGEX
+    grant: PROPOSE
+  # PROPOSE on github — matched against the UPSTREAM a PR targets, so scope it to a repo you can
+  # actually open PRs against. Widen or narrow as you like; this is local dev.
+  - username: dev
+    provider: github
+    match:
+      target: SLUG
+      value: .*
+      type: REGEX
+    grant: PROPOSE
+  - username: dev
+    provider: gitlab
+    match:
+      target: SLUG
+      value: .*
+      type: REGEX
+    grant: PROPOSE
   # For github (HTTPS or SSH — same entry), scope this to a repo you actually control:
   # - username: dev
   #   provider: github

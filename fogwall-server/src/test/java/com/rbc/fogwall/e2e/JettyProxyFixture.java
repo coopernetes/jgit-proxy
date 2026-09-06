@@ -4,6 +4,7 @@ import com.rbc.fogwall.approval.ApprovalGateway;
 import com.rbc.fogwall.approval.AutoApprovalGateway;
 import com.rbc.fogwall.approval.UiApprovalGateway;
 import com.rbc.fogwall.config.BinaryBlobConfig;
+import com.rbc.fogwall.config.BlockConfig;
 import com.rbc.fogwall.config.CommitConfig;
 import com.rbc.fogwall.config.ContentPatternConfig;
 import com.rbc.fogwall.config.DiffScanConfig;
@@ -358,7 +359,7 @@ class JettyProxyFixture implements AutoCloseable {
                                 .build())
                         .build())
                 .message(CommitConfig.MessageConfig.builder()
-                        .block(CommitConfig.BlockConfig.builder()
+                        .block(BlockConfig.builder()
                                 .literals(List.of("WIP", "DO NOT MERGE", "fixup!", "squash!"))
                                 .patterns(List.of(Pattern.compile("(?i)(password|secret|token)\\s*[=:]\\s*\\S+")))
                                 .build())

@@ -2,6 +2,7 @@ package com.rbc.fogwall.validation;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.rbc.fogwall.config.BlockConfig;
 import com.rbc.fogwall.config.CommitConfig;
 import com.rbc.fogwall.git.Commit;
 import com.rbc.fogwall.git.Contributor;
@@ -16,9 +17,7 @@ class CommitMessageCheckTest {
     private static CommitConfig configWithBlockedLiterals(String... literals) {
         return CommitConfig.builder()
                 .message(CommitConfig.MessageConfig.builder()
-                        .block(CommitConfig.BlockConfig.builder()
-                                .literals(List.of(literals))
-                                .build())
+                        .block(BlockConfig.builder().literals(List.of(literals)).build())
                         .build())
                 .build();
     }
@@ -26,7 +25,7 @@ class CommitMessageCheckTest {
     private static CommitConfig configWithBlockedPattern(String pattern) {
         return CommitConfig.builder()
                 .message(CommitConfig.MessageConfig.builder()
-                        .block(CommitConfig.BlockConfig.builder()
+                        .block(BlockConfig.builder()
                                 .patterns(List.of(Pattern.compile(pattern)))
                                 .build())
                         .build())

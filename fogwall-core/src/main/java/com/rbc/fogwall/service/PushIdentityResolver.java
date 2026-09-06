@@ -32,4 +32,19 @@ public interface PushIdentityResolver {
      * @return the resolved proxy user, or empty if no match is found
      */
     Optional<UserEntry> resolve(FogwallProvider provider, String pushUsername, String token);
+
+    /**
+     * As {@link #resolve}, also naming the provider account the credential belongs to.
+     *
+     * <p>Separate from {@code resolve} because the two answer different questions. Authorization needs the fogwall user
+     * and nothing else; an audit record needs to name the account that acted, and that cannot be derived from the user
+     * afterwards — a user may hold several identities on one provider, and nothing in the resolved {@link UserEntry}
+     * says which of them the credential was.
+     *
+     * <p>The default returns the user with no login, for resolvers that map credentials to users by some other means
+     * than an SCM lookup. Callers must treat a null {@code scmLogin} as "not determined", never as "no account".
+     */
+    default Optional<ResolvedScmIdentity> resolveIdentity(FogwallProvider provider, String pushUsername, String token) {
+        return resolve(provider, pushUsername, token).map(user -> new ResolvedScmIdentity(user, null));
+    }
 }

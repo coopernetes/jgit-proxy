@@ -4,6 +4,7 @@ import { fetchConfig, fetchMe } from './api'
 import { Nav } from './components/Nav'
 import { useDarkMode } from './hooks/useDarkMode'
 import { Admin } from './pages/Admin'
+import { ScmApiActionList } from './pages/ScmApiActionList'
 import { Providers } from './pages/Providers'
 import { PushDetail } from './pages/PushDetail'
 import { PushDiff } from './pages/PushDiff'
@@ -51,6 +52,10 @@ export default function App() {
             <Route path="/providers" element={<Providers />} />
             <Route path="/setup" element={<Setup />} />
             <Route path="/repos" element={<Repos />} />
+            <Route
+              path="/scm-api-actions"
+              element={<ScmApiActionList currentUser={currentUser} />}
+            />
             <Route path="/profile" element={<Profile />} />
             <Route path="/users" element={<Users authProvider={authProvider} />} />
             <Route

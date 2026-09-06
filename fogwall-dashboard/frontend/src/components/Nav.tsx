@@ -109,6 +109,17 @@ export function Nav({ currentUser, dark, toggleDark }: NavProps) {
         >
           Providers
         </NavLink>
+        <NavLink
+          to="/scm-api-actions"
+          className={({ isActive }) =>
+            'px-3 py-1 rounded text-sm transition-colors ' +
+            (isActive
+              ? 'bg-slate-600 text-white'
+              : 'text-slate-300 hover:text-white hover:bg-slate-700')
+          }
+        >
+          SCM API
+        </NavLink>
         {currentUser?.authorities.includes('ROLE_ADMIN') && (
           <>
             <NavLink

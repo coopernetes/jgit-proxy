@@ -4,9 +4,9 @@ import java.util.Optional;
 
 public interface ScmTokenCache {
 
-    Optional<String> lookup(String provider, String tokenHash);
+    Optional<CachedScmIdentity> lookup(String provider, String tokenHash);
 
-    void store(String provider, String tokenHash, String proxyUsername);
+    void store(String provider, String tokenHash, CachedScmIdentity identity);
 
     void evictByUsername(String provider, String proxyUsername);
 }

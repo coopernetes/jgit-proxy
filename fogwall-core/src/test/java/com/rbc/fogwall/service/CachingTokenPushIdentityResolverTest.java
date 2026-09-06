@@ -51,7 +51,8 @@ class CachingTokenPushIdentityResolverTest {
     @Test
     void cacheHit_returnsCachedUser_delegateNotCalled() {
         UserEntry alice = entry("alice");
-        when(cache.lookup(eq("github"), anyString())).thenReturn(Optional.of("alice"));
+        when(cache.lookup(eq("github"), anyString()))
+                .thenReturn(Optional.of(new CachedScmIdentity("alice", "alice-gh")));
         when(userStore.findByUsername("alice")).thenReturn(Optional.of(alice));
 
         var result = resolver.resolve(provider, "me", "good-token");
@@ -68,13 +69,14 @@ class CachingTokenPushIdentityResolverTest {
     void cacheMiss_delegateResolves_storesAndReturns() {
         UserEntry alice = entry("alice");
         when(cache.lookup(eq("github"), anyString())).thenReturn(Optional.empty());
-        when(delegate.resolve(provider, "me", "good-token")).thenReturn(Optional.of(alice));
+        when(delegate.resolveIdentity(provider, "me", "good-token"))
+                .thenReturn(Optional.of(new ResolvedScmIdentity(alice, "alice-gh")));
 
         var result = resolver.resolve(provider, "me", "good-token");
 
         assertTrue(result.isPresent());
         assertEquals("alice", result.get().getUsername());
-        verify(cache).store(eq("github"), anyString(), eq("alice"));
+        verify(cache).store(eq("github"), anyString(), eq(new CachedScmIdentity("alice", "alice-gh")));
         verifyNoMoreInteractions(userStore);
     }
 
@@ -83,7 +85,7 @@ class CachingTokenPushIdentityResolverTest {
     @Test
     void cacheMiss_delegateEmpty_nothingStored() {
         when(cache.lookup(eq("github"), anyString())).thenReturn(Optional.empty());
-        when(delegate.resolve(provider, "me", "bad-token")).thenReturn(Optional.empty());
+        when(delegate.resolveIdentity(provider, "me", "bad-token")).thenReturn(Optional.empty());
 
         var result = resolver.resolve(provider, "me", "bad-token");
 
@@ -144,5 +146,22 @@ class CachingTokenPushIdentityResolverTest {
 
         assertTrue(result.isEmpty());
         verifyNoInteractions(cache);
+    }
+
+    /**
+     * The reason the login is cached at all: on a hit the delegate never runs, so a login not stored here cannot be
+     * recovered — {@code alice} may hold more than one identity on the provider.
+     */
+    @Test
+    void cacheHit_carriesTheLoginBackWithoutCallingTheDelegate() {
+        when(cache.lookup(eq("github"), anyString()))
+                .thenReturn(Optional.of(new CachedScmIdentity("alice", "alice-gh")));
+        when(userStore.findByUsername("alice")).thenReturn(Optional.of(entry("alice")));
+
+        var result = resolver.resolveIdentity(provider, "me", "good-token");
+
+        assertTrue(result.isPresent());
+        assertEquals("alice-gh", result.get().scmLogin());
+        verifyNoInteractions(delegate);
     }
 }

@@ -24,6 +24,7 @@ import lombok.Data;
  * attestations:    → List&lt;{@link AttestationQuestion}&gt; (global reviewer prompts)
  * rules:           → {@link RulesConfig}
  * scm-oauth:       → {@link ScmOAuthSettings} (OAuth account linking + verified-identity enforcement mode, #40)
+ * proposals:       → {@link ProposalsSettings} (proposing changes through fogwall)
  * </pre>
  */
 @Data
@@ -40,6 +41,7 @@ public class FogwallConfig {
     private ContentPatternSettings contentPatterns = new ContentPatternSettings();
     private RulesConfig rules = new RulesConfig();
     private ScmOAuthSettings scmOauth = new ScmOAuthSettings();
+    private ProposalsSettings proposals = new ProposalsSettings();
 
     /**
      * Global attestation questions shown to reviewers in the dashboard approval form. Applies to all providers —

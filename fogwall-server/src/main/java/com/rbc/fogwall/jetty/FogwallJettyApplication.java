@@ -8,7 +8,6 @@ import com.rbc.fogwall.jetty.reload.LiveConfigLoader;
 import com.rbc.fogwall.provider.FogwallProvider;
 import com.rbc.fogwall.ssh.SshGitServer;
 import com.rbc.fogwall.ssh.SshServerRegistrar;
-import com.rbc.fogwall.tls.SslUtil;
 import java.nio.file.Path;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -17,8 +16,8 @@ import org.eclipse.jetty.server.HttpConnectionFactory;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.SslConnectionFactory;
+import org.eclipse.jetty.server.handler.ContextHandlerCollection;
 import org.eclipse.jetty.util.component.LifeCycle;
-import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.eclipse.jetty.util.thread.VirtualThreadPool;
 
@@ -57,6 +56,7 @@ public class FogwallJettyApplication {
         enableVirtualThreads(server, threadPool, "fogwall-server", configBuilder.getMaxConcurrentRequests());
         var connector = new ServerConnector(server);
         connector.setPort(configBuilder.getServerPort());
+        connector.setName(FogwallServletRegistrar.MAIN_HTTP_CONNECTOR);
         server.addConnector(connector);
 
         // Graceful shutdown: drain in-flight requests for up to 30s on SIGTERM before the JVM exits.
@@ -75,6 +75,7 @@ public class FogwallJettyApplication {
 
         List<FogwallProvider> providers = configBuilder.buildProviders();
         var context = new ServletContextHandler("/", false, false);
+        context.setVirtualHosts(FogwallServletRegistrar.MAIN_VIRTUAL_HOSTS);
 
         FogwallServletRegistrar.registerProviders(context, ctx, configBuilder, providers);
 
@@ -99,7 +100,11 @@ public class FogwallJettyApplication {
             }
         });
 
-        server.setHandler(new BlockingContentHandler(context));
+        var contexts = new ContextHandlerCollection();
+        contexts.addHandler(context);
+        FogwallServletRegistrar.registerScmApiListeners(server, contexts, ctx, configBuilder, providers);
+
+        server.setHandler(new BlockingContentHandler(contexts));
         server.start();
 
         log.info("Fogwall started on port {}", connector.getPort());
@@ -172,20 +177,11 @@ public class FogwallJettyApplication {
     }
 
     public static ServerConnector buildHttpsConnector(Server server, TlsConfig tls) throws Exception {
-        var sslContextFactory = new SslContextFactory.Server();
-        if (tls.getCertificate() != null && tls.getKey() != null) {
-            sslContextFactory.setSslContext(
-                    SslUtil.buildServerSslContext(Path.of(tls.getCertificate()), Path.of(tls.getKey())));
-        } else {
-            TlsConfig.KeystoreConfig ks = tls.getKeystore();
-            sslContextFactory.setKeyStorePath(ks.getPath());
-            sslContextFactory.setKeyStorePassword(ks.getPassword());
-            sslContextFactory.setKeyStoreType(ks.getType());
-        }
         var http = new HttpConnectionFactory();
-        var ssl = new SslConnectionFactory(sslContextFactory, http.getProtocol());
+        var ssl = new SslConnectionFactory(JettyTls.serverSslContextFactory(tls), http.getProtocol());
         var connector = new ServerConnector(server, ssl, http);
         connector.setPort(tls.getPort());
+        connector.setName(FogwallServletRegistrar.MAIN_HTTPS_CONNECTOR);
         return connector;
     }
 

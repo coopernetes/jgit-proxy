@@ -16,8 +16,12 @@ import lombok.extern.slf4j.Slf4j;
  * calls for the same token.
  *
  * <p>The cache key is the SHA-512 digest of {@code "providerName:token"} — the raw token is never stored. On a cache
- * hit the delegate is bypassed entirely and the proxy user is fetched directly from the {@link UserStore}. On a miss
- * the delegate is invoked; a successful resolution is stored in the cache for future pushes.
+ * hit the delegate is bypassed entirely and the proxy user is fetched directly from the {@link ReadOnlyUserStore}. On a
+ * miss the delegate is invoked; a successful resolution is stored in the cache for future pushes.
+ *
+ * <p>The provider login is cached beside the proxy username because the delegate is what learns it, and on a hit the
+ * delegate never runs. It cannot be recovered from the proxy user either: a user may hold several identities on one
+ * provider. An entry written before the login was cached carries null, and ages out on the cache TTL.
  *
  * <p>Only positive results are cached. An empty result (bad token, SCM API error, user not found) is never written to
  * the cache, so transient failures do not block subsequent pushes.
@@ -32,18 +36,28 @@ public class CachingTokenPushIdentityResolver implements PushIdentityResolver {
 
     @Override
     public Optional<UserEntry> resolve(FogwallProvider provider, String pushUsername, String token) {
+        return resolveIdentity(provider, pushUsername, token).map(ResolvedScmIdentity::user);
+    }
+
+    @Override
+    public Optional<ResolvedScmIdentity> resolveIdentity(FogwallProvider provider, String pushUsername, String token) {
         if (provider == null || token == null) {
-            return delegate.resolve(provider, pushUsername, token);
+            return delegate.resolveIdentity(provider, pushUsername, token);
         }
 
         String tokenHash = sha512(provider.getProviderId() + ":" + token);
-        Optional<String> cached = cache.lookup(provider.getProviderId(), tokenHash);
+        Optional<CachedScmIdentity> cached = cache.lookup(provider.getProviderId(), tokenHash);
         if (cached.isPresent()) {
-            return userStore.findByUsername(cached.get());
+            return userStore
+                    .findByUsername(cached.get().proxyUsername())
+                    .map(user -> new ResolvedScmIdentity(user, cached.get().scmLogin()));
         }
 
-        Optional<UserEntry> result = delegate.resolve(provider, pushUsername, token);
-        result.ifPresent(entry -> cache.store(provider.getProviderId(), tokenHash, entry.getUsername()));
+        Optional<ResolvedScmIdentity> result = delegate.resolveIdentity(provider, pushUsername, token);
+        result.ifPresent(resolved -> cache.store(
+                provider.getProviderId(),
+                tokenHash,
+                new CachedScmIdentity(resolved.user().getUsername(), resolved.scmLogin())));
         return result;
     }
 

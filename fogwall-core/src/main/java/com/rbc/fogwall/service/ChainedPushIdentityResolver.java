@@ -23,8 +23,14 @@ public class ChainedPushIdentityResolver implements PushIdentityResolver {
 
     @Override
     public Optional<UserEntry> resolve(FogwallProvider provider, String pushUsername, String token) {
+        return resolveIdentity(provider, pushUsername, token).map(ResolvedScmIdentity::user);
+    }
+
+    /** Delegates to each link's own {@code resolveIdentity}, so whichever one answers also supplies its login. */
+    @Override
+    public Optional<ResolvedScmIdentity> resolveIdentity(FogwallProvider provider, String pushUsername, String token) {
         for (PushIdentityResolver resolver : chain) {
-            Optional<UserEntry> result = resolver.resolve(provider, pushUsername, token);
+            Optional<ResolvedScmIdentity> result = resolver.resolveIdentity(provider, pushUsername, token);
             if (result.isPresent()) {
                 log.debug(
                         "Push user '{}' resolved by {}",

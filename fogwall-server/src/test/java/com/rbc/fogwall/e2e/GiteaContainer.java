@@ -174,6 +174,19 @@ class GiteaContainer extends GenericContainer<GiteaContainer> {
      * SSH key listing API ({@code GET /api/v1/users/{login}/keys}), which requires a token when
      * {@code REQUIRE_SIGNIN_VIEW=true}.
      */
+    /**
+     * Generates a token for {@value #TEST_USER} with the scopes the proposals surface needs. Wider than
+     * {@link #generateTestUserToken()}: opening and closing a pull request reads and writes issues, because Gitea
+     * models a pull request as one.
+     */
+    String generateProposalsToken() throws IOException, InterruptedException {
+        return generateToken(
+                TEST_USER,
+                TEST_USER_PASSWORD,
+                "e2e-proposals-token",
+                List.of("read:user", "read:repository", "write:repository", "read:issue", "write:issue"));
+    }
+
     String generateAdminToken() throws IOException, InterruptedException {
         return generateToken(ADMIN_USER, ADMIN_PASSWORD, "e2e-ssh-enricher-token", List.of("read:user"));
     }

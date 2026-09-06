@@ -1,6 +1,27 @@
 export type PushStatus =
   'PENDING' | 'APPROVED' | 'FORWARDED' | 'REJECTED' | 'CANCELED' | 'RECEIVED' | 'ERROR'
 
+export type ScmApiActionStatus = 'FORWARDED' | 'DENIED' | 'REJECTED' | 'ERROR'
+
+/** SCM API proxy (#264) audit record — one per proxied mutation, never per read. */
+export interface ScmApiActionRecord {
+  id: string
+  timestamp?: string | number
+  provider?: string
+  /** SCM login the caller's token resolved to, before proxy-user resolution. */
+  scmUsername?: string
+  /** Fogwall proxy username the caller resolved to. */
+  resolvedUser?: string
+  repoOwner?: string
+  repoName?: string
+  mutationField?: string
+  nodeId?: string
+  nodeType?: string
+  status: ScmApiActionStatus
+  reason?: string
+  variablesJson?: string
+}
+
 export interface Step {
   id: string
   stepName: string

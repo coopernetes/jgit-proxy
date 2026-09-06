@@ -43,32 +43,33 @@ class JdbcScmTokenCacheTest {
 
     @Test
     void lookup_emptyCache_returnsEmpty() {
-        Optional<String> result = cache.lookup("github", "hash-abc");
+        Optional<CachedScmIdentity> result = cache.lookup("github", "hash-abc");
         assertTrue(result.isEmpty());
     }
 
     @Test
-    void store_thenLookup_returnsCachedUsername() {
-        cache.store("github", "hash-abc", "alice");
+    void store_thenLookup_returnsCachedIdentity() {
+        cache.store("github", "hash-abc", new CachedScmIdentity("alice", "alice-on-github"));
 
-        Optional<String> result = cache.lookup("github", "hash-abc");
+        Optional<CachedScmIdentity> result = cache.lookup("github", "hash-abc");
         assertTrue(result.isPresent());
-        assertEquals("alice", result.get());
+        assertEquals("alice", result.get().proxyUsername());
+        assertEquals("alice-on-github", result.get().scmLogin(), "the account the token names is cached too");
     }
 
     @Test
     void lookup_differentProvider_returnsEmpty() {
-        cache.store("github", "hash-abc", "alice");
+        cache.store("github", "hash-abc", new CachedScmIdentity("alice", "alice-on-github"));
 
-        Optional<String> result = cache.lookup("gitlab", "hash-abc");
+        Optional<CachedScmIdentity> result = cache.lookup("gitlab", "hash-abc");
         assertTrue(result.isEmpty());
     }
 
     @Test
     void lookup_differentHash_returnsEmpty() {
-        cache.store("github", "hash-abc", "alice");
+        cache.store("github", "hash-abc", new CachedScmIdentity("alice", "alice-on-github"));
 
-        Optional<String> result = cache.lookup("github", "hash-xyz");
+        Optional<CachedScmIdentity> result = cache.lookup("github", "hash-xyz");
         assertTrue(result.isEmpty());
     }
 
@@ -85,9 +86,9 @@ class JdbcScmTokenCacheTest {
                         .emails(List.of())
                         .scmIdentities(List.of())
                         .build()));
-        expiredCache.store("github", "hash-abc", "alice");
+        expiredCache.store("github", "hash-abc", new CachedScmIdentity("alice", "alice-on-github"));
 
-        Optional<String> result = expiredCache.lookup("github", "hash-abc");
+        Optional<CachedScmIdentity> result = expiredCache.lookup("github", "hash-abc");
         assertTrue(result.isEmpty());
     }
 
@@ -100,11 +101,23 @@ class JdbcScmTokenCacheTest {
                 .scmIdentities(List.of())
                 .build()));
 
-        cache.store("github", "hash-abc", "alice");
-        cache.store("github", "hash-abc", "bob");
+        cache.store("github", "hash-abc", new CachedScmIdentity("alice", "alice-on-github"));
+        cache.store("github", "hash-abc", new CachedScmIdentity("bob", "bob-on-github"));
 
-        Optional<String> result = cache.lookup("github", "hash-abc");
+        Optional<CachedScmIdentity> result = cache.lookup("github", "hash-abc");
         assertTrue(result.isPresent());
-        assertEquals("bob", result.get());
+        assertEquals("bob", result.get().proxyUsername());
+        assertEquals("bob-on-github", result.get().scmLogin());
+    }
+
+    /** Rows written before scm_login existed keep resolving; they carry a null login and age out on the TTL. */
+    @Test
+    void entryWithoutALoginIsStillAHit() {
+        cache.store("github", "hash-abc", new CachedScmIdentity("alice", null));
+
+        Optional<CachedScmIdentity> result = cache.lookup("github", "hash-abc");
+        assertTrue(result.isPresent());
+        assertEquals("alice", result.get().proxyUsername());
+        assertNull(result.get().scmLogin());
     }
 }

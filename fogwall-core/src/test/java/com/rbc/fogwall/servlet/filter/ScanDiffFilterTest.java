@@ -4,7 +4,7 @@ import static com.rbc.fogwall.servlet.FogwallServlet.GIT_REQUEST_ATTR;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-import com.rbc.fogwall.config.CommitConfig;
+import com.rbc.fogwall.config.BlockConfig;
 import com.rbc.fogwall.config.DiffScanConfig;
 import com.rbc.fogwall.db.model.PushStep;
 import com.rbc.fogwall.db.model.StepStatus;
@@ -151,9 +151,7 @@ class ScanDiffFilterTest {
 
     private ScanDiffFilter filterWithLiteral(String literal) {
         DiffScanConfig config = DiffScanConfig.builder()
-                .block(CommitConfig.BlockConfig.builder()
-                        .literals(List.of(literal))
-                        .build())
+                .block(BlockConfig.builder().literals(List.of(literal)).build())
                 .build();
         return new ScanDiffFilter(config);
     }

@@ -115,7 +115,7 @@ class ConfigTest {
     void commitConfig_builder_setsMessageBlockLiterals() {
         CommitConfig config = CommitConfig.builder()
                 .message(CommitConfig.MessageConfig.builder()
-                        .block(CommitConfig.BlockConfig.builder()
+                        .block(BlockConfig.builder()
                                 .literals(List.of("WIP", "DO NOT MERGE"))
                                 .build())
                         .build())
@@ -129,9 +129,7 @@ class ConfigTest {
         Pattern p = Pattern.compile("password\\s*=");
         CommitConfig config = CommitConfig.builder()
                 .message(CommitConfig.MessageConfig.builder()
-                        .block(CommitConfig.BlockConfig.builder()
-                                .patterns(List.of(p))
-                                .build())
+                        .block(BlockConfig.builder().patterns(List.of(p)).build())
                         .build())
                 .build();
         assertEquals(1, config.getMessage().getBlock().getPatterns().size());

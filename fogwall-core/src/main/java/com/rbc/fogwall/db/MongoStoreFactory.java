@@ -3,7 +3,10 @@ package com.rbc.fogwall.db;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.rbc.fogwall.db.mongo.MongoFetchStore;
+import com.rbc.fogwall.db.mongo.MongoGitHubNodeIdCache;
+import com.rbc.fogwall.db.mongo.MongoGitLabProjectIdCache;
 import com.rbc.fogwall.db.mongo.MongoPushStore;
+import com.rbc.fogwall.db.mongo.MongoScmApiActionStore;
 import com.rbc.fogwall.db.mongo.MongoScmTokenCache;
 import com.rbc.fogwall.db.mongo.MongoSshFingerprintCache;
 import com.rbc.fogwall.db.mongo.MongoUrlRuleRegistry;
@@ -12,6 +15,8 @@ import com.rbc.fogwall.permission.MongoGroupPermissionStore;
 import com.rbc.fogwall.permission.MongoRepoPermissionStore;
 import com.rbc.fogwall.permission.PermissionStore;
 import com.rbc.fogwall.permission.RepoPermission;
+import com.rbc.fogwall.scmapi.GitHubNodeIdCache;
+import com.rbc.fogwall.scmapi.GitLabProjectIdCache;
 import com.rbc.fogwall.service.ScmTokenCache;
 import com.rbc.fogwall.service.SshFingerprintCache;
 import com.rbc.fogwall.user.MongoUserStore;
@@ -104,6 +109,27 @@ public final class MongoStoreFactory implements AutoCloseable {
         MongoScmTokenCache cache = new MongoScmTokenCache(client, databaseName, maxAge);
         cache.initialize();
         return cache;
+    }
+
+    /** Create and initialize a {@link GitHubNodeIdCache} for the SCM API proxy, backed by this factory's client. */
+    public GitHubNodeIdCache nodeIdCache(Duration ttl) {
+        MongoGitHubNodeIdCache cache = new MongoGitHubNodeIdCache(client, databaseName, ttl);
+        cache.initialize();
+        return cache;
+    }
+
+    /** Create and initialize a {@link GitLabProjectIdCache} for the SCM API proxy, backed by this factory's client. */
+    public GitLabProjectIdCache gitLabProjectIdCache(Duration ttl) {
+        MongoGitLabProjectIdCache cache = new MongoGitLabProjectIdCache(client, databaseName, ttl);
+        cache.initialize();
+        return cache;
+    }
+
+    /** Create and initialize a {@link ScmApiActionStore} for the SCM API proxy, backed by this factory's client. */
+    public ScmApiActionStore scmApiActionStore() {
+        MongoScmApiActionStore store = new MongoScmApiActionStore(client, databaseName);
+        store.initialize();
+        return store;
     }
 
     @Override

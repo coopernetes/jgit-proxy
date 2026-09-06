@@ -132,7 +132,16 @@ public class DatabaseMigrator {
                     "14",
                     "push commit co-authored-by trailers (mysql/mariadb)",
                     "db/migration-mysql/V14__push_commit_co_authored_by.sql",
-                    Vendor.MYSQL_ONLY));
+                    Vendor.MYSQL_ONLY),
+            new Migration("15", "scm api proxy", "db/migration/V15__scm_api_proxy.sql", Vendor.EXCEPT_MYSQL),
+            new Migration(
+                    "15",
+                    "scm api proxy (mysql/mariadb)",
+                    "db/migration-mysql/V15__scm_api_proxy.sql",
+                    Vendor.MYSQL_ONLY),
+            // A plain ADD COLUMN, identical on every supported engine, so there is no MySQL-specific variant.
+            new Migration(
+                    "16", "scm token cache scm login", "db/migration/V16__scm_token_cache_login.sql", Vendor.ANY));
 
     // ---------------------------------------------------------------------------
 

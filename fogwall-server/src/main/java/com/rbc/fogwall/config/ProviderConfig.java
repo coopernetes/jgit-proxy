@@ -70,6 +70,9 @@ public class ProviderConfig {
     /** OAuth account-linking settings for this provider instance (#40). See docs/CONFIGURATION.md#scm-oauth. */
     private OAuthProviderSettings oauth = new OAuthProviderSettings();
 
+    /** Proposal settings for this provider instance. See docs/CONFIGURATION.md#proposals. */
+    private ProposalsProviderSettings proposals = new ProposalsProviderSettings();
+
     /**
      * SSH transport settings for this provider instance (#531). Lets a single entry serve both HTTP and SSH access to
      * the same upstream. See docs/CONFIGURATION.md#ssh.

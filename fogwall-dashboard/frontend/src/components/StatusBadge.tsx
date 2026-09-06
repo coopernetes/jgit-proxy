@@ -9,6 +9,8 @@ const STATUS_CLASSES: Record<string, string> = {
     'bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700',
   REJECTED:
     'bg-red-100 text-red-800 border border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700',
+  DENIED:
+    'bg-orange-100 text-orange-800 border border-orange-300 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-700',
   CANCELED:
     'bg-gray-100 text-gray-600 border border-gray-300 dark:bg-slate-700 dark:text-gray-300 dark:border-slate-600',
   RECEIVED:

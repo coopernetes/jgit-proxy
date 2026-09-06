@@ -973,6 +973,106 @@ user-to-server linking flow never uses). Callback URL:
 Settings → Applications page (works the same way on Codeberg, self-hosted Forgejo/Gitea, and org-owned applications),
 requesting the `read:user` scope. Callback URL is the same shape as above.
 
+## Proposals
+
+_Available since v1.4.0, opt-in per provider — see [docs/internals/SCM_API_PROXY.md](internals/SCM_API_PROXY.md)._
+
+Extends fogwall past `git push` into the rest of the contribution lifecycle: proxying `gh`'s issue/PR
+create-edit-comment-review traffic and `glab`'s issue/MR equivalent, reusing fogwall's existing identity resolution,
+permission engine, and audit trail. See [docs/ADMIN_GUIDE.md](ADMIN_GUIDE.md#proposals) for the operational model
+(BYO-token, egress assumption) and [docs/USER_GUIDE.md](USER_GUIDE.md#proposals-prmrs-through-fogwall) for how a
+developer points `gh`/`glab` at it.
+
+The providers use different wire formats under the hood — GitHub's is GraphQL with an opaque node ID that must be
+resolved to `owner/repo`; GitLab's and Forgejo's are REST with the repository addressed directly in the URL, so no
+resolution step exists for them (`node-id-cache-ttl` below is a GitHub-only setting, inert for the others). See
+[docs/internals/SCM_API_PROXY.md](internals/SCM_API_PROXY.md) for the per-provider wire-format detail. Every dialect
+shares the same opt-in config shape — a global settings block, and a per-provider `enabled` flag that actually mounts
+the path:
+
+```yaml
+proposals:
+  # TTL for GitHub's GraphQL node-ID -> owner/repo resolution cache (ISO-8601 duration). A SECURITY parameter, not
+  # just a perf knob: a GraphQL node ID can outlive a repo rename/transfer while what it resolves to changes
+  # underneath it. Conservative default; shorten further for a deployment where repo renames/transfers are unusually
+  # frequent. Has no effect on GitLab, which addresses its target directly in the URL.
+  node-id-cache-ttl: PT5M
+
+providers:
+  github:
+    enabled: true
+    proposals:
+      enabled: true # per-provider opt-in (default false)
+      port: 9443 # required when enabled — a dedicated listener, see below
+  gitlab:
+    enabled: true
+    proposals:
+      enabled: true
+      port: 9444
+  gitea:
+    enabled: true
+    proposals:
+      enabled: true
+      port: 9445
+      require-known-cli: true # optional hardening; default false
+```
+
+**Each enabled provider needs its own `port`**, and fogwall fails to start if one is enabled without it. The dialect is
+mounted at the root of that listener (`/api/graphql`, `/api/v4/*`, `/api/v1/*`) because that is the only place the CLIs
+can reach it: `gh` and `fj` address the API from the host root and silently discard any path prefix. A single shared
+listener isn't an option either — every GitLab claims `/api/v4` and every Gitea/Forgejo `/api/v1`, so two instances of
+the same platform would collide. Clients are then pointed at a plain host and port (`GH_HOST`, `GITLAB_HOST`,
+`tea login add --url`, `fj -H`). See [docs/internals/SCM_API_PROXY.md](internals/SCM_API_PROXY.md) for the per-CLI
+evidence.
+
+**TLS is inherited from [`server.tls`](#tls); there is no per-provider TLS block.** When `server.tls` is set, every
+proposals listener serves HTTPS with the same certificate, on its own port. The CLIs only ever address a custom host
+over HTTPS, so TLS has to terminate either at fogwall this way or at an ingress in front of it — with `server.tls`
+unset, fogwall logs a warning naming each plaintext listener. See
+[ADMIN_GUIDE.md — TLS on the proposals listeners](ADMIN_GUIDE.md#tls-on-the-proposals-listeners).
+
+`require-known-cli` refuses callers whose `User-Agent` isn't one of the four recognised SCM CLIs — browsers, bare
+`curl`, unrecognised automation. It is **hardening, not a security boundary**: `User-Agent` is caller-controlled, so the
+setting can only deny a request that would otherwise be allowed, never permit one the allowlist and permission engine
+would refuse. It defaults off because a CLI release that changes its `User-Agent` format would otherwise start failing
+for reasons unrelated to policy. The raw header is recorded on every audit record either way, since each CLI advertises
+its version there.
+
+Per-repo authorization for **mutations** (issue/PR create, edit, comment, review) goes through the existing
+`RepoPermission` grants — see [Permissions](#permissions) below — with a dedicated `PROPOSE` grant kept independent from
+`PUSH`/`REVIEW`, so an operator can permission git-push and SCM API mutations separately:
+
+```yaml
+permissions:
+  - username: alice
+    provider: github
+    match:
+      value: /acme/widgets
+    grant: PROPOSE
+```
+
+**Reads** (GraphQL `query` traffic — an ordinary `gh issue list`, for example) are not gated by `PROPOSE`. They are
+forwarded for any authenticated caller, which keeps the default read cost near pass-through — no allowlist, no node-ID
+resolution, no extra round-trip.
+
+### Proposal properties
+
+| Property                                       | Type    | Default | Description                                                                               |
+| ---------------------------------------------- | ------- | ------- | ----------------------------------------------------------------------------------------- |
+| `proposals.node-id-cache-ttl`                  | string  | `PT5M`  | ISO-8601 duration. See the security note above.                                           |
+| `providers.<name>.proposals.enabled`           | boolean | `false` | Whether the SCM API proxy is mounted for this provider.                                   |
+| `providers.<name>.proposals.port`              | int     | —       | Dedicated listener port. **Required** when `enabled`; startup fails without it.           |
+| `providers.<name>.proposals.require-known-cli` | boolean | `false` | Refuse callers whose `User-Agent` isn't a recognised SCM CLI. Subtractive hardening only. |
+
+### Token model
+
+The CLI carries a personal access token the user supplies. fogwall forwards it upstream unchanged after inspecting the
+request, and never mints or supplies a credential for this path.
+
+[SCM OAuth](#scm-oauth) is a separate mechanism, for fogwall-managed operations rather than external tooling. It does
+not provide a token for a CLI. See [docs/ADMIN_GUIDE.md](ADMIN_GUIDE.md#proposals) for the egress assumption this relies
+on.
+
 ## SSH transport
 
 _Available since v1.3.0._
@@ -1267,11 +1367,16 @@ tokens). Every bundle here requires a structural checksum or Presidio-derived re
 (names, addresses, emails) — that class needs NLP/NER to keep an acceptable false-positive rate, which is out of scope;
 see [Design notes](#design-notes) below.
 
-**WARN-only** — a match is recorded as a `WARN` step for the reviewer to see, it never blocks the push. These patterns
-have a real false-positive rate (a bare regex match on a short numeric identifier can't be fully disambiguated from
-unrelated numbers), and there's currently no override path for a wrongly-blocked push. Since every push already requires
-a human reviewer to look at it, WARN gets the finding in front of them without the downside of blocking on a false
-positive.
+**WARN-only on the push path** — a match is recorded as a `WARN` step for the reviewer to see, it never blocks the push.
+These patterns have a real false-positive rate (a bare regex match on a short numeric identifier can't be fully
+disambiguated from unrelated numbers), and there's currently no override path for a wrongly-blocked push. Since every
+push already requires a human reviewer to look at it, WARN gets the finding in front of them without the downside of
+blocking on a false positive.
+
+**Blocking on the proposal path** — that reasoning depends on the reviewer, and a proposal has none: it is forwarded to
+the upstream or refused, with no held state to annotate. A warning recorded against a merge request description that is
+already published is not a control, so a match there refuses the proposal (`REJECTED`) the same way a blocked term or a
+detected secret does. See [ADMIN_GUIDE.md — Content inspection](ADMIN_GUIDE.md#content-inspection).
 
 Bundle content (regexes, context keywords, structural validators like Luhn/IBAN/Base58Check checksums) is hand-ported
 from [data-privacy-stack/presidio](https://github.com/data-privacy-stack/presidio) (MIT licensed) where noted below —
@@ -1291,12 +1396,13 @@ content-patterns:
     # bundles at once.
   scan-diff: true # set false to skip scanning the push diff
   scan-commit-messages: true # set false to skip scanning commit messages
+  scan-proposals: true # set false to skip scanning proposal titles, descriptions and comments
 ```
 
-`scan-diff`/`scan-commit-messages` independently gate the two content sources - both default `true`. An operator who
-considers commit messages low-risk (or wants to reduce push-summary noise) can disable that half without affecting diff
-scanning, and vice versa. This is distinct from disabling a bundle: the bundle selection still applies to whichever
-source(s) remain enabled.
+`scan-diff`/`scan-commit-messages`/`scan-proposals` independently gate the three content sources - all default `true`,
+so selecting a bundle covers every surface it can appear on. An operator who considers commit messages low-risk (or
+wants to reduce push-summary noise) can disable that half without affecting diff scanning, and vice versa. This is
+distinct from disabling a bundle: the bundle selection still applies to whichever source(s) remain enabled.
 
 ### Available bundles
 
@@ -1789,15 +1895,15 @@ permissions:
 
 ### Permission properties
 
-| Property       | Type   | Default           | Description                                                               |
-| -------------- | ------ | ----------------- | ------------------------------------------------------------------------- |
-| `username`     | string | —                 | Proxy username (must match a `users:` entry or a DB user)                 |
-| `provider`     | string | —                 | Provider name as defined in `providers:` config                           |
-| `match`        | object | —                 | Repository match criteria — see below                                     |
-| `match.target` | enum   | `SLUG`            | What to match: `SLUG` (`/owner/repo`), `OWNER`, or `NAME`                 |
-| `match.value`  | string | —                 | The pattern to match against the chosen target                            |
-| `match.type`   | enum   | `GLOB`            | How to interpret the pattern: `LITERAL`, `GLOB`, or `REGEX`               |
-| `grant`        | enum   | `PUSH_AND_REVIEW` | What the user may do: `PUSH`, `REVIEW`, `PUSH_AND_REVIEW`, `SELF_CERTIFY` |
+| Property       | Type   | Default           | Description                                                                                                                                                            |
+| -------------- | ------ | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `username`     | string | —                 | Proxy username (must match a `users:` entry or a DB user)                                                                                                              |
+| `provider`     | string | —                 | Provider name as defined in `providers:` config                                                                                                                        |
+| `match`        | object | —                 | Repository match criteria — see below                                                                                                                                  |
+| `match.target` | enum   | `SLUG`            | What to match: `SLUG` (`/owner/repo`), `OWNER`, or `NAME`                                                                                                              |
+| `match.value`  | string | —                 | The pattern to match against the chosen target                                                                                                                         |
+| `match.type`   | enum   | `GLOB`            | How to interpret the pattern: `LITERAL`, `GLOB`, or `REGEX`                                                                                                            |
+| `grant`        | enum   | `PUSH_AND_REVIEW` | What the user may do: `PUSH`, `REVIEW`, `PUSH_AND_REVIEW`, `SELF_CERTIFY`, `PROPOSE` (v1.4.0+, [SCM API proxy](#proposals) mutations — independent of `PUSH`/`REVIEW`) |
 
 ### Pattern matching
 

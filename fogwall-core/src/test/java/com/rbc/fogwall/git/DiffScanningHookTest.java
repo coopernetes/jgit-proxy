@@ -2,7 +2,7 @@ package com.rbc.fogwall.git;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.rbc.fogwall.config.CommitConfig;
+import com.rbc.fogwall.config.BlockConfig;
 import com.rbc.fogwall.config.DiffScanConfig;
 import java.io.File;
 import java.nio.file.Files;
@@ -48,9 +48,7 @@ class DiffScanningHookTest {
 
     private DiffScanConfig configWithLiteral(String literal) {
         return DiffScanConfig.builder()
-                .block(CommitConfig.BlockConfig.builder()
-                        .literals(List.of(literal))
-                        .build())
+                .block(BlockConfig.builder().literals(List.of(literal)).build())
                 .build();
     }
 

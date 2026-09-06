@@ -142,6 +142,8 @@ Mechanical rules (`git add -A`, `--no-verify`, `[ci skip]`, `Claude-Session:` tr
 - Stage paths explicitly. The working tree may hold sensitive or scratch files.
 - Commit messages and PR bodies in plain language: lead with what a developer saw go wrong, then the cause, then the
   fix. Dense graph shorthand is not documentation.
+- **Keep them terse.** A commit message earns length only when no issue already describes the change in detail — when
+  one does, say what changed and link it. Same for PR bodies: short, and never claiming more than the code does.
 - Always include a `Co-Authored-By` trailer crediting the Claude model that did the work (e.g.
   `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>` — use the current model's name, not this example, if it
   differs). This is a project transparency requirement. No other Claude trailers.
@@ -158,6 +160,14 @@ This is a public repository.
 - Only use labels that already exist; never create new ones. Don't prefix an issue title with a word that is already
   applied as a label.
 - Say "point N", not "#N", for numbered sub-items inside an issue — GitHub linkifies `#N`.
+- An issue states what is wanted, not how it is built. Code in an issue is a rough draft or a pointer to where the real
+  thing will live — never a transcribed implementation, which is stale the moment one lands.
+- Detailed, not exhaustive. An issue sketches what will be implemented and names the boundaries; it does not argue the
+  case, rehearse alternatives that were rejected, or explain the same point twice. If a section could be cut without
+  changing what gets built, cut it.
+- No narrative anywhere in the shipped artifact. Commit messages, PR bodies, issues and comments describe what is there,
+  not the path taken to it — a comment recording what was tried and abandoned on a feature branch is noise once the
+  branch merges.
 - Anything that belongs upstream (finos/git-proxy, JGit, Jetty…) is noted for the maintainer to file by hand.
 
 ## Backwards compatibility
