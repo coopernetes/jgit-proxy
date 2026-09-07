@@ -1,8 +1,8 @@
 package com.rbc.fogwall.dashboard.controller;
 
 import com.rbc.fogwall.config.ScmOAuthConfig;
-import com.rbc.fogwall.jetty.reload.ConfigHolder;
 import com.rbc.fogwall.permission.RepoPermissionService;
+import com.rbc.fogwall.service.SshScmIdentityEnricher;
 import com.rbc.fogwall.ssh.SshKeyUtils;
 import com.rbc.fogwall.user.EmailConflictException;
 import com.rbc.fogwall.user.LockedByConfigException;
@@ -63,7 +63,9 @@ public class ProfileController {
 
     private final RepoPermissionService permissionService;
 
-    private final ConfigHolder configHolder;
+    private final ScmOAuthConfig scmOAuthConfig;
+
+    private final SshScmIdentityEnricher sshEnricher;
 
     // ---- email claims ----
 
@@ -117,7 +119,7 @@ public class ProfileController {
     @PostMapping("/identities")
     public ResponseEntity<?> addScmIdentity(@RequestBody Map<String, String> body) {
         if (!(userStore instanceof UserStore mutable)) return NOT_MUTABLE;
-        if (configHolder.getScmOAuthConfig().getIdentityMode() == ScmOAuthConfig.IdentityMode.STRICT) {
+        if (scmOAuthConfig.getIdentityMode() == ScmOAuthConfig.IdentityMode.STRICT) {
             return STRICT_MODE_MANUAL_ENTRY_DISABLED;
         }
         String provider = body.get("provider");
@@ -173,7 +175,7 @@ public class ProfileController {
                         "label", k.getLabel() != null ? k.getLabel() : "",
                         "createdAt", k.getCreatedAt().toString(),
                         "locked", k.isLocked(),
-                        "source", k.getAuthSource() != null ? k.getAuthSource() : "config"))
+                        "source", k.sourceLabel()))
                 .toList());
     }
 
@@ -196,6 +198,7 @@ public class ProfileController {
         }
         try {
             SshKeyEntry entry = mutable.addSshKey(currentUsername(), fingerprint, normalised, label);
+            evictFingerprintCache(currentUsername());
             return ResponseEntity.ok(Map.of(
                     "id", entry.getId(),
                     "fingerprint", entry.getFingerprint(),
@@ -203,7 +206,7 @@ public class ProfileController {
                     "label", entry.getLabel() != null ? entry.getLabel() : "",
                     "createdAt", entry.getCreatedAt().toString(),
                     "locked", entry.isLocked(),
-                    "source", entry.getAuthSource() != null ? entry.getAuthSource() : "config"));
+                    "source", entry.sourceLabel()));
         } catch (SshKeyConflictException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "SSH key is already registered to another user"));
@@ -222,7 +225,29 @@ public class ProfileController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "Cannot remove an SSH key imported from a verified identity provider"));
         }
+        evictFingerprintCache(currentUsername());
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Drops this user's cached provider key listings after their key set changes, so a newly registered key is usable
+     * on the next push rather than after the cache TTL — which defaults to seven days.
+     *
+     * <p>The cache is keyed by {@code (provider, SCM login)} and the change is to the fogwall-side key set, so which
+     * provider listing is now stale cannot be narrowed: every linked identity is evicted. Permissive mode only — strict
+     * mode resolves from imported keys and never reads this cache.
+     */
+    private void evictFingerprintCache(String username) {
+        if (sshEnricher == null) {
+            return;
+        }
+        userStore.findByUsername(username).ifPresent(user -> {
+            if (user.getScmIdentities() == null) {
+                return;
+            }
+            user.getScmIdentities()
+                    .forEach(identity -> sshEnricher.evict(identity.getProvider(), identity.getUsername()));
+        });
     }
 
     @Operation(operationId = "getMyPermissions", summary = "Get current user's direct and group-inherited permissions")

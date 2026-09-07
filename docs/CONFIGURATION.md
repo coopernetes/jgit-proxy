@@ -900,8 +900,13 @@ re-enter data the provider already has confirmed.
 scm-oauth:
   # permissive (default): any linked SCM identity is usable for push authorization, verified or not — today's
   # behaviour, unchanged.
-  # strict: only OAuth-verified identities count, on both HTTP and SSH push paths.
+  # strict: only OAuth-verified identities count, on both HTTP and SSH push paths. On SSH this also means the
+  # connecting key must be one OAuth linking imported — a key added by hand on the profile page no longer resolves
+  # an SCM identity, even if the provider would confirm it is registered there.
   identity-mode: permissive
+
+  # The whole scm-oauth section is read once at startup — it is operator setup, not policy, so it is not
+  # hot-reloadable. Changing identity-mode takes effect on restart. See "Hot reload" below for what is reloadable.
 
   # Path to a file holding a base64-encoded 32-byte AES-256-GCM key, used to encrypt linked OAuth tokens at rest.
   # If unset, a key is auto-generated under ./.data/ for local development only — a loud warning is logged on every
@@ -1495,7 +1500,8 @@ credentials. For token-only auth (GitHub, GitLab, Gitea PATs) the username can b
 | `permissions`  | `permissions:`  | Config-sourced user→repo permission grants                              |
 | `attestations` | `attestations:` | Dashboard approval form questions                                       |
 
-Provider, server, and database sections always require a restart.
+Provider, server, database and `scm-oauth` sections always require a restart — they describe how the deployment is set
+up rather than policy that changes over time.
 
 ### Manual trigger
 

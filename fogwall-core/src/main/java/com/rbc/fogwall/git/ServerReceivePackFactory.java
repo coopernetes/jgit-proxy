@@ -13,8 +13,10 @@ import com.rbc.fogwall.db.UrlRuleRegistry;
 import com.rbc.fogwall.permission.RepoPermissionService;
 import com.rbc.fogwall.provider.BitbucketProvider;
 import com.rbc.fogwall.provider.FogwallProvider;
+import com.rbc.fogwall.service.ImportedKeyIdentityResolver;
 import com.rbc.fogwall.service.PushIdentityResolver;
 import com.rbc.fogwall.service.SshScmIdentityEnricher;
+import com.rbc.fogwall.service.SshScmLoginResolver;
 import com.rbc.fogwall.user.UserEntry;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -53,7 +55,9 @@ public class ServerReceivePackFactory implements ReceivePackFactory<HttpServletR
     private final Supplier<DiffScanConfig> diffScanConfigSupplier;
     private final Supplier<SecretScanConfig> secretScanConfigSupplier;
     private final Supplier<BinaryBlobConfig> binaryBlobConfigSupplier;
-    private Supplier<ScmOAuthConfig> scmOAuthConfigSupplier = ScmOAuthConfig::defaultConfig;
+    /** Set once at startup: {@code scm-oauth} is operator setup, not policy, and is not a hot-reloadable section. */
+    private ScmOAuthConfig scmOAuthConfig = ScmOAuthConfig.defaultConfig();
+
     private final ContentPatternConfig contentPatternConfig;
     private final GpgConfig gpgConfig;
     private final RepoPermissionService repoPermissionService;
@@ -114,10 +118,9 @@ public class ServerReceivePackFactory implements ReceivePackFactory<HttpServletR
         this.sshScmIdentityEnricher = enricher;
     }
 
-    /** Set the live SCM OAuth config supplier (#40 — {@code scm-oauth.identity-mode}). Defaults to permissive. */
-    public void setScmOAuthConfigSupplier(Supplier<ScmOAuthConfig> scmOAuthConfigSupplier) {
-        this.scmOAuthConfigSupplier =
-                scmOAuthConfigSupplier != null ? scmOAuthConfigSupplier : ScmOAuthConfig::defaultConfig;
+    /** Set the SCM OAuth config. Read once at startup; this section is not hot-reloadable. Defaults to permissive. */
+    public void setScmOAuthConfig(ScmOAuthConfig scmOAuthConfig) {
+        this.scmOAuthConfig = scmOAuthConfig != null ? scmOAuthConfig : ScmOAuthConfig.defaultConfig();
     }
 
     /** Set the approval-wait timeout. Call after construction before the factory handles any requests. */
@@ -355,8 +358,11 @@ public class ServerReceivePackFactory implements ReceivePackFactory<HttpServletR
         DiffScanConfig diffScanConfig = diffScanConfigSupplier.get();
         SecretScanConfig secretScanConfig = secretScanConfigSupplier.get();
         BinaryBlobConfig binaryBlobConfig = binaryBlobConfigSupplier.get();
-        ScmOAuthConfig scmOAuthConfig = scmOAuthConfigSupplier.get();
 
+        // The mode selects the evidence SSH identity is resolved from; the hook is handed the resolver, not the choice.
+        SshScmLoginResolver sshLoginResolver = scmOAuthConfig.getIdentityMode() == ScmOAuthConfig.IdentityMode.STRICT
+                ? new ImportedKeyIdentityResolver()
+                : sshScmIdentityEnricher;
         var permissionHook = new CheckUserPushPermissionHook(
                 pushIdentityResolver,
                 repoPermissionService,
@@ -364,7 +370,7 @@ public class ServerReceivePackFactory implements ReceivePackFactory<HttpServletR
                 pushContext,
                 provider,
                 serviceUrl,
-                sshScmIdentityEnricher,
+                sshLoginResolver,
                 scmOAuthConfig.getIdentityMode());
 
         var attributionPolicyHook = new CommitAttributionPolicyHook(

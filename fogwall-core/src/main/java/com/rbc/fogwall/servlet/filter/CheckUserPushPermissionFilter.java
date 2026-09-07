@@ -6,6 +6,7 @@ import static com.rbc.fogwall.git.GitClientUtils.sym;
 import static com.rbc.fogwall.servlet.FogwallServlet.GIT_REQUEST_ATTR;
 import static com.rbc.fogwall.servlet.FogwallServlet.SERVICE_URL_ATTR;
 
+import com.rbc.fogwall.config.ScmOAuthConfig;
 import com.rbc.fogwall.git.GitClientUtils;
 import com.rbc.fogwall.git.GitRequestDetails;
 import com.rbc.fogwall.git.HttpOperation;
@@ -36,12 +37,22 @@ public class CheckUserPushPermissionFilter extends AbstractFogwallFilter {
     private static final int ORDER = 150;
     private final PushIdentityResolver identityResolver;
     private final RepoPermissionService repoPermissionService;
+    /** Fixed at startup: {@code scm-oauth} is operator setup, not a hot-reloadable policy section. */
+    private final ScmOAuthConfig.IdentityMode identityMode;
 
     public CheckUserPushPermissionFilter(
             PushIdentityResolver identityResolver, RepoPermissionService repoPermissionService) {
+        this(identityResolver, repoPermissionService, ScmOAuthConfig.IdentityMode.PERMISSIVE);
+    }
+
+    public CheckUserPushPermissionFilter(
+            PushIdentityResolver identityResolver,
+            RepoPermissionService repoPermissionService,
+            ScmOAuthConfig.IdentityMode identityMode) {
         super(ORDER, Set.of(HttpOperation.PUSH));
         this.identityResolver = identityResolver;
         this.repoPermissionService = repoPermissionService;
+        this.identityMode = identityMode != null ? identityMode : ScmOAuthConfig.IdentityMode.PERMISSIVE;
     }
 
     @Override
@@ -133,13 +144,41 @@ public class CheckUserPushPermissionFilter extends AbstractFogwallFilter {
                 providerId,
                 slug);
         requestDetails.setResolvedUser(user.getUsername());
-        if (requestDetails.getProvider() != null && user.getScmIdentities() != null) {
-            user.getScmIdentities().stream()
-                    .filter(id -> requestDetails.getProvider().getProviderId().equalsIgnoreCase(id.getProvider()))
-                    .map(ScmIdentity::getUsername)
-                    .findFirst()
-                    .ifPresent(requestDetails::setScmUsername);
+        if (requestDetails.getProvider() != null) {
+            var identities = user.getScmIdentities().stream()
+                    .filter(id -> requestDetails.getProvider().getProviderId().equalsIgnoreCase(id.getProvider()));
+            if (identityMode == ScmOAuthConfig.IdentityMode.STRICT) {
+                identities = identities.filter(ScmIdentity::isVerified);
+            }
+            Optional<String> scmUsername =
+                    identities.map(ScmIdentity::getUsername).findFirst();
+            if (scmUsername.isEmpty() && identityMode == ScmOAuthConfig.IdentityMode.STRICT) {
+                blockUnverifiedIdentity(request, response, user);
+                return;
+            }
+            scmUsername.ifPresent(requestDetails::setScmUsername);
         }
+    }
+
+    /**
+     * Blocks the push when {@code scm-oauth.identity-mode: strict} is set and no OAuth-verified identity is usable.
+     *
+     * <p>Mirrors the server-mode hook. Without this the setting applied to one proxy mode only, and a user could skip
+     * it by pushing to {@code /proxy/…} instead of {@code /server/…} for the same provider.
+     */
+    private void blockUnverifiedIdentity(HttpServletRequest request, HttpServletResponse response, UserEntry user)
+            throws IOException {
+        log.warn(
+                "User '{}' has no OAuth-verified SCM identity — push denied (strict identity mode)",
+                user.getUsername());
+        String serviceUrl = (String) request.getAttribute(SERVICE_URL_ATTR);
+        String profileHint = serviceUrl != null
+                ? "Link your account via OAuth at:\n  " + sym(LINK) + "  " + serviceUrl + "/dashboard/profile"
+                : "Ask an administrator to link your SCM account via OAuth.";
+        String title = sym(NO_ENTRY) + "  Push Blocked - SCM Identity Not Verified";
+        String message = sym(CROSS_MARK) + "  Your SCM identity is not verified.\n\n" + profileHint;
+        rejectAndSendError(
+                request, response, "No OAuth-verified SCM identity", GitClientUtils.format(title, message, RED, null));
     }
 
     private static String[] extractBasicAuth(HttpServletRequest request) {

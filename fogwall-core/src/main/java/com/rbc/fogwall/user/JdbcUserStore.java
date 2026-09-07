@@ -551,9 +551,7 @@ public class JdbcUserStore implements UserStore {
                 .map(row -> {
                     String id = (String) row.get("id");
                     List<String> sources = sourcesByKeyId.get(id);
-                    String sourceLabel = sources != null && !sources.isEmpty()
-                            ? String.join(", ", sources)
-                            : (row.get("auth_source") != null ? (String) row.get("auth_source") : "config");
+                    String primarySource = row.get("auth_source") != null ? (String) row.get("auth_source") : "config";
                     return SshKeyEntry.builder()
                             .id(id)
                             .username(username)
@@ -562,7 +560,11 @@ public class JdbcUserStore implements UserStore {
                             .label((String) row.get("label"))
                             .createdAt(((Timestamp) row.get("created_at")).toInstant())
                             .locked(Boolean.TRUE.equals(row.get("locked")))
-                            .authSource(sourceLabel)
+                            .authSource(primarySource)
+                            .authSources(
+                                    sources != null && !sources.isEmpty()
+                                            ? List.copyOf(sources)
+                                            : List.of(primarySource))
                             .build();
                 })
                 .toList();
@@ -584,11 +586,14 @@ public class JdbcUserStore implements UserStore {
                         .build())
                 .toList();
         List<String> roles = (rolesStr != null && !rolesStr.isBlank()) ? List.of(rolesStr.split(",")) : List.of("USER");
+        // SSH keys belong on the entry: authorization code reads them to decide whether a provider proved the key
+        // that authenticated. Leaving them out made every database-backed user look as though they had none.
         return UserEntry.builder()
                 .username(username)
                 .passwordHash(passwordHash)
                 .emails(Collections.unmodifiableList(emails))
                 .scmIdentities(Collections.unmodifiableList(scmIdentities))
+                .sshKeys(findSshKeys(username))
                 .roles(roles)
                 .build();
     }

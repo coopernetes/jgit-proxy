@@ -40,7 +40,7 @@ class ScmOAuthTokenStoreTest {
                 .emails(List.of())
                 .scmIdentities(List.of())
                 .build()));
-        store = new ScmOAuthTokenStore(ds);
+        store = new JdbcScmOAuthTokenStore(ds);
     }
 
     @Test

@@ -8,11 +8,13 @@ import com.rbc.fogwall.approval.ClientLivenessCheck;
 import com.rbc.fogwall.config.ScmOAuthConfig;
 import com.rbc.fogwall.db.model.StepStatus;
 import com.rbc.fogwall.permission.RepoPermissionService;
+import com.rbc.fogwall.provider.BitbucketProvider;
 import com.rbc.fogwall.provider.FogwallProvider;
 import com.rbc.fogwall.provider.GitHubProvider;
+import com.rbc.fogwall.service.ImportedKeyIdentityResolver;
 import com.rbc.fogwall.service.PushIdentityResolver;
-import com.rbc.fogwall.service.SshScmIdentityEnricher;
 import com.rbc.fogwall.user.ScmIdentity;
+import com.rbc.fogwall.user.SshKeyEntry;
 import com.rbc.fogwall.user.UserEntry;
 import java.io.File;
 import java.nio.file.Files;
@@ -223,6 +225,34 @@ class CheckUserPushPermissionHookTest {
 
     // ---- strict identity mode (#40) — HTTP path ----
 
+    /** A user whose connecting key was imported by {@code keyAuthSource}'s OAuth linking, or hand-added when null. */
+    private static UserEntry userEntryWithSshKey(
+            String username, String provider, String scmUsername, boolean verified, String keyAuthSource) {
+        SshKeyEntry key = keyAuthSource != null
+                ? SshKeyEntry.builder()
+                        .username(username)
+                        .fingerprint("SHA256:fingerprint")
+                        .locked(true)
+                        .authSource(keyAuthSource)
+                        .build()
+                : SshKeyEntry.builder()
+                        .username(username)
+                        .fingerprint("SHA256:fingerprint")
+                        .locked(false)
+                        .authSource("config")
+                        .build();
+        return UserEntry.builder()
+                .username(username)
+                .emails(List.of())
+                .sshKeys(List.of(key))
+                .scmIdentities(List.of(ScmIdentity.builder()
+                        .provider(provider)
+                        .username(scmUsername)
+                        .verified(verified)
+                        .build()))
+                .build();
+    }
+
     private static UserEntry userEntryWithScmIdentity(
             String username, String provider, String scmUsername, boolean verified) {
         return UserEntry.builder()
@@ -329,10 +359,8 @@ class CheckUserPushPermissionHookTest {
     @Test
     void strictMode_sshUnverifiedIdentity_blocksPush() throws Exception {
         FogwallProvider github = new GitHubProvider("/push");
-        UserEntry alice = userEntryWithScmIdentity("alice", "github", "alice-gh", false);
-        var enricher = mock(SshScmIdentityEnricher.class);
-        when(enricher.resolveScmLogin(eq(alice), eq(github), eq("SHA256:fingerprint")))
-                .thenReturn(Optional.of("alice-gh"));
+        // Key imported from GitHub, but the identity was never OAuth-verified.
+        UserEntry alice = userEntryWithSshKey("alice", "github", "alice-gh", false, "github");
         when(permService.isAllowedToPush("alice", "github", "/owner/repo")).thenReturn(true);
 
         RevCommit c1 = createCommit("init");
@@ -352,21 +380,18 @@ class CheckUserPushPermissionHookTest {
                         pushContext,
                         github,
                         null,
-                        enricher,
+                        new ImportedKeyIdentityResolver(),
                         ScmOAuthConfig.IdentityMode.STRICT)
                 .onPreReceive(rp, List.of(cmd));
 
         assertTrue(validationContext.hasIssues());
-        assertTrue(validationContext.getIssues().get(0).summary().contains("No OAuth-verified SCM identity"));
+        assertTrue(validationContext.getIssues().get(0).summary().contains("SSH key not imported from github"));
     }
 
     @Test
     void strictMode_sshVerifiedIdentity_allowsPush() throws Exception {
         FogwallProvider github = new GitHubProvider("/push");
-        UserEntry alice = userEntryWithScmIdentity("alice", "github", "alice-gh", true);
-        var enricher = mock(SshScmIdentityEnricher.class);
-        when(enricher.resolveScmLogin(eq(alice), eq(github), eq("SHA256:fingerprint")))
-                .thenReturn(Optional.of("alice-gh"));
+        UserEntry alice = userEntryWithSshKey("alice", "github", "alice-gh", true, "github");
         when(permService.isAllowedToPush("alice", "github", "/owner/repo")).thenReturn(true);
 
         RevCommit c1 = createCommit("init");
@@ -386,11 +411,77 @@ class CheckUserPushPermissionHookTest {
                         pushContext,
                         github,
                         null,
-                        enricher,
+                        new ImportedKeyIdentityResolver(),
                         ScmOAuthConfig.IdentityMode.STRICT)
                 .onPreReceive(rp, List.of(cmd));
 
         assertFalse(validationContext.hasIssues());
         assertEquals("alice-gh", pushContext.getScmUsername());
+    }
+
+    @Test
+    void strictMode_sshHandAddedKey_blocksPush() throws Exception {
+        // The behaviour this mode exists for: a key typed into the profile page no longer resolves an SCM identity,
+        // even when the provider would confirm it is registered upstream.
+        FogwallProvider github = new GitHubProvider("/push");
+        UserEntry alice = userEntryWithSshKey("alice", "github", "alice-gh", true, null);
+        when(permService.isAllowedToPush("alice", "github", "/owner/repo")).thenReturn(true);
+
+        ValidationContext validationContext = strictSshRun(github, alice);
+
+        assertTrue(validationContext.hasIssues());
+        assertTrue(validationContext.getIssues().get(0).summary().contains("SSH key not imported from github"));
+    }
+
+    @Test
+    void strictMode_keyImportedFromAnotherProvider_blocksPush() throws Exception {
+        FogwallProvider github = new GitHubProvider("/push");
+        UserEntry alice = userEntryWithSshKey("alice", "github", "alice-gh", true, "gitlab");
+        when(permService.isAllowedToPush("alice", "github", "/owner/repo")).thenReturn(true);
+
+        ValidationContext validationContext = strictSshRun(github, alice);
+
+        assertTrue(validationContext.hasIssues());
+    }
+
+    @Test
+    void strictMode_providerWithoutKeyLookup_stillResolves() throws Exception {
+        // Strict mode reads the database, so the SshKeyFingerprintLookup capability permissive mode insists on is not
+        // required. A provider that cannot list keys is no longer a reason to refuse an SSH push.
+        FogwallProvider noLookup = new BitbucketProvider("/push");
+        UserEntry alice =
+                userEntryWithSshKey("alice", noLookup.getProviderId(), "alice-bb", true, noLookup.getProviderId());
+        when(permService.isAllowedToPush("alice", noLookup.getProviderId(), "/owner/repo"))
+                .thenReturn(true);
+
+        ValidationContext validationContext = strictSshRun(noLookup, alice);
+
+        assertFalse(validationContext.hasIssues());
+    }
+
+    /** Runs one strict-mode SSH push through the hook and returns the validation context it wrote to. */
+    private ValidationContext strictSshRun(FogwallProvider provider, UserEntry user) throws Exception {
+        // ServerReceivePackFactory picks the resolver from the mode; strict gets the imported-key one. The enricher is
+        // still passed in by tests that assert it is never consulted.
+        RevCommit c1 = createCommit("init");
+        RevCommit c2 = createCommit("second");
+        ReceivePack rp = new ReceivePack(repo);
+        ReceiveCommand cmd = new ReceiveCommand(c1.getId(), c2.getId(), "refs/heads/main", ReceiveCommand.Type.UPDATE);
+        PushContext pushContext = new PushContext();
+        pushContext.setRepoSlug("/owner/repo");
+        pushContext.setTransport(
+                new PushTransport.Ssh(user, "SHA256:fingerprint", null, ClientLivenessCheck.alwaysConnected()));
+        ValidationContext validationContext = new ValidationContext();
+        new CheckUserPushPermissionHook(
+                        resolver,
+                        permService,
+                        validationContext,
+                        pushContext,
+                        provider,
+                        null,
+                        new ImportedKeyIdentityResolver(),
+                        ScmOAuthConfig.IdentityMode.STRICT)
+                .onPreReceive(rp, List.of(cmd));
+        return validationContext;
     }
 }

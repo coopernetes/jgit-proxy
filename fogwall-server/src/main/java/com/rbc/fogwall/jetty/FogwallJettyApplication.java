@@ -3,6 +3,7 @@ package com.rbc.fogwall.jetty;
 import com.rbc.fogwall.build.BuildInfo;
 import com.rbc.fogwall.config.FogwallConfigLoader;
 import com.rbc.fogwall.config.JettyConfigurationBuilder;
+import com.rbc.fogwall.config.ScmOAuthConfig;
 import com.rbc.fogwall.config.ServerConfig;
 import com.rbc.fogwall.config.TlsConfig;
 import com.rbc.fogwall.jetty.reload.LiveConfigLoader;
@@ -49,6 +50,7 @@ public class FogwallJettyApplication {
         var fogwallConfig = FogwallConfigLoader.load();
         var configBuilder = new JettyConfigurationBuilder(fogwallConfig);
         configBuilder.validateProviderReferences(); // fail fast before any DB or port setup
+        warnIfStrictModeCannotResolve(configBuilder.buildScmOAuthConfig().getIdentityMode());
         configBuilder.applyOutboundProxySystemWiring(); // before any outbound connection is made
 
         var threadPool = new QueuedThreadPool();
@@ -140,6 +142,28 @@ public class FogwallJettyApplication {
      * that must be started before use. A limit of 0 (or lower) leaves the platform pool handling requests directly, as
      * an operational escape hatch.
      */
+    /**
+     * Warns when strict identity mode is configured on a distribution that cannot produce the evidence it needs.
+     *
+     * <p>Strict mode resolves identity only from OAuth-verified identities and the SSH keys imported alongside them,
+     * and both are written by the dashboard's linking flow. A config file cannot declare either: config-declared
+     * identities are always unverified and config-declared keys carry {@code authSource: config}. So this server can
+     * satisfy strict mode only against a database a dashboard writes to; with its own, every push is refused with
+     * nothing said until push time.
+     *
+     * <p>Lives here rather than in the shared config builder because the dashboard supports strict mode fully — warning
+     * there would fire on the configuration that actually works.
+     */
+    private static void warnIfStrictModeCannotResolve(ScmOAuthConfig.IdentityMode identityMode) {
+        if (identityMode != ScmOAuthConfig.IdentityMode.STRICT) {
+            return;
+        }
+        log.warn("scm-oauth.identity-mode: strict resolves identity only from OAuth-linked accounts and their imported"
+                + " SSH keys, which the dashboard's linking flow writes. Nothing in this config file can"
+                + " satisfy it. Unless this server shares a database with a dashboard where users link their"
+                + " accounts, every push will be refused.");
+    }
+
     public static void enableVirtualThreads(
             Server server, QueuedThreadPool threadPool, String name, int maxConcurrentRequests) {
         if (maxConcurrentRequests <= 0) {

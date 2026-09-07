@@ -11,7 +11,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.rbc.fogwall.config.ScmOAuthConfig;
-import com.rbc.fogwall.jetty.reload.ConfigHolder;
 import com.rbc.fogwall.permission.GroupPermissionStore;
 import com.rbc.fogwall.permission.PermissionGroup;
 import com.rbc.fogwall.permission.RepoPermission;
@@ -52,7 +51,7 @@ class ProfileControllerTest {
     RepoPermissionService permissionService;
 
     @Mock
-    ConfigHolder configHolder;
+    ScmOAuthConfig scmOAuthConfig;
 
     @BeforeEach
     void setupSecurityContext() {
@@ -62,7 +61,7 @@ class ProfileControllerTest {
         lenient().when(ctx.getAuthentication()).thenReturn(auth);
         SecurityContextHolder.setContext(ctx);
 
-        lenient().when(configHolder.getScmOAuthConfig()).thenReturn(ScmOAuthConfig.defaultConfig());
+        lenient().when(scmOAuthConfig.getIdentityMode()).thenReturn(ScmOAuthConfig.IdentityMode.PERMISSIVE);
     }
 
     @AfterEach
@@ -160,10 +159,7 @@ class ProfileControllerTest {
 
     @Test
     void addScmIdentity_strictMode_returns403_andNeverCallsStore() {
-        when(configHolder.getScmOAuthConfig())
-                .thenReturn(ScmOAuthConfig.builder()
-                        .identityMode(ScmOAuthConfig.IdentityMode.STRICT)
-                        .build());
+        when(scmOAuthConfig.getIdentityMode()).thenReturn(ScmOAuthConfig.IdentityMode.STRICT);
 
         var resp = controller.addScmIdentity(Map.of("provider", "github", "username", "alice-gh"));
 

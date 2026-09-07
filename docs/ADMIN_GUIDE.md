@@ -974,6 +974,16 @@ GET /api/health   → 200 OK with status payload when the server is up
 The standalone server module (`fogwall-server`) does not expose a health endpoint — use a TCP check against the proxy
 port instead.
 
+### Imported SSH keys and revocation
+
+Linking an account imports the SSH keys registered on it, marked as coming from that provider. In
+`scm-oauth.identity-mode: strict` those imported keys are the only ones that resolve an SCM identity for an SSH push.
+
+fogwall does not poll providers to notice a key removed upstream, and does not need to: a push is forwarded with the
+client's own SSH agent, so a key revoked on the SCM fails there whatever fogwall still holds. Fetches re-sync from
+upstream with that same agent, and fogwall grants no fetch permission of its own. A user who wants their imported keys
+re-read unlinks and re-links the account, which imports them again.
+
 ### Identifying which build is running
 
 The `edge` image is rebuilt from `main` on every commit, so a version alone does not identify a deployment. Both modules

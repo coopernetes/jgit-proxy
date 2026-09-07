@@ -63,14 +63,19 @@ public class CompositeUserStore implements UserStore {
 
     @Override
     public List<UserEntry> findAll() {
-        // Merge: config users take precedence on username collision.
+        // Config wins on username/passwordHash/roles, but the additive fields still merge — the same entry
+        // findByUsername returns. Returning the bare config snapshot here made a config-declared user who had linked
+        // an account look unlinked to anything that enumerates users, which is how the SSH key refresh came to skip
+        // every such user.
+        Map<String, UserEntry> fromMutable = new LinkedHashMap<>();
+        for (UserEntry u : mutableStore.findAll()) {
+            fromMutable.put(u.getUsername(), u);
+        }
         Map<String, UserEntry> merged = new LinkedHashMap<>();
         for (UserEntry u : configStore.findAll()) {
-            merged.put(u.getUsername(), u);
+            merged.put(u.getUsername(), mergeMutableFields(u, Optional.ofNullable(fromMutable.get(u.getUsername()))));
         }
-        for (UserEntry u : mutableStore.findAll()) {
-            merged.putIfAbsent(u.getUsername(), u);
-        }
+        fromMutable.forEach(merged::putIfAbsent);
         return new ArrayList<>(merged.values());
     }
 

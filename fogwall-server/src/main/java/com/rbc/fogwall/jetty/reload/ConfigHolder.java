@@ -4,7 +4,6 @@ import com.rbc.fogwall.config.AttestationQuestion;
 import com.rbc.fogwall.config.BinaryBlobConfig;
 import com.rbc.fogwall.config.CommitConfig;
 import com.rbc.fogwall.config.DiffScanConfig;
-import com.rbc.fogwall.config.ScmOAuthConfig;
 import com.rbc.fogwall.config.SecretScanConfig;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -39,22 +38,18 @@ public class ConfigHolder {
     private final AtomicReference<SecretScanConfig> secretScanConfig;
     private final AtomicReference<BinaryBlobConfig> binaryBlobConfig;
     private final AtomicReference<List<AttestationQuestion>> attestations;
-    private final AtomicReference<ScmOAuthConfig> scmOAuthConfig;
 
     public ConfigHolder(
             CommitConfig commitConfig,
             DiffScanConfig diffScanConfig,
             SecretScanConfig secretScanConfig,
             BinaryBlobConfig binaryBlobConfig,
-            List<AttestationQuestion> attestations,
-            ScmOAuthConfig scmOAuthConfig) {
+            List<AttestationQuestion> attestations) {
         this.commitConfig = new AtomicReference<>(commitConfig);
         this.diffScanConfig = new AtomicReference<>(diffScanConfig);
         this.secretScanConfig = new AtomicReference<>(secretScanConfig);
         this.binaryBlobConfig = new AtomicReference<>(binaryBlobConfig);
         this.attestations = new AtomicReference<>(attestations);
-        this.scmOAuthConfig =
-                new AtomicReference<>(scmOAuthConfig != null ? scmOAuthConfig : ScmOAuthConfig.defaultConfig());
     }
 
     /** Returns the current live {@link CommitConfig}. Reads are always atomic and never block. */
@@ -83,11 +78,6 @@ public class ConfigHolder {
      */
     public List<AttestationQuestion> getAttestations() {
         return attestations.get();
-    }
-
-    /** Returns the current live {@link ScmOAuthConfig}. Reads are always atomic and never block. */
-    public ScmOAuthConfig getScmOAuthConfig() {
-        return scmOAuthConfig.get();
     }
 
     /**
@@ -144,15 +134,5 @@ public class ConfigHolder {
         List<AttestationQuestion> old = attestations.getAndSet(newAttestations);
         log.info("Attestations reloaded: {} question(s)", newAttestations.size());
         log.debug("Previous attestations replaced: {}", old);
-    }
-
-    /**
-     * Atomically replaces the live SCM OAuth config. Called by {@link LiveConfigLoader} when a {@code scm-oauth}
-     * section reload is triggered.
-     */
-    public void update(ScmOAuthConfig newScmOAuthConfig) {
-        ScmOAuthConfig old = scmOAuthConfig.getAndSet(newScmOAuthConfig);
-        log.info("ScmOAuthConfig reloaded: identityMode={}", newScmOAuthConfig.getIdentityMode());
-        log.debug("Previous ScmOAuthConfig replaced: {}", old);
     }
 }

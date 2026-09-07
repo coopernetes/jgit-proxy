@@ -1,79 +1,34 @@
 package com.rbc.fogwall.user;
 
-import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
-import javax.sql.DataSource;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 /**
- * Stores OAuth tokens obtained via SCM account linking (#40) in {@code user_scm_tokens}. Tokens are encrypted by the
- * caller (see {@code com.rbc.fogwall.crypto.TokenCipher}) before being passed here — this class only persists bytes, it
- * never touches key material.
+ * Stores the OAuth tokens SCM account linking obtains, keyed by {@code (username, provider)}.
+ *
+ * <p>Tokens arrive already encrypted by the caller (see {@code com.rbc.fogwall.crypto.TokenCipher}); an implementation
+ * persists opaque bytes and never touches key material.
+ *
+ * <p>Both database families implement this. Without a Mongo implementation, account linking and the SSH key refresh
+ * were unavailable on Mongo deployments, which also made {@code scm-oauth.identity-mode: strict} unsatisfiable there.
  */
-@Slf4j
-public class ScmOAuthTokenStore {
-
-    private final NamedParameterJdbcTemplate jdbc;
-
-    public ScmOAuthTokenStore(DataSource dataSource) {
-        this.jdbc = new NamedParameterJdbcTemplate(dataSource);
-    }
+public interface ScmOAuthTokenStore {
 
     /** Upserts the token for {@code (username, provider)}, replacing any prior token for the same pair. */
-    public void save(
+    void save(
             String username,
             String provider,
             byte[] encryptedAccessToken,
             byte[] encryptedRefreshToken,
             String scopes,
-            Instant expiresAt) {
-        var params = new HashMap<String, Object>();
-        params.put("u", username);
-        params.put("provider", provider);
-        params.put("accessToken", encryptedAccessToken);
-        params.put("refreshToken", encryptedRefreshToken);
-        params.put("scopes", scopes);
-        params.put("expiresAt", expiresAt != null ? Timestamp.from(expiresAt) : null);
-        params.put("authorizedAt", Timestamp.from(Instant.now()));
-
-        int updated = jdbc.update(
-                "UPDATE user_scm_tokens SET access_token = :accessToken, refresh_token = :refreshToken, "
-                        + "scopes = :scopes, expires_at = :expiresAt, authorized_at = :authorizedAt "
-                        + "WHERE username = :u AND provider = :provider",
-                params);
-        if (updated == 0) {
-            jdbc.update(
-                    "INSERT INTO user_scm_tokens "
-                            + "(username, provider, access_token, refresh_token, scopes, expires_at, authorized_at) "
-                            + "VALUES (:u, :provider, :accessToken, :refreshToken, :scopes, :expiresAt, :authorizedAt)",
-                    params);
-        }
-        log.debug("Stored OAuth token for user '{}' / provider '{}'", username, provider);
-    }
+            Instant expiresAt);
 
     /**
-     * Returns the stored encrypted access token for {@code (username, provider)}, if any — used to revoke it upstream
-     * (#40) before removing the local record. Caller decrypts via {@code TokenCipher}.
+     * Returns the stored encrypted access token for {@code (username, provider)}, if any. The caller decrypts it — for
+     * revoking the grant upstream, or for reading the account's registered SSH keys.
      */
-    public Optional<byte[]> findAccessToken(String username, String provider) {
-        return jdbc
-                .query(
-                        "SELECT access_token FROM user_scm_tokens WHERE username = :u AND provider = :provider",
-                        Map.of("u", username, "provider", provider),
-                        (rs, rowNum) -> rs.getBytes("access_token"))
-                .stream()
-                .findFirst();
-    }
+    Optional<byte[]> findAccessToken(String username, String provider);
 
-    /** Removes the stored token for {@code (username, provider)}, if any. No-ops if none exists. */
-    public void remove(String username, String provider) {
-        jdbc.update(
-                "DELETE FROM user_scm_tokens WHERE username = :u AND provider = :provider",
-                Map.of("u", username, "provider", provider));
-        log.debug("Removed OAuth token for user '{}' / provider '{}'", username, provider);
-    }
+    /** Removes the stored token for {@code (username, provider)}, if any. No-ops when none exists. */
+    void remove(String username, String provider);
 }

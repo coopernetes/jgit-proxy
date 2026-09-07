@@ -5,6 +5,7 @@ import com.rbc.fogwall.build.BuildInfo;
 import com.rbc.fogwall.config.FogwallConfig;
 import com.rbc.fogwall.config.FogwallConfigLoader;
 import com.rbc.fogwall.config.JettyConfigurationBuilder;
+import com.rbc.fogwall.config.ScmOAuthConfig;
 import com.rbc.fogwall.crypto.TokenCipherProvider;
 import com.rbc.fogwall.db.MongoStoreFactory;
 import com.rbc.fogwall.db.UrlRuleRegistry;
@@ -19,6 +20,7 @@ import com.rbc.fogwall.provider.InMemoryProviderRegistry;
 import com.rbc.fogwall.provider.ProviderRegistry;
 import com.rbc.fogwall.ssh.SshGitServer;
 import com.rbc.fogwall.ssh.SshServerRegistrar;
+import com.rbc.fogwall.user.JdbcScmOAuthTokenStore;
 import com.rbc.fogwall.user.ScmOAuthTokenStore;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.ServletContextEvent;
@@ -131,6 +133,8 @@ public class FogwallDashboardApplication {
         // Spring MVC DispatcherServlet at /* - git-specific paths take precedence per servlet spec
         var jdbcDataSource = configBuilder.getJdbcDataSourceOrNull();
         var mongoFactory = configBuilder.getMongoStoreFactoryOrNull();
+        // scm-oauth is operator setup read once at startup, not a hot-reloadable section.
+        ScmOAuthConfig scmOAuthConfig = configBuilder.buildScmOAuthConfig();
         registerSpringServlet(
                 context,
                 ctx,
@@ -140,7 +144,8 @@ public class FogwallDashboardApplication {
                 liveConfigLoader,
                 urlRuleRegistry,
                 jdbcDataSource,
-                mongoFactory);
+                mongoFactory,
+                scmOAuthConfig);
 
         // SCM API dialects live on their own listeners, not under the dashboard's "/" context — see
         // FogwallServletRegistrar.registerScmApiListeners for why a shared path prefix can't work.
@@ -169,7 +174,8 @@ public class FogwallDashboardApplication {
             LiveConfigLoader liveConfigLoader,
             UrlRuleRegistry urlRuleRegistry,
             javax.sql.DataSource jdbcDataSource,
-            MongoStoreFactory mongoFactory) {
+            MongoStoreFactory mongoFactory,
+            ScmOAuthConfig scmOAuthConfig) {
         var appContext = new AnnotationConfigWebApplicationContext();
         appContext.register(SpringWebConfig.class, SecurityConfig.class, SessionStoreConfig.class);
         appContext.addBeanFactoryPostProcessor(bf -> {
@@ -182,17 +188,22 @@ public class FogwallDashboardApplication {
             bf.registerSingleton("repoRegistry", urlRuleRegistry);
             bf.registerSingleton("fetchStore", ctx.fetchStore());
             bf.registerSingleton("scmApiActionStore", ctx.scmApiActionStore());
+            bf.registerSingleton("sshScmIdentityEnricher", ctx.sshScmIdentityEnricher());
+            bf.registerSingleton("scmOAuthConfig", scmOAuthConfig);
             // #340: expose both local-mirror caches so AdminCacheController can inspect/invalidate them. Both are
             // always constructed by JettyConfigurationBuilder (server-mode and transparent-proxy mirrors).
             bf.registerSingleton("serverCache", ctx.serverCache());
             bf.registerSingleton("proxyCache", ctx.proxyCache());
             // #40: OAuth token encryption never fails startup — see TokenCipherProvider javadoc. A missing/invalid
             // key only disables the /api/scm-oauth/{provider}/link|callback endpoints, never push authorization.
-            bf.registerSingleton(
-                    "tokenCipherProvider",
-                    TokenCipherProvider.initialize(
-                            fogwallConfig.getScmOauth().getTokenEncryptionKeyPath(),
-                            Path.of("./.data/scm-oauth-token-key")));
+            TokenCipherProvider tokenCipherProvider = TokenCipherProvider.initialize(
+                    fogwallConfig.getScmOauth().getTokenEncryptionKeyPath(), Path.of("./.data/scm-oauth-token-key"));
+            bf.registerSingleton("tokenCipherProvider", tokenCipherProvider);
+            // Both database families provide one, so account linking, the SSH key refresh and strict identity mode
+            // behave the same on either.
+            ScmOAuthTokenStore oauthTokenStore = jdbcDataSource != null
+                    ? new JdbcScmOAuthTokenStore(jdbcDataSource)
+                    : (mongoFactory != null ? mongoFactory.scmOAuthTokenStore() : null);
             // The permission service is always constructed by JettyConfigurationBuilder; registering it
             // conditionally forced @Autowired(required = false) and use-site null-guards onto every
             // consumer for a case that cannot occur. Register unconditionally and fail loudly if the
@@ -205,9 +216,9 @@ public class FogwallDashboardApplication {
             // when session-store=jdbc. Null for MongoDB deployments (no JDBC DataSource available).
             if (jdbcDataSource != null) {
                 bf.registerSingleton("dataSource", jdbcDataSource);
-                // #40: OAuth token storage is JDBC-only for now — ScmOAuthLinkController treats its absence
-                // (Mongo deployments) as "OAuth linking not supported with this backend", not a startup failure.
-                bf.registerSingleton("scmOAuthTokenStore", new ScmOAuthTokenStore(jdbcDataSource));
+            }
+            if (oauthTokenStore != null) {
+                bf.registerSingleton("scmOAuthTokenStore", oauthTokenStore);
             }
             // Expose the shared MongoClient + database name for session-store=mongo. Null for JDBC deployments.
             if (mongoFactory != null) {
