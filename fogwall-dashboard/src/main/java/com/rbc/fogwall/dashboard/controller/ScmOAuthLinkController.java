@@ -436,7 +436,7 @@ public class ScmOAuthLinkController {
             UserStore mutable, String username, String providerId, FogwallProvider provider, String accessToken) {
         userStore
                 .findByUsername(username)
-                .ifPresent(user -> ScmSshKeyImporter.reconcile(
+                .ifPresent(user -> ScmSshKeyImporter.importAll(
                         mutable, user, providerId, ScmSshKeyImporter.fetch(provider, accessToken)));
     }
 

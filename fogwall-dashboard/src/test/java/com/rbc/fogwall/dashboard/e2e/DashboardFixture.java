@@ -6,7 +6,6 @@ import com.rbc.fogwall.config.ScmOAuthConfig;
 import com.rbc.fogwall.crypto.TokenCipherProvider;
 import com.rbc.fogwall.dashboard.SecurityConfig;
 import com.rbc.fogwall.dashboard.SpringWebConfig;
-import com.rbc.fogwall.dashboard.service.SshKeyRefreshService;
 import com.rbc.fogwall.db.PushStoreFactory;
 import com.rbc.fogwall.db.ScmApiActionStoreFactory;
 import com.rbc.fogwall.db.jdbc.DataSourceFactory;
@@ -28,7 +27,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import org.eclipse.jetty.ee11.servlet.FilterHolder;
 import org.eclipse.jetty.ee11.servlet.ServletContextHandler;
@@ -113,14 +111,6 @@ class DashboardFixture implements AutoCloseable {
             bf.registerSingleton("scmOAuthConfig", ScmOAuthConfig.defaultConfig());
             var sshEnricher = new SshScmIdentityEnricher();
             bf.registerSingleton("sshScmIdentityEnricher", sshEnricher);
-            bf.registerSingleton(
-                    "sshKeyRefreshService",
-                    new SshKeyRefreshService(
-                            userStore,
-                            new InMemoryProviderRegistry(List.of()),
-                            Optional.empty(),
-                            tokenCipherProvider,
-                            sshEnricher));
         });
 
         server = new Server();

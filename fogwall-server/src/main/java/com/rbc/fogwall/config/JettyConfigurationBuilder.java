@@ -392,19 +392,10 @@ public class JettyConfigurationBuilder {
     /** Builds a {@link ScmOAuthConfig} from the {@code scm-oauth:} YAML section. */
     public ScmOAuthConfig buildScmOAuthConfig() {
         ScmOAuthSettings settings = config.getScmOauth();
-        Duration refreshInterval =
-                DurationSettings.parse(settings.getSshKeyRefreshInterval(), "scm-oauth.ssh-key-refresh-interval");
         ScmOAuthConfig scmOAuthConfig = ScmOAuthConfig.builder()
                 .identityMode(ScmOAuthConfig.IdentityMode.fromString(settings.getIdentityMode()))
-                .sshKeyRefreshInterval(
-                        refreshInterval != null ? refreshInterval : ScmOAuthConfig.DEFAULT_SSH_KEY_REFRESH_INTERVAL)
                 .build();
-        log.info(
-                "Loaded SCM OAuth config: identityMode={} sshKeyRefreshInterval={}",
-                scmOAuthConfig.getIdentityMode(),
-                scmOAuthConfig.getSshKeyRefreshInterval().isZero()
-                        ? "disabled"
-                        : scmOAuthConfig.getSshKeyRefreshInterval());
+        log.info("Loaded SCM OAuth config: identityMode={}", scmOAuthConfig.getIdentityMode());
         return scmOAuthConfig;
     }
 

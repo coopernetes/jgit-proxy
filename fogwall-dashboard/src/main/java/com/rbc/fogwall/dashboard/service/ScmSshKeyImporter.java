@@ -10,8 +10,6 @@ import com.rbc.fogwall.user.SshKeyConflictException;
 import com.rbc.fogwall.user.SshKeyEntry;
 import com.rbc.fogwall.user.UserEntry;
 import com.rbc.fogwall.user.UserStore;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -39,14 +37,10 @@ public final class ScmSshKeyImporter {
     /** One key as the provider reports it. Field names match all three providers' JSON. */
     public record OAuthSshKeyEntry(String key, String title) {}
 
-    /** What a reconcile changed, so a key disappearing is explainable afterwards. */
-    public record ReconcileResult(int added, int withdrawn, boolean fetchFailed) {
-        public static ReconcileResult failed() {
-            return new ReconcileResult(0, 0, true);
-        }
-
-        public boolean changedAnything() {
-            return added > 0 || withdrawn > 0;
+    /** What an import added, and whether the provider could be read at all. */
+    public record ImportResult(int added, boolean fetchFailed) {
+        public static ImportResult failed() {
+            return new ImportResult(0, true);
         }
     }
 
@@ -99,43 +93,29 @@ public final class ScmSshKeyImporter {
     }
 
     /**
-     * Adds keys the provider reports and withdraws this provider's claim on imported keys it no longer reports.
+     * Registers every key the provider reports. Additive: a key fogwall already holds is re-offered to
+     * {@link UserStore#addSshKey}, which records an additional source when a second provider also vouches for it.
      *
-     * <p>Withdrawal is per key rather than "clear the source and re-import", so a push arriving mid-reconcile never
-     * sees an empty key set. A key another linked provider still claims, or one that came from config, survives the
-     * withdrawal — that decision belongs to the store.
-     *
-     * @param upstream the provider's keys, or empty when the read failed; a failed read withdraws nothing
+     * @param upstream the provider's keys, or empty when the read failed — a failed read imports nothing
      */
-    public static ReconcileResult reconcile(
+    public static ImportResult importAll(
             UserStore mutable, UserEntry user, String providerId, Optional<List<OAuthSshKeyEntry>> upstream) {
         if (upstream.isEmpty()) {
-            log.warn(
-                    "Keeping the imported SSH keys for user '{}' on provider '{}': the provider could not be read, so"
-                            + " no key can be shown to have been withdrawn",
-                    user.getUsername(),
-                    providerId);
-            return ReconcileResult.failed();
+            log.warn("Could not read SSH keys for user '{}' on provider '{}'", user.getUsername(), providerId);
+            return ImportResult.failed();
         }
-        // What this provider already vouched for, so "added" counts keys that were not on file rather than every key
-        // the provider reports — otherwise a sweep that changed nothing still reports work.
         Set<String> alreadyVouched = user.getSshKeys().stream()
                 .filter(k -> k.isVouchedForBy(providerId))
                 .map(SshKeyEntry::getFingerprint)
                 .collect(Collectors.toSet());
-        Set<String> upstreamFingerprints = new LinkedHashSet<>();
         int added = 0;
         for (OAuthSshKeyEntry key : upstream.get()) {
             String fingerprint = importKey(mutable, user.getUsername(), providerId, key);
-            if (fingerprint != null) {
-                upstreamFingerprints.add(fingerprint);
-                if (!alreadyVouched.contains(fingerprint)) {
-                    added++;
-                }
+            if (fingerprint != null && !alreadyVouched.contains(fingerprint)) {
+                added++;
             }
         }
-        int withdrawn = withdrawMissing(mutable, user, providerId, upstreamFingerprints);
-        return new ReconcileResult(added, withdrawn, false);
+        return new ImportResult(added, false);
     }
 
     /**
@@ -163,27 +143,5 @@ public final class ScmSshKeyImporter {
             log.warn("Skipping unparsable SSH key from '{}' for user '{}': {}", providerId, username, e.getMessage());
             return null;
         }
-    }
-
-    /** Withdraws this provider's claim on every imported key the provider no longer reports. */
-    private static int withdrawMissing(
-            UserStore mutable, UserEntry user, String providerId, Set<String> upstreamFingerprints) {
-        List<SshKeyEntry> imported = new ArrayList<>();
-        for (SshKeyEntry key : user.getSshKeys()) {
-            if (key.isLocked()
-                    && key.isVouchedForBy(providerId)
-                    && !upstreamFingerprints.contains(key.getFingerprint())) {
-                imported.add(key);
-            }
-        }
-        for (SshKeyEntry key : imported) {
-            mutable.removeSshKeySource(user.getUsername(), key.getFingerprint(), providerId);
-            log.info(
-                    "Withdrew '{}' as a source for SSH key {} of user '{}' — no longer registered on that provider",
-                    providerId,
-                    key.getFingerprint(),
-                    user.getUsername());
-        }
-        return imported.size();
     }
 }

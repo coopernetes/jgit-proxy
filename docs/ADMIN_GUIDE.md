@@ -974,31 +974,15 @@ GET /api/health   → 200 OK with status payload when the server is up
 The standalone server module (`fogwall-server`) does not expose a health endpoint — use a TCP check against the proxy
 port instead.
 
-### Keeping imported SSH keys current
+### Imported SSH keys and revocation
 
-When an account is linked via OAuth, the SSH keys registered on that provider are imported and marked as coming from it.
-That import happens once, at link time, so a key the user later removes upstream would stay usable in fogwall
-indefinitely. `scm-oauth.ssh-key-refresh-interval` (default `7d`, `0` disables) re-reads each linked provider and
-withdraws its claim on keys it no longer reports. Hand-added keys are never touched, and a key another linked provider
-still vouches for survives.
+Linking an account imports the SSH keys registered on it, marked as coming from that provider. In
+`scm-oauth.identity-mode: strict` those imported keys are the only ones that resolve an SCM identity for an SSH push.
 
-This matters most under `scm-oauth.identity-mode: strict`, where an imported key is the entire basis for resolving an
-SSH push: without the sweep, revoking a key upstream has no effect here. To apply a revocation immediately rather than
-waiting for the next sweep, `POST /api/admin/ssh-keys/refresh` runs it for every user. A user who wants their own keys
-re-read sooner can unlink and re-link the account from their profile page, which imports them again.
-
-A provider that cannot be read leaves its keys in place and is logged. That is deliberate — treating a failed read as
-"this account has no keys" would let a provider outage or an expired token revoke SSH access for everyone linked to it.
-
-Every provider is read through its authenticated `/user/keys` endpoint using the token stored when the account was
-linked, so a key is only ever attributed to the account that actually holds it. A user whose stored token is missing or
-no longer decryptable is skipped rather than emptied. Behaviour is the same on JDBC and MongoDB.
-
-The sweep runs in the dashboard only, since it needs the OAuth-linked identities and stored tokens that the linking flow
-writes. Note also that `scm-oauth.identity-mode: strict` cannot be satisfied by anything declared in a config file:
-config-declared identities are always unverified and config-declared keys are not OAuth-imported. A standalone server
-therefore needs to share a database with a dashboard for strict mode to resolve anything, and warns at startup when it
-is set.
+fogwall does not poll providers to notice a key removed upstream, and does not need to: a push is forwarded with the
+client's own SSH agent, so a key revoked on the SCM fails there whatever fogwall still holds. Fetches re-sync from
+upstream with that same agent, and fogwall grants no fetch permission of its own. A user who wants their imported keys
+re-read unlinks and re-links the account, which imports them again.
 
 ### Identifying which build is running
 

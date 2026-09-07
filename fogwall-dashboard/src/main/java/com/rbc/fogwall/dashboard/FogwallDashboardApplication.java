@@ -7,7 +7,6 @@ import com.rbc.fogwall.config.FogwallConfigLoader;
 import com.rbc.fogwall.config.JettyConfigurationBuilder;
 import com.rbc.fogwall.config.ScmOAuthConfig;
 import com.rbc.fogwall.crypto.TokenCipherProvider;
-import com.rbc.fogwall.dashboard.service.SshKeyRefreshService;
 import com.rbc.fogwall.db.MongoStoreFactory;
 import com.rbc.fogwall.db.UrlRuleRegistry;
 import com.rbc.fogwall.jetty.BlockingContentHandler;
@@ -19,7 +18,6 @@ import com.rbc.fogwall.jetty.reload.LiveConfigLoader;
 import com.rbc.fogwall.provider.FogwallProvider;
 import com.rbc.fogwall.provider.InMemoryProviderRegistry;
 import com.rbc.fogwall.provider.ProviderRegistry;
-import com.rbc.fogwall.scheduler.MaintenanceScheduler;
 import com.rbc.fogwall.ssh.SshGitServer;
 import com.rbc.fogwall.ssh.SshServerRegistrar;
 import com.rbc.fogwall.user.JdbcScmOAuthTokenStore;
@@ -28,11 +26,9 @@ import jakarta.servlet.DispatcherType;
 import jakarta.servlet.ServletContextEvent;
 import jakarta.servlet.ServletContextListener;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.ee11.servlet.FilterHolder;
 import org.eclipse.jetty.ee11.servlet.ServletContextHandler;
@@ -125,13 +121,11 @@ public class FogwallDashboardApplication {
                 configBuilder.getReloadConfig(),
                 ctx.urlRuleRegistry(),
                 ctx.repoPermissionService());
-        var maintenance = new MaintenanceScheduler();
-        liveConfigLoader.start(maintenance);
+        liveConfigLoader.start();
         server.addEventListener(new LifeCycle.Listener() {
             @Override
             public void lifeCycleStopping(LifeCycle event) {
                 liveConfigLoader.stop();
-                maintenance.close();
                 if (sshGitServer != null) sshGitServer.stop();
             }
         });
@@ -141,7 +135,7 @@ public class FogwallDashboardApplication {
         var mongoFactory = configBuilder.getMongoStoreFactoryOrNull();
         // scm-oauth is operator setup read once at startup, not a hot-reloadable section.
         ScmOAuthConfig scmOAuthConfig = configBuilder.buildScmOAuthConfig();
-        var springContext = registerSpringServlet(
+        registerSpringServlet(
                 context,
                 ctx,
                 providerConfig,
@@ -162,8 +156,6 @@ public class FogwallDashboardApplication {
         server.setHandler(new BlockingContentHandler(contexts));
         server.start();
 
-        scheduleSshKeyRefresh(maintenance, springContext, scmOAuthConfig);
-
         log.info("fogwall with dashboard started on port {}", connector.getPort());
         log.info("  Dashboard:  http://localhost:{}/dashboard/", connector.getPort());
         log.info("  API:        http://localhost:{}/api", connector.getPort());
@@ -173,7 +165,7 @@ public class FogwallDashboardApplication {
         server.join();
     }
 
-    private static AnnotationConfigWebApplicationContext registerSpringServlet(
+    private static void registerSpringServlet(
             ServletContextHandler context,
             FogwallContext ctx,
             ProviderRegistry providers,
@@ -212,14 +204,6 @@ public class FogwallDashboardApplication {
             ScmOAuthTokenStore oauthTokenStore = jdbcDataSource != null
                     ? new JdbcScmOAuthTokenStore(jdbcDataSource)
                     : (mongoFactory != null ? mongoFactory.scmOAuthTokenStore() : null);
-            bf.registerSingleton(
-                    "sshKeyRefreshService",
-                    new SshKeyRefreshService(
-                            ctx.userStore(),
-                            providers,
-                            Optional.ofNullable(oauthTokenStore),
-                            tokenCipherProvider,
-                            ctx.sshScmIdentityEnricher()));
             // The permission service is always constructed by JettyConfigurationBuilder; registering it
             // conditionally forced @Autowired(required = false) and use-site null-guards onto every
             // consumer for a case that cannot occur. Register unconditionally and fail loudly if the
@@ -298,27 +282,5 @@ public class FogwallDashboardApplication {
         }
 
         log.info("Registered Spring MVC DispatcherServlet and Spring Security filter chain");
-        return appContext;
-    }
-
-    /**
-     * Schedules the periodic SSH key re-import once the Spring context is live.
-     *
-     * <p>Runs only in the dashboard: the sweep needs OAuth-linked identities and their stored tokens, and both are
-     * written by the linking flow this distribution serves. The first run is deferred rather than immediate so a
-     * restart does not put a provider call per linked user in front of the first push.
-     */
-    private static void scheduleSshKeyRefresh(
-            MaintenanceScheduler maintenance,
-            AnnotationConfigWebApplicationContext springContext,
-            ScmOAuthConfig scmOAuthConfig) {
-        Duration interval = scmOAuthConfig.getSshKeyRefreshInterval();
-        if (interval == null || interval.isZero() || interval.isNegative()) {
-            log.info("SSH key refresh disabled (scm-oauth.ssh-key-refresh-interval: 0)");
-            return;
-        }
-        SshKeyRefreshService service = springContext.getBean(SshKeyRefreshService.class);
-        Duration firstRun = interval.compareTo(Duration.ofMinutes(5)) < 0 ? interval : Duration.ofMinutes(5);
-        maintenance.scheduleAtFixedRate("ssh-key-refresh", firstRun, interval, service::refreshAll);
     }
 }

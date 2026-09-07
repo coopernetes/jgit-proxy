@@ -1,7 +1,6 @@
 package com.rbc.fogwall.dashboard.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -23,8 +22,6 @@ class ScmSshKeyImporterTest {
 
     private static final String SAMPLE_KEY =
             "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIQiTzhWg82OVGUGpUMctA7FoBSZteJQ5R/TPaVfCC95";
-    /** A fingerprint with no matching key body — withdrawal compares fingerprints and never parses a key. */
-    private static final String GONE_FINGERPRINT = "SHA256:0000000000000000000000000000000000000000000";
 
     private static UserEntry userWith(SshKeyEntry... keys) {
         return UserEntry.builder().username("alice").sshKeys(List.of(keys)).build();
@@ -47,7 +44,7 @@ class ScmSshKeyImporterTest {
         UserStore mutable = mock(UserStore.class);
         String fingerprint = SshKeyUtils.fingerprint(SAMPLE_KEY);
 
-        ScmSshKeyImporter.reconcile(
+        ScmSshKeyImporter.importAll(
                 mutable, userWith(), "github", Optional.of(List.of(new OAuthSshKeyEntry(SAMPLE_KEY, "work laptop"))));
 
         verify(mutable).addSshKey("alice", fingerprint, SAMPLE_KEY, "work laptop", true, "github");
@@ -57,7 +54,7 @@ class ScmSshKeyImporterTest {
     void blankTitle_fallsBackToDefaultLabel() {
         UserStore mutable = mock(UserStore.class);
 
-        ScmSshKeyImporter.reconcile(
+        ScmSshKeyImporter.importAll(
                 mutable, userWith(), "github", Optional.of(List.of(new OAuthSshKeyEntry(SAMPLE_KEY, ""))));
 
         verify(mutable)
@@ -71,7 +68,7 @@ class ScmSshKeyImporterTest {
         UserStore mutable = mock(UserStore.class);
         String fingerprint = SshKeyUtils.fingerprint(SAMPLE_KEY);
 
-        ScmSshKeyImporter.reconcile(
+        ScmSshKeyImporter.importAll(
                 mutable,
                 userWith(importedKey(fingerprint, "github")),
                 "gitlab",
@@ -80,121 +77,36 @@ class ScmSshKeyImporterTest {
         verify(mutable).addSshKey("alice", fingerprint, SAMPLE_KEY, "work laptop", true, "gitlab");
     }
 
-    // ── Withdrawal ────────────────────────────────────────────────────────────
-
     @Test
-    void keyNoLongerUpstream_isWithdrawn() {
-        UserStore mutable = mock(UserStore.class);
-        String gone = GONE_FINGERPRINT;
-
-        var result = ScmSshKeyImporter.reconcile(
-                mutable,
-                userWith(importedKey(gone, "github")),
-                "github",
-                Optional.of(List.of(new OAuthSshKeyEntry(SAMPLE_KEY, "still here"))));
-
-        verify(mutable).removeSshKeySource("alice", gone, "github");
-        assertEquals(1, result.withdrawn());
-    }
-
-    @Test
-    void keyFromAnotherProvider_isNotWithdrawn() {
-        // Reconciling github must not touch what gitlab imported — each provider owns only its own claims.
-        UserStore mutable = mock(UserStore.class);
-        String gitlabKey = GONE_FINGERPRINT;
-
-        var result = ScmSshKeyImporter.reconcile(
-                mutable, userWith(importedKey(gitlabKey, "gitlab")), "github", Optional.of(List.of()));
-
-        verify(mutable, never()).removeSshKeySource(any(), any(), any());
-        assertEquals(0, result.withdrawn());
-    }
-
-    @Test
-    void handAddedKey_isNotWithdrawn() {
-        UserStore mutable = mock(UserStore.class);
-        SshKeyEntry handAdded = SshKeyEntry.builder()
-                .username("alice")
-                .fingerprint(GONE_FINGERPRINT)
-                .locked(false)
-                .authSource("config")
-                .build();
-
-        ScmSshKeyImporter.reconcile(mutable, userWith(handAdded), "github", Optional.of(List.of()));
-
-        verify(mutable, never()).removeSshKeySource(any(), any(), any());
-    }
-
-    @Test
-    void emptyUpstream_withdrawsEveryImportedKey() {
-        // An account that genuinely has no keys left is a real state, distinct from a failed read.
+    void keyAlreadyVouchedForByThisProvider_isNotCountedAsAdded() {
         UserStore mutable = mock(UserStore.class);
         String fingerprint = SshKeyUtils.fingerprint(SAMPLE_KEY);
 
-        var result = ScmSshKeyImporter.reconcile(
-                mutable, userWith(importedKey(fingerprint, "github")), "github", Optional.of(List.of()));
+        var result = ScmSshKeyImporter.importAll(
+                mutable,
+                userWith(importedKey(fingerprint, "github")),
+                "github",
+                Optional.of(List.of(new OAuthSshKeyEntry(SAMPLE_KEY, "work laptop"))));
 
-        verify(mutable).removeSshKeySource("alice", fingerprint, "github");
-        assertEquals(1, result.withdrawn());
-        assertFalse(result.fetchFailed());
+        assertEquals(0, result.added());
     }
 
     // ── A failed read is not an empty key set ─────────────────────────────────
 
     @Test
-    void failedFetch_withdrawsNothing() {
-        // The security-relevant case: a provider outage or revoked token must not look like "all keys removed"
-        // and lock the user out of SSH.
+    void failedFetch_importsNothing() {
         UserStore mutable = mock(UserStore.class);
-        String fingerprint = SshKeyUtils.fingerprint(SAMPLE_KEY);
 
-        var result = ScmSshKeyImporter.reconcile(
-                mutable, userWith(importedKey(fingerprint, "github")), "github", Optional.empty());
+        var result = ScmSshKeyImporter.importAll(mutable, userWith(), "github", Optional.empty());
 
-        verify(mutable, never()).removeSshKeySource(any(), any(), any());
         verify(mutable, never()).addSshKey(any(), any(), any(), any(), eq(true), any());
         assertTrue(result.fetchFailed());
-        assertEquals(0, result.withdrawn());
         assertEquals(0, result.added());
     }
-
-    @Test
-    void keyVouchedForByTwoProviders_isWithdrawnFromOnlyTheOneReconciled() {
-        // The joined display label ("github, gitlab") equals neither provider id, so matching on it would leave the
-        // key claimed by both forever.
-        UserStore mutable = mock(UserStore.class);
-        String fp = SshKeyUtils.fingerprint(SAMPLE_KEY);
-
-        var result = ScmSshKeyImporter.reconcile(
-                mutable, userWith(importedKey(fp, "github", "gitlab")), "github", Optional.of(List.of()));
-
-        verify(mutable).removeSshKeySource("alice", fp, "github");
-        assertEquals(1, result.withdrawn());
-    }
-
-    @Test
-    void keyAlreadyOnFile_isNotCountedAsAdded() {
-        // Otherwise every sweep reports work for anyone with keys, and usersChanged is meaningless.
-        UserStore mutable = mock(UserStore.class);
-        String fp = SshKeyUtils.fingerprint(SAMPLE_KEY);
-
-        var result = ScmSshKeyImporter.reconcile(
-                mutable,
-                userWith(importedKey(fp, "github")),
-                "github",
-                Optional.of(List.of(new OAuthSshKeyEntry(SAMPLE_KEY, "work laptop"))));
-
-        assertEquals(0, result.added());
-        assertEquals(0, result.withdrawn());
-        assertFalse(result.changedAnything());
-    }
-
-    // ── No token means no read, and no read means no withdrawal ───────────────
 
     @Test
     void fetch_withoutAToken_readsNothing() {
-        // Every provider is read authenticated now, so a missing token is a failed read rather than "no keys" —
-        // which is what stops the sweep withdrawing anything for that provider.
+        // Every provider is read through its authenticated /user/keys endpoint, so no token means no read.
         var provider = GitHubProvider.builder().name("github").build();
 
         assertTrue(ScmSshKeyImporter.fetch(provider, null).isEmpty());

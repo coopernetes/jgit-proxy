@@ -905,12 +905,8 @@ scm-oauth:
   # an SCM identity, even if the provider would confirm it is registered there.
   identity-mode: permissive
 
-  # How often imported SSH keys are re-read from each linked provider. Import otherwise happens once, at link time,
-  # so a key the user removes upstream would stay usable in fogwall indefinitely. Set to 0 to disable the sweep.
-  ssh-key-refresh-interval: 7d
-
-  # The whole scm-oauth section is read once at startup — it is operator setup, not policy, so it is not hot-reloadable.
-  # Changing identity-mode or the refresh interval takes effect on restart. See "Hot reload" below for what is.
+  # The whole scm-oauth section is read once at startup — it is operator setup, not policy, so it is not
+  # hot-reloadable. Changing identity-mode takes effect on restart. See "Hot reload" below for what is reloadable.
 
   # Path to a file holding a base64-encoded 32-byte AES-256-GCM key, used to encrypt linked OAuth tokens at rest.
   # If unset, a key is auto-generated under ./.data/ for local development only — a loud warning is logged on every
@@ -967,7 +963,6 @@ providers:
 | Property                                    | Type    | Default      | Description                                                                                                      |
 | ------------------------------------------- | ------- | ------------ | ---------------------------------------------------------------------------------------------------------------- |
 | `identity-mode`                             | string  | `permissive` | `permissive` or `strict` — see above.                                                                            |
-| `ssh-key-refresh-interval`                  | string  | `7d`         | How often imported SSH keys are re-read from each linked provider. `0` disables the sweep. Dashboard only.       |
 | `token-encryption-key-path`                 | string  | _(none)_     | Path to the base64-encoded 32-byte AES-256-GCM key file. Auto-generated under `./.data/` for local dev if unset. |
 | `providers.<name>.oauth.enabled`            | boolean | `false`      | Whether "Link via OAuth" is offered for this provider.                                                           |
 | `providers.<name>.oauth.client-id`          | string  | `""`         | OAuth app/client ID.                                                                                             |
