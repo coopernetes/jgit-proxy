@@ -394,6 +394,11 @@ public class CompositeUserStore implements UserStore {
     }
 
     @Override
+    public void removeSshKeySource(String username, String fingerprint, String authSource) {
+        mutableStore.removeSshKeySource(username, fingerprint, authSource);
+    }
+
+    @Override
     public void removeSshKey(String username, String keyId) {
         // Block removal of config-locked keys
         configStore.findByUsername(username).ifPresent(u -> {

@@ -17,6 +17,12 @@ public class ScmOAuthSettings {
     /** {@code permissive} (default) or {@code strict} — see {@link ScmOAuthConfig.IdentityMode}. */
     private String identityMode = "permissive";
 
+    /**
+     * How often imported SSH keys are re-read from each linked provider — {@code 7d}, {@code 12h}, or an ISO-8601
+     * duration. Blank takes the shipped default; {@code 0} disables the sweep.
+     */
+    private String sshKeyRefreshInterval = "";
+
     /** Path to a file holding a base64-encoded 32-byte AES-256-GCM key used to encrypt stored OAuth tokens at rest. */
     private String tokenEncryptionKeyPath = "";
 }

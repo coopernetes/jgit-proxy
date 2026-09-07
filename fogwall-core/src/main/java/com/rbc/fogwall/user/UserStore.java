@@ -169,6 +169,17 @@ public interface UserStore extends ReadOnlyUserStore {
      */
     void removeSshKeysByAuthSource(String username, String authSource);
 
+    /**
+     * Drops {@code authSource}'s claim on the single key identified by {@code fingerprint} — the same semantics as
+     * {@link #removeSshKeysByAuthSource}, narrowed to one key. The key survives if another linked provider still claims
+     * it, or if config locked it.
+     *
+     * <p>Used by the SSH key refresh sweep, which withdraws a provider's claim on keys that are no longer registered on
+     * that provider. Removing one key at a time, rather than clearing the source and re-importing, means a push
+     * arriving mid-sweep never sees an empty key set.
+     */
+    void removeSshKeySource(String username, String fingerprint, String authSource);
+
     /** Return all SSH keys registered for the given user. */
     List<SshKeyEntry> findSshKeys(String username);
 }

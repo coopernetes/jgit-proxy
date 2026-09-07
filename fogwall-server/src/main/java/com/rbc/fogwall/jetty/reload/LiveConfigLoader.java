@@ -7,8 +7,10 @@ import com.rbc.fogwall.config.ReloadConfig;
 import com.rbc.fogwall.db.UrlRuleRegistry;
 import com.rbc.fogwall.permission.RepoPermission;
 import com.rbc.fogwall.permission.RepoPermissionService;
+import com.rbc.fogwall.scheduler.MaintenanceScheduler;
 import java.io.IOException;
 import java.nio.file.*;
+import java.time.Duration;
 import java.util.Comparator;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -80,6 +82,7 @@ public class LiveConfigLoader {
 
     private Thread fileWatchThread;
     private ScheduledExecutorService gitPollScheduler;
+    private MaintenanceScheduler maintenance;
     private ScheduledFuture<?> gitPollFuture;
 
     public LiveConfigLoader(
@@ -95,8 +98,17 @@ public class LiveConfigLoader {
         this.repoPermissionService = repoPermissionService;
     }
 
-    /** Starts file-watch and/or git-poll threads based on {@link ReloadConfig}. */
+    /** Starts file-watch and/or git-poll threads based on {@link ReloadConfig}, without a shared scheduler. */
     public void start() {
+        start(null);
+    }
+
+    /**
+     * Starts file-watch and/or git-poll based on {@link ReloadConfig}, running the git poll on {@code maintenance} when
+     * one is supplied so it shares a pool with the process's other periodic jobs.
+     */
+    public void start(MaintenanceScheduler maintenance) {
+        this.maintenance = maintenance;
         if (reloadConfig.getFile().isEnabled()) {
             String path = reloadConfig.getFile().getPath();
             if (path == null || path.isBlank()) {
@@ -121,6 +133,11 @@ public class LiveConfigLoader {
         if (fileWatchThread != null) {
             fileWatchThread.interrupt();
         }
+        if (gitPollFuture != null) {
+            gitPollFuture.cancel(true);
+        }
+        // Only shut down a scheduler this class created. A shared MaintenanceScheduler outlives this loader
+        // and is closed by whoever built it.
         if (gitPollScheduler != null) {
             gitPollScheduler.shutdownNow();
         }
@@ -237,6 +254,14 @@ public class LiveConfigLoader {
                 reloadConfig.getGit().getUrl(),
                 reloadConfig.getGit().getBranch(),
                 intervalSeconds);
+        if (maintenance != null) {
+            gitPollFuture = maintenance.scheduleAtFixedRate(
+                    "config-git-poll",
+                    Duration.ZERO,
+                    Duration.ofSeconds(intervalSeconds),
+                    () -> reloadFromGit(Section.ALL));
+            return;
+        }
         gitPollScheduler = Executors.newSingleThreadScheduledExecutor(
                 Thread.ofVirtual().name("config-git-poller").factory());
         gitPollFuture = gitPollScheduler.scheduleAtFixedRate(

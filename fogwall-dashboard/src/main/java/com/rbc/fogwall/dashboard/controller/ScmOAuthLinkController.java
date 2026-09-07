@@ -5,18 +5,17 @@ import com.rbc.fogwall.config.FogwallConfig;
 import com.rbc.fogwall.config.OAuthProviderSettings;
 import com.rbc.fogwall.config.ProviderConfig;
 import com.rbc.fogwall.crypto.TokenCipherProvider;
+import com.rbc.fogwall.dashboard.service.ScmSshKeyImporter;
 import com.rbc.fogwall.net.FogwallHttpExecutor;
 import com.rbc.fogwall.provider.FogwallProvider;
 import com.rbc.fogwall.provider.ForgejoProvider;
 import com.rbc.fogwall.provider.GitHubProvider;
 import com.rbc.fogwall.provider.GitLabProvider;
 import com.rbc.fogwall.provider.ProviderRegistry;
-import com.rbc.fogwall.ssh.SshKeyUtils;
 import com.rbc.fogwall.user.EmailConflictException;
 import com.rbc.fogwall.user.ReadOnlyUserStore;
 import com.rbc.fogwall.user.ScmIdentityConflictException;
 import com.rbc.fogwall.user.ScmOAuthTokenStore;
-import com.rbc.fogwall.user.SshKeyConflictException;
 import com.rbc.fogwall.user.UserStore;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -441,109 +440,10 @@ public class ScmOAuthLinkController {
             FogwallProvider provider,
             String scmUsername,
             String accessToken) {
-        List<OAuthSshKeyEntry> keys;
-        if (provider instanceof GitHubProvider github) {
-            keys = fetchGitHubSshKeys(github, accessToken);
-        } else if (provider instanceof GitLabProvider gitlab) {
-            keys = fetchGitLabSshKeys(gitlab, scmUsername);
-        } else if (provider instanceof ForgejoProvider forgejo) {
-            keys = fetchForgejoSshKeys(forgejo, scmUsername, accessToken);
-        } else {
-            return;
-        }
-        log.info(
-                "Fetched {} SSH key(s) from '{}' for user '{}' (scmUsername='{}')",
-                keys.size(),
-                providerId,
-                username,
-                scmUsername);
-        importOAuthSshKeys(mutable, username, providerId, keys);
-    }
-
-    /**
-     * Package-visible for unit testing without a live HTTP call — the actual import decision logic. Deliberately does
-     * NOT pre-filter fingerprints the user already has: {@link UserStore#addSshKey} itself correctly handles "already
-     * registered to this user" by recording the additional source (#40: a key can legitimately be verified by more than
-     * one linked provider) — pre-filtering here would skip that path entirely whenever a second provider reports a key
-     * already imported from a first one.
-     */
-    static void importOAuthSshKeys(UserStore mutable, String username, String providerId, List<OAuthSshKeyEntry> keys) {
-        for (OAuthSshKeyEntry key : keys) {
-            try {
-                String normalised = SshKeyUtils.normalise(key.key());
-                String fingerprint = SshKeyUtils.fingerprint(normalised);
-                String label =
-                        key.title() != null && !key.title().isBlank() ? key.title() : "Imported from " + providerId;
-                mutable.addSshKey(username, fingerprint, normalised, label, true, providerId);
-            } catch (SshKeyConflictException e) {
-                log.warn(
-                        "Skipping SSH key from '{}' for user '{}': fingerprint already registered to a different"
-                                + " proxy user ('{}') — an admin must remove it from that account first",
-                        providerId,
-                        username,
-                        e.getOwner());
-            } catch (Exception e) {
-                log.warn(
-                        "Skipping unparsable SSH key from '{}' for user '{}': {}",
-                        providerId,
-                        username,
-                        e.getMessage());
-            }
-        }
-    }
-
-    private List<OAuthSshKeyEntry> fetchGitHubSshKeys(GitHubProvider github, String accessToken) {
-        try {
-            String responseBody = Request.get(github.getApiUrl() + "/user/keys")
-                    .addHeader("Authorization", "token " + accessToken)
-                    .execute(FogwallHttpExecutor.instance())
-                    .returnContent()
-                    .asString();
-            return List.of(new JsonMapper().readValue(responseBody, OAuthSshKeyEntry[].class));
-        } catch (Exception e) {
-            log.warn("Failed to fetch SSH keys from GitHub for OAuth import: {}", e.getMessage());
-            return List.of();
-        }
-    }
-
-    /**
-     * GitLab's per-username SSH key listing ({@code GET /users/{username}/keys}) is public and needs no OAuth token at
-     * all — unlike GitHub's App-scoped "Git SSH keys" account permission (which is shown explicitly on GitHub's consent
-     * screen, so the authenticated {@code /user/keys} is used there for that transparency), the {@code read_user} scope
-     * requested for GitLab doesn't gate SSH key access either way, so there's no transparency to preserve by insisting
-     * on an authenticated endpoint here.
-     */
-    private List<OAuthSshKeyEntry> fetchGitLabSshKeys(GitLabProvider gitlab, String scmUsername) {
-        try {
-            String responseBody = Request.get(gitlab.getApiUrl() + "/users/" + encode(scmUsername) + "/keys")
-                    .execute(FogwallHttpExecutor.instance())
-                    .returnContent()
-                    .asString();
-            return List.of(new JsonMapper().readValue(responseBody, OAuthSshKeyEntry[].class));
-        } catch (Exception e) {
-            log.warn("Failed to fetch SSH keys from GitLab for OAuth import: {}", e.getMessage());
-            return List.of();
-        }
-    }
-
-    /**
-     * Forgejo/Gitea's per-username SSH key listing ({@code GET /api/v1/users/{username}/keys}) is public and needs no
-     * token, same as GitLab's — the {@code Bearer} header is sent anyway since it's harmless and avoids the shared
-     * unauthenticated rate limit some self-hosted instances apply.
-     */
-    private List<OAuthSshKeyEntry> fetchForgejoSshKeys(
-            ForgejoProvider forgejo, String scmUsername, String accessToken) {
-        try {
-            String responseBody = Request.get(forgejo.getApiUrl() + "/users/" + encode(scmUsername) + "/keys")
-                    .addHeader("Authorization", "Bearer " + accessToken)
-                    .execute(FogwallHttpExecutor.instance())
-                    .returnContent()
-                    .asString();
-            return List.of(new JsonMapper().readValue(responseBody, OAuthSshKeyEntry[].class));
-        } catch (Exception e) {
-            log.warn("Failed to fetch SSH keys from Forgejo for OAuth import: {}", e.getMessage());
-            return List.of();
-        }
+        userStore
+                .findByUsername(username)
+                .ifPresent(user -> ScmSshKeyImporter.reconcile(
+                        mutable, user, providerId, ScmSshKeyImporter.fetch(provider, scmUsername, accessToken)));
     }
 
     private List<String> fetchVerifiedEmails(FogwallProvider provider, String accessToken) {
@@ -674,5 +574,4 @@ public class ScmOAuthLinkController {
     record ForgejoEmailEntry(String email, boolean verified, boolean primary) {}
 
     /** Deserialization target for one entry of GitHub's or Forgejo/Gitea's {@code GET .../user/keys} response. */
-    record OAuthSshKeyEntry(String key, String title) {}
 }

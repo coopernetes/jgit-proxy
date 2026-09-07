@@ -1,8 +1,10 @@
 package com.rbc.fogwall.dashboard.controller;
 
 import com.rbc.fogwall.config.ScmOAuthConfig;
+import com.rbc.fogwall.dashboard.service.SshKeyRefreshService;
 import com.rbc.fogwall.jetty.reload.ConfigHolder;
 import com.rbc.fogwall.permission.RepoPermissionService;
+import com.rbc.fogwall.service.SshScmIdentityEnricher;
 import com.rbc.fogwall.ssh.SshKeyUtils;
 import com.rbc.fogwall.user.EmailConflictException;
 import com.rbc.fogwall.user.LockedByConfigException;
@@ -64,6 +66,10 @@ public class ProfileController {
     private final RepoPermissionService permissionService;
 
     private final ConfigHolder configHolder;
+
+    private final SshScmIdentityEnricher sshEnricher;
+
+    private final SshKeyRefreshService sshKeyRefreshService;
 
     // ---- email claims ----
 
@@ -196,6 +202,7 @@ public class ProfileController {
         }
         try {
             SshKeyEntry entry = mutable.addSshKey(currentUsername(), fingerprint, normalised, label);
+            evictFingerprintCache(currentUsername());
             return ResponseEntity.ok(Map.of(
                     "id", entry.getId(),
                     "fingerprint", entry.getFingerprint(),
@@ -222,7 +229,44 @@ public class ProfileController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "Cannot remove an SSH key imported from a verified identity provider"));
         }
+        evictFingerprintCache(currentUsername());
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Drops this user's cached provider key listings after their key set changes, so a newly registered key is usable
+     * on the next push rather than after the cache TTL — which defaults to seven days.
+     *
+     * <p>The cache is keyed by {@code (provider, SCM login)} and the change is to the fogwall-side key set, so which
+     * provider listing is now stale cannot be narrowed: every linked identity is evicted. Permissive mode only — strict
+     * mode resolves from imported keys and never reads this cache.
+     */
+    private void evictFingerprintCache(String username) {
+        if (sshEnricher == null) {
+            return;
+        }
+        userStore.findByUsername(username).ifPresent(user -> {
+            if (user.getScmIdentities() == null) {
+                return;
+            }
+            user.getScmIdentities()
+                    .forEach(identity -> sshEnricher.evict(identity.getProvider(), identity.getUsername()));
+        });
+    }
+
+    @Operation(
+            operationId = "refreshSshKeys",
+            summary = "Re-import SSH keys from the current user's linked providers",
+            description = "Re-reads the SSH keys registered on each linked provider and reconciles the imported copy."
+                    + " Keys removed upstream are withdrawn; hand-added keys are untouched. A provider that cannot be"
+                    + " read leaves its keys in place.")
+    @PostMapping("/ssh-keys/refresh")
+    public ResponseEntity<?> refreshSshKeys() {
+        var summary = sshKeyRefreshService.refreshUser(currentUsername());
+        return ResponseEntity.ok(Map.of(
+                "added", summary.keysAdded(),
+                "withdrawn", summary.keysWithdrawn(),
+                "providersUnavailable", summary.failures()));
     }
 
     @Operation(operationId = "getMyPermissions", summary = "Get current user's direct and group-inherited permissions")

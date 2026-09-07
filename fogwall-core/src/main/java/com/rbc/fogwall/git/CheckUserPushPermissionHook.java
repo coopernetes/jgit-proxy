@@ -10,6 +10,7 @@ import com.rbc.fogwall.db.model.StepStatus;
 import com.rbc.fogwall.permission.RepoPermissionService;
 import com.rbc.fogwall.provider.FogwallProvider;
 import com.rbc.fogwall.provider.SshKeyFingerprintLookup;
+import com.rbc.fogwall.service.ImportedKeyIdentityResolver;
 import com.rbc.fogwall.service.PushIdentityResolver;
 import com.rbc.fogwall.service.SshScmIdentityEnricher;
 import com.rbc.fogwall.servlet.filter.CheckUserPushPermissionFilter;
@@ -190,6 +191,24 @@ public class CheckUserPushPermissionHook implements FogwallHook {
             // SSH: fingerprint-based SCM identity verification is required — same compliance guarantee as HTTP token
             // verification. Fail closed in all cases where we cannot confirm the connecting key belongs to a linked
             // SCM account.
+            if (identityMode == ScmOAuthConfig.IdentityMode.STRICT) {
+                // Strict mode answers from what OAuth linking proved and nothing else, so the provider is not called
+                // and need not support key listing at all. Re-reading a public key endpoint would only re-prove, more
+                // weakly, what an authenticated OAuth session already established.
+                Optional<String> importedLogin =
+                        ImportedKeyIdentityResolver.resolve(user, providerId, sshTransport.connectingFingerprint());
+                if (importedLogin.isEmpty()) {
+                    blockUnimportedSshKey(user, providerId);
+                    return;
+                }
+                pushContext.setScmUsername(importedLogin.get());
+                pushContext.addStep(PushStep.builder()
+                        .stepName("checkUserPermission")
+                        .stepOrder(ORDER)
+                        .status(StepStatus.PASS)
+                        .build());
+                return;
+            }
             if (!(provider instanceof SshKeyFingerprintLookup)) {
                 log.warn(
                         "Provider '{}' does not support SSH fingerprint lookup — SSH push denied (fail-closed)",
@@ -226,10 +245,6 @@ public class CheckUserPushPermissionHook implements FogwallHook {
                         detail);
                 return;
             }
-            if (identityMode == ScmOAuthConfig.IdentityMode.STRICT && !isVerified(user, providerId, scmLogin.get())) {
-                blockUnverifiedIdentity(user);
-                return;
-            }
             pushContext.setScmUsername(scmLogin.get());
         } else if (provider != null && user.getScmIdentities() != null) {
             // HTTP: scmUsername comes from the token lookup already performed during identity resolution
@@ -253,17 +268,6 @@ public class CheckUserPushPermissionHook implements FogwallHook {
                 .build());
     }
 
-    /**
-     * Whether {@code user} has an OAuth-verified (#40) identity for {@code providerId} matching {@code scmUsername}.
-     */
-    private static boolean isVerified(UserEntry user, String providerId, String scmUsername) {
-        if (user.getScmIdentities() == null) return false;
-        return user.getScmIdentities().stream()
-                .anyMatch(id -> providerId.equalsIgnoreCase(id.getProvider())
-                        && scmUsername.equals(id.getUsername())
-                        && id.isVerified());
-    }
-
     /** Blocks the push in {@code scm-oauth.identity-mode: strict} when no OAuth-verified SCM identity is usable. */
     private void blockUnverifiedIdentity(UserEntry user) {
         log.warn(
@@ -281,6 +285,36 @@ public class CheckUserPushPermissionHook implements FogwallHook {
                 null);
         validationContext.addIssue(
                 "CheckUserPushPermissionHook", "No OAuth-verified SCM identity for " + user.getUsername(), detail);
+    }
+
+    /**
+     * Blocks an SSH push in strict mode when the connecting key is not one OAuth linking imported for this provider.
+     * Distinct from {@link #blockUnverifiedIdentity}: the identity may well be verified, and the key may well be
+     * registered upstream — what is missing is that <em>this key</em> came from the linked account.
+     */
+    private void blockUnimportedSshKey(UserEntry user, String providerId) {
+        log.warn(
+                "SSH key for user '{}' was not imported from provider '{}' by OAuth linking — push denied (strict"
+                        + " identity mode)",
+                user.getUsername(),
+                providerId);
+        String profileHint = serviceUrl != null
+                ? "Link the account, or re-import your SSH keys, at:\n  " + sym(LINK) + "  " + serviceUrl
+                        + "/dashboard/profile"
+                : "Link the account, or re-import your SSH keys, from your fogwall profile page.";
+        String detail = GitClientUtils.format(
+                sym(NO_ENTRY) + "  Push Blocked - SSH Key Not Linked to a Verified Account",
+                sym(CROSS_MARK) + "  This deployment resolves SSH identity only from keys imported by OAuth linking"
+                        + " (scm-oauth.identity-mode: strict).\n"
+                        + "  The key you connected with was added by hand, or was imported before your account was"
+                        + " linked to this provider.\n\n"
+                        + profileHint,
+                RED,
+                null);
+        validationContext.addIssue(
+                "CheckUserPushPermissionHook",
+                "SSH key not imported from " + providerId + " for " + user.getUsername(),
+                detail);
     }
 
     @Override

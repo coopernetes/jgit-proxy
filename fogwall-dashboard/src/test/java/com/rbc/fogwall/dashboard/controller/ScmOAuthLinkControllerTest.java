@@ -1,10 +1,7 @@
 package com.rbc.fogwall.dashboard.controller;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
-import com.rbc.fogwall.ssh.SshKeyUtils;
-import com.rbc.fogwall.user.UserStore;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
@@ -74,44 +71,5 @@ class ScmOAuthLinkControllerTest {
         List<String> verified = ScmOAuthLinkController.verifiedForgejoEmails(entries);
 
         assertEquals(List.of("verified@example.com"), verified);
-    }
-
-    private static final String SAMPLE_KEY =
-            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIQiTzhWg82OVGUGpUMctA7FoBSZteJQ5R/TPaVfCC95";
-
-    @Test
-    void importOAuthSshKeys_newKey_addsLockedKeyWithTitleAsLabel() {
-        UserStore mutable = mock(UserStore.class);
-        var keys = List.of(new ScmOAuthLinkController.OAuthSshKeyEntry(SAMPLE_KEY, "work laptop"));
-        String fingerprint = SshKeyUtils.fingerprint(SAMPLE_KEY);
-
-        ScmOAuthLinkController.importOAuthSshKeys(mutable, "alice", "github", keys);
-
-        verify(mutable).addSshKey("alice", fingerprint, SAMPLE_KEY, "work laptop", true, "github");
-    }
-
-    @Test
-    void importOAuthSshKeys_blankTitle_fallsBackToDefaultLabel() {
-        UserStore mutable = mock(UserStore.class);
-        var keys = List.of(new ScmOAuthLinkController.OAuthSshKeyEntry(SAMPLE_KEY, ""));
-
-        ScmOAuthLinkController.importOAuthSshKeys(mutable, "alice", "github", keys);
-
-        verify(mutable)
-                .addSshKey(eq("alice"), any(), eq(SAMPLE_KEY), eq("Imported from github"), eq(true), eq("github"));
-    }
-
-    @Test
-    void importOAuthSshKeys_alreadyRegisteredFingerprint_stillCallsAddSshKey_soASecondProviderCanBeRecordedAsASource() {
-        // #40: a key can legitimately be verified by more than one linked provider. addSshKey itself (not this
-        // caller) decides whether that's a genuine no-op or records an additional source — so the caller must
-        // never pre-filter fingerprints the user already has, or a second provider's source is silently dropped.
-        UserStore mutable = mock(UserStore.class);
-        var keys = List.of(new ScmOAuthLinkController.OAuthSshKeyEntry(SAMPLE_KEY, "work laptop"));
-        String fingerprint = SshKeyUtils.fingerprint(SAMPLE_KEY);
-
-        ScmOAuthLinkController.importOAuthSshKeys(mutable, "alice", "gitlab", keys);
-
-        verify(mutable).addSshKey("alice", fingerprint, SAMPLE_KEY, "work laptop", true, "gitlab");
     }
 }

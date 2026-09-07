@@ -500,6 +500,44 @@ public class MongoUserStore implements UserStore {
         log.debug("Removed SSH key(s) no longer claimed by any linked provider for user '{}'", username);
     }
 
+    @Override
+    public void removeSshKeySource(String username, String fingerprint, String authSource) {
+        Document doc = getCollection().find(Filters.eq("_id", username)).first();
+        if (doc == null) return;
+        List<Document> keys = doc.getList("sshKeys", Document.class, List.of());
+        List<Document> updated = new ArrayList<>();
+        boolean dropped = false;
+        for (Document key : keys) {
+            if (!fingerprint.equals(key.getString("fingerprint"))) {
+                updated.add(key);
+                continue;
+            }
+            List<String> sources = new ArrayList<>(key.getList("authSources", String.class, List.of()));
+            if (!sources.remove(authSource)) {
+                updated.add(key);
+                continue;
+            }
+            boolean configLocked = "config".equals(key.getString("authSource"));
+            if (sources.isEmpty() && !configLocked) {
+                dropped = true;
+                continue; // no linked provider claims this key anymore — drop it
+            }
+            Document next = new Document(key);
+            next.put("authSources", sources);
+            if (authSource.equals(key.getString("authSource")) && !sources.isEmpty()) {
+                next.put("authSource", sources.get(0)); // re-label the primary source shown in the UI
+            }
+            updated.add(next);
+        }
+        getCollection().updateOne(Filters.eq("_id", username), Updates.set("sshKeys", updated));
+        if (dropped) {
+            log.info(
+                    "Removed SSH key {} for user '{}' — no longer claimed by any linked provider",
+                    fingerprint,
+                    username);
+        }
+    }
+
     private void addSshKeySource(String username, String fingerprint, String authSource) {
         Document doc = getCollection().find(Filters.eq("_id", username)).first();
         if (doc == null) return;

@@ -503,6 +503,31 @@ public class JdbcUserStore implements UserStore {
         log.debug("Removed {} SSH key(s) no longer claimed by any linked provider for user '{}'", removed, username);
     }
 
+    @Override
+    public void removeSshKeySource(String username, String fingerprint, String authSource) {
+        Map<String, Object> params = Map.of("u", username, "source", authSource, "fp", fingerprint);
+        jdbc.update(
+                "DELETE FROM ssh_key_sources WHERE auth_source = :source AND ssh_key_id IN"
+                        + " (SELECT id FROM user_ssh_keys WHERE username = :u AND fingerprint = :fp)",
+                params);
+        jdbc.update(
+                "UPDATE user_ssh_keys SET auth_source ="
+                        + " (SELECT MIN(s.auth_source) FROM ssh_key_sources s WHERE s.ssh_key_id = user_ssh_keys.id)"
+                        + " WHERE username = :u AND fingerprint = :fp AND auth_source = :source"
+                        + " AND EXISTS (SELECT 1 FROM ssh_key_sources s WHERE s.ssh_key_id = user_ssh_keys.id)",
+                params);
+        int removed = jdbc.update(
+                "DELETE FROM user_ssh_keys WHERE username = :u AND fingerprint = :fp AND locked = TRUE"
+                        + " AND auth_source <> 'config' AND id NOT IN (SELECT ssh_key_id FROM ssh_key_sources)",
+                params);
+        if (removed > 0) {
+            log.info(
+                    "Removed SSH key {} for user '{}' — no longer claimed by any linked provider",
+                    fingerprint,
+                    username);
+        }
+    }
+
     private void addSshKeySource(String sshKeyId, String authSource) {
         List<String> existing = jdbc.queryForList(
                 "SELECT auth_source FROM ssh_key_sources WHERE ssh_key_id = :id AND auth_source = :source",

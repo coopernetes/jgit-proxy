@@ -1,8 +1,6 @@
 package com.rbc.fogwall.config;
 
 import java.time.Duration;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import lombok.Data;
 
 /**
@@ -83,36 +81,8 @@ public class CacheConfig {
         }
     }
 
-    private static final Pattern FRIENDLY_DURATION = Pattern.compile("^(\\d+)\\s*([dhmsDHMS])$");
-
-    /**
-     * Parses a friendly duration ({@code 90d}, {@code 12h}, {@code 30m}, {@code 45s}) or an ISO-8601 duration
-     * ({@code PT…}). Returns {@code null} for a blank value.
-     *
-     * @throws IllegalArgumentException if the value is non-blank and unparseable
-     */
+    /** Delegates to the shared parser so every duration key in the YAML accepts the same shorthand. */
     static Duration parseDuration(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        String value = raw.trim();
-        Matcher m = FRIENDLY_DURATION.matcher(value);
-        if (m.matches()) {
-            long n = Long.parseLong(m.group(1));
-            return switch (Character.toLowerCase(m.group(2).charAt(0))) {
-                case 'd' -> Duration.ofDays(n);
-                case 'h' -> Duration.ofHours(n);
-                case 'm' -> Duration.ofMinutes(n);
-                default -> Duration.ofSeconds(n);
-            };
-        }
-        try {
-            return Duration.parse(value);
-        } catch (Exception e) {
-            throw new IllegalArgumentException(
-                    "Invalid cache shallow-since '" + raw + "' — use e.g. 90d, 12h, 30m, or an ISO-8601 duration"
-                            + " like PT48H",
-                    e);
-        }
+        return DurationSettings.parse(raw, "cache shallow-since");
     }
 }
