@@ -306,6 +306,39 @@ class RepoPermissionServiceTest {
         assertFalse(svc.isAllowedToPush("alice", "gitlab", "/group/../escaped/project"));
     }
 
+    // ---- case folding: a recased path names the same repository upstream ----
+
+    @Test
+    void literalGrant_matchesRecasedPath() {
+        svc.save(grant("alice", "github", "/acme/widgets"));
+        assertTrue(svc.isAllowedToPush("alice", "github", "/Acme/Widgets"));
+    }
+
+    @Test
+    void globGrant_matchesRecasedPath() {
+        svc.save(grant("alice", "github", "/acme/*", MatchType.GLOB, RepoPermission.Grant.PUSH_AND_REVIEW));
+        assertTrue(svc.isAllowedToPush("alice", "github", "/ACME/Widgets"));
+    }
+
+    @Test
+    void regexGrant_matchesRecasedPathWithoutInlineFlag() {
+        svc.save(grant("alice", "github", "/acme/.*", MatchType.REGEX, RepoPermission.Grant.PUSH_AND_REVIEW));
+        assertTrue(svc.isAllowedToPush("alice", "github", "/Acme/Widgets"));
+    }
+
+    @Test
+    void ownerTargetGrant_matchesRecasedNestedNamespace() {
+        svc.save(targetGrant("alice", "gitlab", MatchTarget.OWNER, "group/subgroup", MatchType.LITERAL));
+        assertTrue(svc.isAllowedToPush("alice", "gitlab", "/Group/SubGroup/project"));
+    }
+
+    @Test
+    void caseFoldingDoesNotAdmitADifferentRepository() {
+        svc.save(grant("alice", "github", "/acme/widgets"));
+        assertFalse(svc.isAllowedToPush("alice", "github", "/acme/widgets-internal"));
+        assertFalse(svc.isAllowedToPush("alice", "github", "/other/widgets"));
+    }
+
     // ---- regex matching ----
 
     @Test

@@ -4,11 +4,9 @@ import com.rbc.fogwall.db.UrlRuleRegistry;
 import com.rbc.fogwall.db.model.AccessRule;
 import com.rbc.fogwall.db.model.MatchType;
 import com.rbc.fogwall.git.HttpOperation;
+import com.rbc.fogwall.git.RepoPathMatching;
 import com.rbc.fogwall.git.RepositoryUrlRuleHook;
 import com.rbc.fogwall.provider.FogwallProvider;
-import java.nio.file.FileSystems;
-import java.nio.file.PathMatcher;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -150,25 +148,25 @@ public class UrlRuleEvaluator {
     }
 
     /**
-     * Matches a pattern string against a value using the specified {@link MatchType}. Nothing is normalised for any
-     * match type — the pattern is compared against the candidate exactly as both are written. These are URL rules, so a
-     * {@code SLUG} pattern carries the leading {@code /} the request path has (`/acme/repo`), while {@code OWNER} and
-     * {@code NAME} patterns are bare path segments. Normalising a leading {@code /} for some match types and not others
-     * is how the same rule came to match in one proxy mode and not the other.
+     * Matches a pattern string against a value using the specified {@link MatchType}. No path <em>shape</em> is
+     * normalised for any match type — the pattern is compared against the candidate exactly as both are written. These
+     * are URL rules, so a {@code SLUG} pattern carries the leading {@code /} the request path has (`/acme/repo`), while
+     * {@code OWNER} and {@code NAME} patterns are bare path segments. Normalising a leading {@code /} for some match
+     * types and not others is how the same rule came to match in one proxy mode and not the other.
+     *
+     * <p>Case is the exception, and is folded for every match type via {@link RepoPathMatching} — a differently-cased
+     * path names the same repository upstream, so it must not be able to slip past a deny rule.
      */
     static boolean matchPattern(String pattern, MatchType matchType, String value) {
         if (pattern == null || value == null) return false;
         return switch (matchType) {
             case REGEX ->
                 REGEX_CACHE
-                        .computeIfAbsent(pattern, Pattern::compile)
+                        .computeIfAbsent(pattern, p -> Pattern.compile(p, RepoPathMatching.REGEX_FLAGS))
                         .matcher(value)
                         .matches();
-            case GLOB -> {
-                PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + pattern);
-                yield matcher.matches(Paths.get(value));
-            }
-            case LITERAL -> pattern.equals(value);
+            case GLOB -> RepoPathMatching.globMatches(pattern, value);
+            case LITERAL -> RepoPathMatching.literalMatches(pattern, value);
         };
     }
 }

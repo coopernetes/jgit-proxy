@@ -225,6 +225,49 @@ class RepositoryUrlRuleHookTest {
         assertEquals(ReceiveCommand.Result.REJECTED_OTHER_REASON, cmd.getResult());
     }
 
+    // ── Case folding ─────────────────────────────────────────────────────────
+
+    @Test
+    void recasedPath_doesNotSlipPastDenyIntoTheAllowBelowIt() throws Exception {
+
+        var pushContext = new PushContext();
+        pushContext.setRepoSlug("/Acme/Secret");
+        var registry = new InMemoryUrlRuleRegistry();
+        registry.save(slugRule(AccessRule.Access.DENY, "/acme/secret", 1));
+        registry.save(AccessRule.builder()
+                .ruleOrder(2)
+                .access(AccessRule.Access.ALLOW)
+                .operation(AccessRule.Operation.BOTH)
+                .target(MatchTarget.SLUG)
+                .value("**")
+                .matchType(MatchType.GLOB)
+                .build());
+        var hook = new RepositoryUrlRuleHook(registry, GITHUB, null, pushContext);
+        var cmd = makeCmd();
+
+        hook.onPreReceive(new ReceivePack(repo), List.of(cmd));
+
+        // First match wins, so a deny that missed on casing would have handed the push to the catch-all allow.
+        assertEquals(StepStatus.FAIL, pushContext.getSteps().get(0).getStatus());
+        assertEquals(ReceiveCommand.Result.REJECTED_OTHER_REASON, cmd.getResult());
+    }
+
+    @Test
+    void recasedPath_stillMatchesAnAllowRuleWrittenInLowercase() throws Exception {
+
+        var pushContext = new PushContext();
+        pushContext.setRepoSlug("/MyOrg/MyRepo");
+        var registry = new InMemoryUrlRuleRegistry();
+        registry.save(ownerRule(AccessRule.Access.ALLOW, AccessRule.Operation.BOTH, "myorg", 100));
+        var hook = new RepositoryUrlRuleHook(registry, GITHUB, null, pushContext);
+        var cmd = makeCmd();
+
+        hook.onPreReceive(new ReceivePack(repo), List.of(cmd));
+
+        assertEquals(StepStatus.PASS, pushContext.getSteps().get(0).getStatus());
+        assertEquals(ReceiveCommand.Result.NOT_ATTEMPTED, cmd.getResult());
+    }
+
     @Test
     void nestedGroupPath_ownerRuleMatchesWholeNamespace_recordsPass() throws Exception {
 

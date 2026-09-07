@@ -3,9 +3,7 @@ package com.rbc.fogwall.permission;
 import com.rbc.fogwall.db.model.MatchTarget;
 import com.rbc.fogwall.db.model.MatchType;
 import com.rbc.fogwall.git.RepoPath;
-import java.nio.file.FileSystems;
-import java.nio.file.PathMatcher;
-import java.nio.file.Paths;
+import com.rbc.fogwall.git.RepoPathMatching;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -233,7 +231,7 @@ public class RepoPermissionService {
     }
 
     private boolean pathsOverlap(RepoPermission a, RepoPermission b) {
-        if (a.getValue().equals(b.getValue())) return true;
+        if (a.getValue().equalsIgnoreCase(b.getValue())) return true;
         if (matchesPath(a, b.getValue())) return true;
         if (matchesPath(b, a.getValue())) return true;
         return false;
@@ -301,7 +299,7 @@ public class RepoPermissionService {
             return false;
         }
         return switch (matchType) {
-            case LITERAL -> value.equals(subject);
+            case LITERAL -> RepoPathMatching.literalMatches(value, subject);
             case GLOB -> matchesGlob(value, subject);
             case REGEX -> matchesRegex(value, subject);
         };
@@ -328,8 +326,7 @@ public class RepoPermissionService {
 
     private boolean matchesGlob(String pattern, String value) {
         try {
-            PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + pattern);
-            return matcher.matches(Paths.get(value));
+            return RepoPathMatching.globMatches(pattern, value);
         } catch (Exception e) {
             log.warn("Invalid glob pattern '{}': {}", pattern, e.getMessage());
             return false;
@@ -346,7 +343,7 @@ public class RepoPermissionService {
         }
         try {
             return patternCache
-                    .computeIfAbsent(pattern, Pattern::compile)
+                    .computeIfAbsent(pattern, p -> Pattern.compile(p, RepoPathMatching.REGEX_FLAGS))
                     .matcher(new DeadlineCharSequence(value, REGEX_MATCH_TIMEOUT_MS))
                     .matches();
         } catch (PatternSyntaxException e) {

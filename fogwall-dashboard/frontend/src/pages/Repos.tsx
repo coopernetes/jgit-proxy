@@ -298,7 +298,7 @@ function AddRuleModal({
               onChange={(e) => handlePatternTypeChange(e.target.value as PatternType)}
               className={inputClass}
             >
-              <option value="LITERAL">Literal — exact match</option>
+              <option value="LITERAL">Literal — exact match (any case)</option>
               <option value="GLOB">Glob — wildcard (* / **)</option>
               <option value="REGEX">Regex — Java regular expression</option>
             </select>
