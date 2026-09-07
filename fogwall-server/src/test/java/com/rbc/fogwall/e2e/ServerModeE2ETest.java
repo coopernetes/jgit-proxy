@@ -253,6 +253,26 @@ class ServerModeE2ETest {
                 "rejection message should mention making a commit. Output:\n" + result.output());
     }
 
+    // ---- push options ----
+
+    @Test
+    @Order(55)
+    void pushOptions_refusedAtNegotiation() throws Exception {
+        // Server mode never advertises push-options, so the client itself aborts before sending a
+        // pack: the option can neither reach a hook nor be forwarded upstream.
+        GitHelper git = new GitHelper(tempDir);
+        Path repo = git.clone(repoUrl(), "sf-push-options");
+        git.setAuthor(repo, GiteaContainer.VALID_AUTHOR_NAME, GiteaContainer.VALID_AUTHOR_EMAIL);
+        git.writeAndStage(repo, "test-file.txt", "push options - " + Instant.now());
+        git.commit(repo, "feat: push with an option");
+
+        var result = git.pushWithResult(repo, "-o", "repo.private=false");
+        assertFalse(result.succeeded(), "push carrying a push option should be refused");
+        assertTrue(
+                result.output().contains("does not support push options"),
+                "git should report the capability as unsupported. Output:\n" + result.output());
+    }
+
     // ---- checkHiddenCommits (mirrors checkHiddenCommits.ts) ----
     //
     // The "hidden commits" failure case (pack containing commits outside the push range) cannot

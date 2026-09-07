@@ -492,6 +492,66 @@ class ParseGitRequestFilterTest {
         assertEquals("refs/heads/push-cert", details.getBranch());
     }
 
+    // ---- push options (git push -o is rejected at the capability, never relayed) ----
+
+    @Test
+    void parse_pushWithPushOptions_isRejectedByName() throws Exception {
+        // git push -o sends option lines between the ref-update flush and the pack once the server
+        // has advertised push-options. The proxy cannot inspect or strip them, so the request is
+        // refused as soon as the capability shows up on the ref-update line.
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        PacketLineOut plo = new PacketLineOut(out);
+        plo.writeString(
+                PUSH1_OLD + " " + PUSH1_NEW + " " + PUSH1_REF + "\0 report-status push-options agent=git/2.46.0");
+        plo.end();
+        plo.writeString("merge_request.create");
+        plo.writeString("repo.private=false");
+        plo.end();
+        out.write(extractPackData(loadResource("push-sample-01-body.bin")));
+
+        RequestBodyWrapper wrapper = wrapBody(out.toByteArray(), "/owner/repo.git/git-receive-pack");
+        GitRequestDetails details = makeFilter().parse(wrapper);
+
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
+        assertTrue(details.getRejectionTitle().contains("Push Options"), "Title must name push options");
+        assertTrue(details.getReason().contains("-o"), "Reason must tell the user to drop -o");
+        assertNull(details.getCommitTo(), "A rejected push must not populate the push record");
+    }
+
+    @Test
+    void parse_pushOptionsCapabilityAlone_isRejectedEvenWithoutOptionLines() throws Exception {
+        // Negotiating the capability is enough: an empty option list still means the upstream
+        // would accept options, and the proxy has no way to tell the body was clean.
+        byte[] packData = extractPackData(loadResource("push-sample-01-body.bin"));
+        byte[] body = buildBody(
+                new String[] {PUSH1_OLD + " " + PUSH1_NEW + " " + PUSH1_REF + "\0 report-status push-options"},
+                packData);
+
+        RequestBodyWrapper wrapper = wrapBody(body, "/owner/repo.git/git-receive-pack");
+        GitRequestDetails details = makeFilter().parse(wrapper);
+
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
+        assertTrue(details.getRejectionTitle().contains("Push Options"), "Title must name push options");
+    }
+
+    @Test
+    void parse_branchNamedPushOptions_isNotMistakenForPushOptions() throws Exception {
+        // The capability check reads only the list after the NUL, so a ref or agent string that
+        // merely contains the words must still parse as a normal push.
+        byte[] packData = extractPackData(loadResource("push-sample-01-body.bin"));
+        byte[] body = buildBody(
+                new String[] {
+                    PUSH1_OLD + " " + PUSH1_NEW + " refs/heads/push-options\0 report-status agent=push-options-client"
+                },
+                packData);
+
+        RequestBodyWrapper wrapper = wrapBody(body, "/owner/repo.git/git-receive-pack");
+        GitRequestDetails details = makeFilter().parse(wrapper);
+
+        assertNotEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
+        assertEquals("refs/heads/push-options", details.getBranch());
+    }
+
     // ---- invalid repository path segments (rejected before any body parsing) ----
 
     @Test

@@ -800,6 +800,20 @@ content. Rather than pass content it cannot inspect, fogwall refuses the upload.
 Cloning and fetching repositories that already contain LFS objects is unaffected; only uploads are refused. If you need
 LFS for a repository, raise it with your administrator.
 
+### Push options (`git push -o`) are rejected
+
+```text
+Push options (git push -o ...) are not supported. Please push again without -o.
+```
+
+Push options are instructions to the hosting platform, not part of the commits: on GitLab they can open a merge request
+or skip CI, on Gitea and Forgejo they can change a repository's visibility. fogwall's validation and approval steps
+never see them, so rather than relay an instruction it cannot review, fogwall refuses the push. In server mode the
+capability is not offered at all and git itself reports `the receiving end does not support push options`.
+
+Push without `-o` and perform the platform-side action (opening a merge request, changing a setting) through the
+platform's UI or CLI, where the usual permissions apply.
+
 ---
 
 ## Tips
