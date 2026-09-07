@@ -72,11 +72,6 @@ public class SshKeyRefreshService {
         return summary;
     }
 
-    /** Refreshes one user, named for the profile page's on-demand action. */
-    public SweepSummary refreshUser(String username) {
-        return userStore.findByUsername(username).map(this::refresh).orElseGet(() -> new SweepSummary(0, 0, 0, 0, 0));
-    }
-
     private SweepSummary refresh(UserEntry user) {
         if (!(userStore instanceof UserStore mutable)) {
             log.debug("User store is read-only — SSH key refresh skipped");
@@ -98,8 +93,7 @@ public class SshKeyRefreshService {
                     mutable,
                     user,
                     identity.getProvider(),
-                    ScmSshKeyImporter.fetch(
-                            provider.get(), identity.getUsername(), accessToken(user, identity.getProvider())));
+                    ScmSshKeyImporter.fetch(provider.get(), accessToken(user, identity.getProvider())));
             added += result.added();
             withdrawn += result.withdrawn();
             if (result.fetchFailed()) {
@@ -114,11 +108,9 @@ public class SshKeyRefreshService {
     }
 
     /**
-     * Returns the stored OAuth token for this pair, or {@code null} when there is none.
-     *
-     * <p>A missing token is not automatically fatal: GitLab and Forgejo list a user's keys on a public endpoint, so
-     * only GitHub needs one. A token is absent when the user has not linked that provider, or when the stored token
-     * could not be decrypted.
+     * Returns the stored OAuth token for this pair, or {@code null} when there is none — the user has not linked that
+     * provider, or the stored token could not be decrypted. Without one the provider is not read and nothing is
+     * withdrawn for it.
      */
     private String accessToken(UserEntry user, String providerId) {
         if (tokenStore.isEmpty()) {

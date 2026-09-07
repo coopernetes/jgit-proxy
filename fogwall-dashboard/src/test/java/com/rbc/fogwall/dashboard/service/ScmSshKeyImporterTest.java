@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.rbc.fogwall.dashboard.service.ScmSshKeyImporter.OAuthSshKeyEntry;
+import com.rbc.fogwall.provider.GitHubProvider;
 import com.rbc.fogwall.ssh.SshKeyUtils;
 import com.rbc.fogwall.user.SshKeyEntry;
 import com.rbc.fogwall.user.UserEntry;
@@ -186,5 +187,17 @@ class ScmSshKeyImporterTest {
         assertEquals(0, result.added());
         assertEquals(0, result.withdrawn());
         assertFalse(result.changedAnything());
+    }
+
+    // ── No token means no read, and no read means no withdrawal ───────────────
+
+    @Test
+    void fetch_withoutAToken_readsNothing() {
+        // Every provider is read authenticated now, so a missing token is a failed read rather than "no keys" —
+        // which is what stops the sweep withdrawing anything for that provider.
+        var provider = GitHubProvider.builder().name("github").build();
+
+        assertTrue(ScmSshKeyImporter.fetch(provider, null).isEmpty());
+        assertTrue(ScmSshKeyImporter.fetch(provider, "  ").isEmpty());
     }
 }

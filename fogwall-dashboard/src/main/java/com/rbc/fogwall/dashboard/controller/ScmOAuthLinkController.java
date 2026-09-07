@@ -214,8 +214,7 @@ public class ScmOAuthLinkController {
             mutable.upsertVerifiedScmIdentity(currentUser, providerId, scmUsername);
             lockProviderVerifiedEmails(
                     mutable, currentUser, providerId, linkable.provider(), tokenResponse.accessToken());
-            importOAuthSshKeys(
-                    mutable, currentUser, providerId, linkable.provider(), scmUsername, tokenResponse.accessToken());
+            importOAuthSshKeys(mutable, currentUser, providerId, linkable.provider(), tokenResponse.accessToken());
             response.sendRedirect(profileUrl + "?scmOAuthLinked=" + encode(providerId));
         } catch (ScmIdentityConflictException e) {
             response.sendRedirect(profileUrl + "?scmOAuthError=identity_conflict");
@@ -434,16 +433,11 @@ public class ScmOAuthLinkController {
      * only runs at link time.
      */
     private void importOAuthSshKeys(
-            UserStore mutable,
-            String username,
-            String providerId,
-            FogwallProvider provider,
-            String scmUsername,
-            String accessToken) {
+            UserStore mutable, String username, String providerId, FogwallProvider provider, String accessToken) {
         userStore
                 .findByUsername(username)
                 .ifPresent(user -> ScmSshKeyImporter.reconcile(
-                        mutable, user, providerId, ScmSshKeyImporter.fetch(provider, scmUsername, accessToken)));
+                        mutable, user, providerId, ScmSshKeyImporter.fetch(provider, accessToken)));
     }
 
     private List<String> fetchVerifiedEmails(FogwallProvider provider, String accessToken) {

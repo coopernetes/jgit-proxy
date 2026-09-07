@@ -10,8 +10,6 @@ import com.rbc.fogwall.user.SshKeyConflictException;
 import com.rbc.fogwall.user.SshKeyEntry;
 import com.rbc.fogwall.user.UserEntry;
 import com.rbc.fogwall.user.UserStore;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -55,29 +53,32 @@ public final class ScmSshKeyImporter {
     private ScmSshKeyImporter() {}
 
     /**
-     * Reads the keys {@code scmUsername} has registered on {@code provider}.
+     * Reads the SSH keys registered on the account whose token this is, from each provider's authenticated
+     * {@code /user/keys} endpoint.
      *
-     * @return the keys, or empty when the provider could not be read — never an empty list to mean failure
+     * <p>Authenticated on every provider, deliberately. The alternative on GitLab and Forgejo is a public listing keyed
+     * by username, which answers a weaker question: if an account is deleted and its username re-registered, that
+     * endpoint would report a different person's keys, and fogwall would store them as proven. The token names the
+     * account itself, so there is nothing to confuse. Every caller has one — linking has just obtained it, and the
+     * refresh only runs for identities that were OAuth-verified.
+     *
+     * <p>The scopes already requested cover it: GitLab's {@code read_user} and Forgejo's {@code read:user} both grant
+     * the authenticated user endpoints, and the GitHub App holds "Git SSH keys: Read-only".
+     *
+     * @return the keys, or empty when there is no token or the provider could not be read — never an empty list to mean
+     *     failure
      */
-    public static Optional<List<OAuthSshKeyEntry>> fetch(
-            FogwallProvider provider, String scmUsername, String accessToken) {
+    public static Optional<List<OAuthSshKeyEntry>> fetch(FogwallProvider provider, String accessToken) {
+        if (accessToken == null || accessToken.isBlank()) {
+            log.debug("No token for '{}' — cannot read its SSH keys, so nothing may be withdrawn", provider.getName());
+            return Optional.empty();
+        }
         if (provider instanceof GitHubProvider github) {
-            if (accessToken == null) {
-                // GitHub's listing is the authenticated one, deliberately, so the App permission stays visible on the
-                // consent screen. With no token there is nothing to read and nothing may be withdrawn.
-                log.debug("No stored token for GitHub — skipping SSH key read");
-                return Optional.empty();
-            }
             return get(github.getApiUrl() + "/user/keys", "token " + accessToken, "GitHub");
         } else if (provider instanceof GitLabProvider gitlab) {
-            // Public per-username listing; the read_user scope does not gate SSH keys either way.
-            return get(gitlab.getApiUrl() + "/users/" + encode(scmUsername) + "/keys", null, "GitLab");
+            return get(gitlab.getApiUrl() + "/user/keys", "Bearer " + accessToken, "GitLab");
         } else if (provider instanceof ForgejoProvider forgejo) {
-            // Public too; the bearer header only avoids the shared unauthenticated rate limit some instances apply.
-            return get(
-                    forgejo.getApiUrl() + "/users/" + encode(scmUsername) + "/keys",
-                    accessToken != null ? "Bearer " + accessToken : null,
-                    "Forgejo");
+            return get(forgejo.getApiUrl() + "/user/keys", "Bearer " + accessToken, "Forgejo");
         }
         // A provider with no key listing is not a failure — there is simply nothing to import from it.
         return Optional.of(List.of());
@@ -85,11 +86,9 @@ public final class ScmSshKeyImporter {
 
     private static Optional<List<OAuthSshKeyEntry>> get(String url, String authorization, String providerLabel) {
         try {
-            Request request = Request.get(url);
-            if (authorization != null) {
-                request.addHeader("Authorization", authorization);
-            }
-            String responseBody = request.execute(FogwallHttpExecutor.instance())
+            String responseBody = Request.get(url)
+                    .addHeader("Authorization", authorization)
+                    .execute(FogwallHttpExecutor.instance())
                     .returnContent()
                     .asString();
             return Optional.of(List.of(new JsonMapper().readValue(responseBody, OAuthSshKeyEntry[].class)));
@@ -186,9 +185,5 @@ public final class ScmSshKeyImporter {
                     user.getUsername());
         }
         return imported.size();
-    }
-
-    private static String encode(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 }

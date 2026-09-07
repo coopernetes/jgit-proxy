@@ -984,16 +984,15 @@ still vouches for survives.
 
 This matters most under `scm-oauth.identity-mode: strict`, where an imported key is the entire basis for resolving an
 SSH push: without the sweep, revoking a key upstream has no effect here. To apply a revocation immediately rather than
-waiting for the next sweep, `POST /api/admin/ssh-keys/refresh` runs it for every user; a user can re-import their own
-from the profile page.
+waiting for the next sweep, `POST /api/admin/ssh-keys/refresh` runs it for every user. A user who wants their own keys
+re-read sooner can unlink and re-link the account from their profile page, which imports them again.
 
 A provider that cannot be read leaves its keys in place and is logged. That is deliberate — treating a failed read as
 "this account has no keys" would let a provider outage or an expired token revoke SSH access for everyone linked to it.
 
-One limit worth knowing: GitLab and Forgejo/Gitea publish a user's keys on a public endpoint keyed by username, so the
-sweep reads those without a token. If an upstream account is deleted and its username is later re-registered by someone
-else, the sweep would import the new holder's keys as proven. GitHub is not exposed to this, since it reads the
-authenticated endpoint with the stored token. The sweep itself behaves the same on JDBC and MongoDB.
+Every provider is read through its authenticated `/user/keys` endpoint using the token stored when the account was
+linked, so a key is only ever attributed to the account that actually holds it. A user whose stored token is missing or
+no longer decryptable is skipped rather than emptied. Behaviour is the same on JDBC and MongoDB.
 
 The sweep runs in the dashboard only, since it needs the OAuth-linked identities and stored tokens that the linking flow
 writes. Note also that `scm-oauth.identity-mode: strict` cannot be satisfied by anything declared in a config file:
