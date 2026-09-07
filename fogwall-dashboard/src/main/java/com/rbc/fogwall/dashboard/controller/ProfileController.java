@@ -175,7 +175,7 @@ public class ProfileController {
                         "label", k.getLabel() != null ? k.getLabel() : "",
                         "createdAt", k.getCreatedAt().toString(),
                         "locked", k.isLocked(),
-                        "source", k.getAuthSource() != null ? k.getAuthSource() : "config"))
+                        "source", k.sourceLabel()))
                 .toList());
     }
 
@@ -206,7 +206,7 @@ public class ProfileController {
                     "label", entry.getLabel() != null ? entry.getLabel() : "",
                     "createdAt", entry.getCreatedAt().toString(),
                     "locked", entry.isLocked(),
-                    "source", entry.getAuthSource() != null ? entry.getAuthSource() : "config"));
+                    "source", entry.sourceLabel()));
         } catch (SshKeyConflictException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "SSH key is already registered to another user"));

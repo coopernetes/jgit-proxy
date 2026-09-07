@@ -581,9 +581,7 @@ public class MongoUserStore implements UserStore {
         return doc.getList("sshKeys", Document.class, List.of()).stream()
                 .map(k -> {
                     List<String> sources = k.getList("authSources", String.class, List.of());
-                    String sourceLabel = !sources.isEmpty()
-                            ? String.join(", ", sources)
-                            : (k.getString("authSource") != null ? k.getString("authSource") : "config");
+                    String primarySource = k.getString("authSource") != null ? k.getString("authSource") : "config";
                     return SshKeyEntry.builder()
                             .id(k.getString("id"))
                             .username(username)
@@ -595,14 +593,8 @@ public class MongoUserStore implements UserStore {
                                             ? k.getDate("createdAt").toInstant()
                                             : Instant.EPOCH)
                             .locked(Boolean.TRUE.equals(k.getBoolean("locked")))
-                            .authSource(sourceLabel)
-                            .authSources(
-                                    !sources.isEmpty()
-                                            ? List.copyOf(sources)
-                                            : List.of(
-                                                    k.getString("authSource") != null
-                                                            ? k.getString("authSource")
-                                                            : "config"))
+                            .authSource(primarySource)
+                            .authSources(!sources.isEmpty() ? List.copyOf(sources) : List.of(primarySource))
                             .build();
                 })
                 .toList();
@@ -635,9 +627,7 @@ public class MongoUserStore implements UserStore {
         List<SshKeyEntry> sshKeys = doc.getList("sshKeys", Document.class, List.of()).stream()
                 .map(k -> {
                     List<String> sources = k.getList("authSources", String.class, List.of());
-                    String sourceLabel = !sources.isEmpty()
-                            ? String.join(", ", sources)
-                            : (k.getString("authSource") != null ? k.getString("authSource") : "config");
+                    String primarySource = k.getString("authSource") != null ? k.getString("authSource") : "config";
                     return SshKeyEntry.builder()
                             .id(k.getString("id"))
                             .username(doc.getString("_id"))
@@ -649,8 +639,8 @@ public class MongoUserStore implements UserStore {
                                             ? k.getDate("createdAt").toInstant()
                                             : Instant.EPOCH)
                             .locked(Boolean.TRUE.equals(k.getBoolean("locked")))
-                            .authSource(sourceLabel)
-                            .authSources(!sources.isEmpty() ? List.copyOf(sources) : List.of(sourceLabel))
+                            .authSource(primarySource)
+                            .authSources(!sources.isEmpty() ? List.copyOf(sources) : List.of(primarySource))
                             .build();
                 })
                 .toList();

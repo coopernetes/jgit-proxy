@@ -554,8 +554,8 @@ preferred way to register an SCM identity — instead of typing your SCM usernam
 fogwall through the provider's real OAuth login, and fogwall sets a **verified** badge on the resulting identity once
 it's confirmed you actually control that account.
 
-Some deployments require a verified identity for push authorization (`scm-oauth.identity-mode: strict`) — if your push
-is blocked with "No OAuth-verified SCM identity," link your account this way rather than adding a free-text identity.
+Some deployments require a verified identity for push authorization — if your push is blocked with "SCM Identity Not
+Verified," link your account this way rather than adding a free-text identity.
 
 Linking also saves you some manual setup:
 
@@ -569,6 +569,20 @@ A verified identity (and any keys/emails it locked in) can't be removed the norm
 which removes the identity, the stored OAuth token, and any SSH keys/emails that came from that provider in one step. If
 the same key or email is also verified by another linked provider, it stays registered under that provider instead of
 being deleted outright. You can re-link at any time.
+
+### If an SSH push is refused
+
+Some deployments identify an SSH push only by keys that came in when you linked your account, so a key you pasted in
+yourself is not enough:
+
+```text
+⛔️  Push Blocked - SSH Key Not Linked
+❌️  This SSH key is not linked to a verified account.
+```
+
+Link the account for that provider and push again. If it is already linked and you have registered a new key with your
+SCM since, unlink and re-link to import your current keys. Removing a key from your SCM account stops it working here
+too. If it still fails, ask your administrator.
 
 ---
 

@@ -576,9 +576,7 @@ public class JdbcUserStore implements UserStore {
                 .map(row -> {
                     String id = (String) row.get("id");
                     List<String> sources = sourcesByKeyId.get(id);
-                    String sourceLabel = sources != null && !sources.isEmpty()
-                            ? String.join(", ", sources)
-                            : (row.get("auth_source") != null ? (String) row.get("auth_source") : "config");
+                    String primarySource = row.get("auth_source") != null ? (String) row.get("auth_source") : "config";
                     return SshKeyEntry.builder()
                             .id(id)
                             .username(username)
@@ -587,14 +585,11 @@ public class JdbcUserStore implements UserStore {
                             .label((String) row.get("label"))
                             .createdAt(((Timestamp) row.get("created_at")).toInstant())
                             .locked(Boolean.TRUE.equals(row.get("locked")))
-                            .authSource(sourceLabel)
+                            .authSource(primarySource)
                             .authSources(
                                     sources != null && !sources.isEmpty()
                                             ? List.copyOf(sources)
-                                            : List.of(
-                                                    row.get("auth_source") != null
-                                                            ? (String) row.get("auth_source")
-                                                            : "config"))
+                                            : List.of(primarySource))
                             .build();
                 })
                 .toList();

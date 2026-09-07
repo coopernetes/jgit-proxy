@@ -13,8 +13,10 @@ import com.rbc.fogwall.db.UrlRuleRegistry;
 import com.rbc.fogwall.permission.RepoPermissionService;
 import com.rbc.fogwall.provider.BitbucketProvider;
 import com.rbc.fogwall.provider.FogwallProvider;
+import com.rbc.fogwall.service.ImportedKeyIdentityResolver;
 import com.rbc.fogwall.service.PushIdentityResolver;
 import com.rbc.fogwall.service.SshScmIdentityEnricher;
+import com.rbc.fogwall.service.SshScmLoginResolver;
 import com.rbc.fogwall.user.UserEntry;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -357,6 +359,10 @@ public class ServerReceivePackFactory implements ReceivePackFactory<HttpServletR
         SecretScanConfig secretScanConfig = secretScanConfigSupplier.get();
         BinaryBlobConfig binaryBlobConfig = binaryBlobConfigSupplier.get();
 
+        // The mode selects the evidence SSH identity is resolved from; the hook is handed the resolver, not the choice.
+        SshScmLoginResolver sshLoginResolver = scmOAuthConfig.getIdentityMode() == ScmOAuthConfig.IdentityMode.STRICT
+                ? new ImportedKeyIdentityResolver()
+                : sshScmIdentityEnricher;
         var permissionHook = new CheckUserPushPermissionHook(
                 pushIdentityResolver,
                 repoPermissionService,
@@ -364,7 +370,7 @@ public class ServerReceivePackFactory implements ReceivePackFactory<HttpServletR
                 pushContext,
                 provider,
                 serviceUrl,
-                sshScmIdentityEnricher,
+                sshLoginResolver,
                 scmOAuthConfig.getIdentityMode());
 
         var attributionPolicyHook = new CommitAttributionPolicyHook(

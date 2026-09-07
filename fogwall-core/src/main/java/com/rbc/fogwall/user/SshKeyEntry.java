@@ -48,6 +48,14 @@ public class SshKeyEntry {
     @Builder.Default
     List<String> authSources = List.of();
 
+    /**
+     * How this key's provenance reads for a person: {@code "config"}, a provider id, or the sources joined when more
+     * than one vouches for it. Derived rather than stored, so the stores do not each have to render it.
+     */
+    public String sourceLabel() {
+        return authSources.isEmpty() ? authSource : String.join(", ", authSources);
+    }
+
     /** Whether {@code providerId} is among the sources that vouch for this key. */
     public boolean isVouchedForBy(String providerId) {
         if (providerId == null) {

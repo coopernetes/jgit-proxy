@@ -298,8 +298,11 @@ class MongoUserStoreIntegrationTest {
 
         List<SshKeyEntry> keys = store.findSshKeys("alice");
         assertEquals(1, keys.size());
-        assertTrue(keys.get(0).getAuthSource().contains("github"));
-        assertTrue(keys.get(0).getAuthSource().contains("gitlab"));
+        // Both sources are structured now; the joined label is derived for display.
+        assertTrue(keys.get(0).isVouchedForBy("github"));
+        assertTrue(keys.get(0).isVouchedForBy("gitlab"));
+        assertTrue(keys.get(0).sourceLabel().contains("github"));
+        assertTrue(keys.get(0).sourceLabel().contains("gitlab"));
     }
 
     @Test

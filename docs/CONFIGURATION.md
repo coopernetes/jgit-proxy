@@ -909,6 +909,9 @@ scm-oauth:
   # so a key the user removes upstream would stay usable in fogwall indefinitely. Set to 0 to disable the sweep.
   ssh-key-refresh-interval: 7d
 
+  # The whole scm-oauth section is read once at startup — it is operator setup, not policy, so it is not hot-reloadable.
+  # Changing identity-mode or the refresh interval takes effect on restart. See "Hot reload" below for what is.
+
   # Path to a file holding a base64-encoded 32-byte AES-256-GCM key, used to encrypt linked OAuth tokens at rest.
   # If unset, a key is auto-generated under ./.data/ for local development only — a loud warning is logged on every
   # startup when this happens. Production deployments MUST set this to a durable, backed-up location (see
@@ -1502,7 +1505,8 @@ credentials. For token-only auth (GitHub, GitLab, Gitea PATs) the username can b
 | `permissions`  | `permissions:`  | Config-sourced user→repo permission grants                              |
 | `attestations` | `attestations:` | Dashboard approval form questions                                       |
 
-Provider, server, and database sections always require a restart.
+Provider, server, database and `scm-oauth` sections always require a restart — they describe how the deployment is set
+up rather than policy that changes over time.
 
 ### Manual trigger
 

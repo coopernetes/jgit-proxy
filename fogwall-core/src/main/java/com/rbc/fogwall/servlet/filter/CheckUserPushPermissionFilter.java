@@ -176,9 +176,7 @@ public class CheckUserPushPermissionFilter extends AbstractFogwallFilter {
                 ? "Link your account via OAuth at:\n  " + sym(LINK) + "  " + serviceUrl + "/dashboard/profile"
                 : "Ask an administrator to link your SCM account via OAuth.";
         String title = sym(NO_ENTRY) + "  Push Blocked - SCM Identity Not Verified";
-        String message = sym(CROSS_MARK) + "  This deployment requires an OAuth-verified SCM identity"
-                + " (scm-oauth.identity-mode: strict) — a manually-entered identity is not sufficient.\n\n"
-                + profileHint;
+        String message = sym(CROSS_MARK) + "  Your SCM identity is not verified.\n\n" + profileHint;
         rejectAndSendError(
                 request, response, "No OAuth-verified SCM identity", GitClientUtils.format(title, message, RED, null));
     }

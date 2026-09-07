@@ -269,7 +269,11 @@ export function Profile() {
         (p) =>
           p && { ...p, scmIdentities: p.scmIdentities.filter((id) => id.provider !== provider) },
       )
-      setSshKeys((prev) => prev.filter((k) => k.source !== provider))
+      // Refetch rather than filter: a key several providers vouch for survives one unlink, and the label
+      // ("github, gitlab") does not equal the provider being removed. The server decides what is left.
+      await fetchMySshKeys()
+        .then((keys: SshKeyEntry[]) => setSshKeys(keys))
+        .catch(() => {})
     } catch (err: unknown) {
       setIdentityError(err instanceof Error ? err.message : 'Failed to unlink OAuth account')
     }
