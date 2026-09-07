@@ -1,5 +1,6 @@
 package com.rbc.fogwall.scmapi;
 
+import com.rbc.fogwall.build.BuildInfo;
 import jakarta.servlet.http.HttpServletRequest;
 import org.apache.hc.client5.http.fluent.Request;
 
@@ -20,8 +21,12 @@ public final class ScmApiUserAgent {
 
     private static final String USER_AGENT = "User-Agent";
 
-    /** What fogwall calls itself. Unversioned, so it cannot go stale against the build. */
-    private static final String FOGWALL = "fogwall";
+    /**
+     * What fogwall calls itself. Versioned, so a rate-limit decision or deprecation notice a provider attributes to
+     * fogwall can be traced to a build. The commit is deliberately left off: a provider keys off behaviour, which the
+     * version names, and the header is sent on every originated request.
+     */
+    private static final String FOGWALL = "fogwall/" + BuildInfo.get().version();
 
     private ScmApiUserAgent() {}
 

@@ -1,5 +1,6 @@
 package com.rbc.fogwall.jetty;
 
+import com.rbc.fogwall.build.BuildInfo;
 import com.rbc.fogwall.config.FogwallConfigLoader;
 import com.rbc.fogwall.config.JettyConfigurationBuilder;
 import com.rbc.fogwall.config.ServerConfig;
@@ -22,7 +23,7 @@ import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.eclipse.jetty.util.thread.VirtualThreadPool;
 
 /**
- * Standalone Jetty server application for the JGit proxy. Registers two servlets per provider:
+ * Standalone Jetty server application for the fogwall proxy. Registers two servlets per provider:
  *
  * <ul>
  *   <li><b>GitServlet</b> on {@code /server/...} (and the legacy {@code /push/...} alias) - server mode using JGit's
@@ -40,7 +41,9 @@ import org.eclipse.jetty.util.thread.VirtualThreadPool;
 public class FogwallJettyApplication {
 
     public static void main(String[] args) throws Exception {
-        log.info("Starting JGit Proxy (proxy only - no dashboard)...");
+        log.info(
+                "Starting fogwall {} (proxy only - no dashboard)...",
+                BuildInfo.get().display());
         writePidFile();
 
         var fogwallConfig = FogwallConfigLoader.load();
@@ -107,7 +110,7 @@ public class FogwallJettyApplication {
         server.setHandler(new BlockingContentHandler(contexts));
         server.start();
 
-        log.info("Fogwall started on port {}", connector.getPort());
+        log.info("fogwall started on port {}", connector.getPort());
         for (FogwallProvider provider : providers) {
             log.info(
                     "  - {} (server mode) at {}{} (legacy alias: {}{})",

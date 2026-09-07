@@ -2,6 +2,7 @@ package com.rbc.fogwall.scmapi;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.rbc.fogwall.build.BuildInfo;
 import com.rbc.fogwall.provider.GitLabProvider;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -95,7 +96,8 @@ class GitLabProjectIdResolverTest {
 
         resolver().resolve(provider, "42", "PRIVATE-TOKEN", "glpat-x");
 
-        assertEquals(List.of("fogwall"), seenUserAgents);
+        // Pinned to BuildInfo rather than a literal version, so a release bump does not break the assertion.
+        assertEquals(List.of("fogwall/" + BuildInfo.get().version()), seenUserAgents);
     }
 
     /** GitLab nests groups, so everything before the last separator is the owner. */

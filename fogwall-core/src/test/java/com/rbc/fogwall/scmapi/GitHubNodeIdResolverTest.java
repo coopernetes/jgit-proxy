@@ -2,6 +2,7 @@ package com.rbc.fogwall.scmapi;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.rbc.fogwall.build.BuildInfo;
 import com.rbc.fogwall.provider.GitHubProvider;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -122,7 +123,8 @@ class GitHubNodeIdResolverTest {
 
         new GitHubNodeIdResolver(cache).resolve(provider, new MutationNodeIdRef("R_1", null), "token");
 
-        assertEquals(List.of("fogwall"), seenUserAgents);
+        // Pinned to BuildInfo rather than a literal version, so a release bump does not break the assertion.
+        assertEquals(List.of("fogwall/" + BuildInfo.get().version()), seenUserAgents);
     }
 
     private static final class InMemoryGitHubNodeIdCache implements GitHubNodeIdCache {

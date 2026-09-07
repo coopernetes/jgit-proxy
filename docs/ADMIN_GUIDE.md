@@ -974,6 +974,26 @@ GET /api/health   → 200 OK with status payload when the server is up
 The standalone server module (`fogwall-server`) does not expose a health endpoint — use a TCP check against the proxy
 port instead.
 
+### Identifying which build is running
+
+The `edge` image is rebuilt from `main` on every commit, so a version alone does not identify a deployment. Both modules
+log their version and short commit on the first line at startup:
+
+```text
+Starting fogwall with dashboard 1.3.2 (f04b5ff)...
+```
+
+The dashboard also reports both over the API, which is the easier one to check against a running deployment:
+
+```text
+GET /api    → {"version":"1.3.2","commit":"f04b5ffc…","apiDocs":"/api/openapi.json"}
+```
+
+`commit` reads `unknown` when the build could not establish one — a `docker build` run without the `BUILD_COMMIT` build
+argument, for instance. The published images always carry it. fogwall also names its version in the `User-Agent` it
+sends on requests it originates against a provider's API (`fogwall/1.3.2`), so a provider-side rate-limit or deprecation
+notice can be traced back to a build; requests it merely brokers for a CLI keep that CLI's own `User-Agent` untouched.
+
 For Kubernetes (dashboard module):
 
 ```yaml

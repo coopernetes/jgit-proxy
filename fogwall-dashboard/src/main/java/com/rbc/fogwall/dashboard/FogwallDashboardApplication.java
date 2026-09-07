@@ -1,6 +1,7 @@
 package com.rbc.fogwall.dashboard;
 
 import com.rbc.fogwall.approval.UiApprovalGateway;
+import com.rbc.fogwall.build.BuildInfo;
 import com.rbc.fogwall.config.FogwallConfig;
 import com.rbc.fogwall.config.FogwallConfigLoader;
 import com.rbc.fogwall.config.JettyConfigurationBuilder;
@@ -56,7 +57,7 @@ import org.springframework.web.servlet.DispatcherServlet;
 public class FogwallDashboardApplication {
 
     public static void main(String[] args) throws Exception {
-        log.info("Starting JGit Proxy with Dashboard...");
+        log.info("Starting fogwall with dashboard {}...", BuildInfo.get().display());
         FogwallJettyApplication.writePidFile();
 
         var fogwallConfig = FogwallConfigLoader.load();
@@ -150,7 +151,7 @@ public class FogwallDashboardApplication {
         server.setHandler(new BlockingContentHandler(contexts));
         server.start();
 
-        log.info("JGit Proxy with Dashboard started on port {}", connector.getPort());
+        log.info("fogwall with dashboard started on port {}", connector.getPort());
         log.info("  Dashboard:  http://localhost:{}/dashboard/", connector.getPort());
         log.info("  API:        http://localhost:{}/api", connector.getPort());
         log.info("  Health:     http://localhost:{}/api/health", connector.getPort());

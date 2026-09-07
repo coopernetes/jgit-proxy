@@ -2,7 +2,12 @@ services:
 
   # ── fogwall ───────────────────────────────────────────────────────────────────
   fogwall:
-    build: ..
+    build:
+      context: ..
+      args:
+        # The builder image has no git binary, so the commit is passed in. Export BUILD_COMMIT to have the
+        # local stack name its commit; unset it and BuildInfo reports 'unknown', which is harmless.
+        BUILD_COMMIT: ${BUILD_COMMIT:-unknown}
     # Stable tag for the built image so a pre-built image can be reused instead of
     # rebuilt. Local `compose.sh -- up -d --build` builds and tags it here; CI builds
     # the image once, `docker load`s it under this tag, and the smoke-test matrix jobs

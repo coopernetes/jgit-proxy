@@ -90,6 +90,8 @@ jobs:
         with:
           context: .
           target: dashboard
+          build-args: |
+            BUILD_COMMIT=${{ github.sha }}
           load: true
           tags: fogwall:local
           cache-from: type=gha,scope=smoke-dashboard
