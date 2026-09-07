@@ -504,6 +504,12 @@ bash compose.sh [same --auth/--db flags as start] -- down -v
 
 ### Stack quirks that cost time if you don't know them
 
+- **A container build reports `commit: unknown` unless you pass it in.** `BuildInfo` reads the commit from a resource
+  Gradle expands at build time, and the builder image has no `git` binary, so a plain `docker build` (or
+  `compose.sh -- build`) leaves it `unknown`. Export it if you need the local stack to name its commit —
+  `BUILD_COMMIT=$(git rev-parse HEAD) bash compose.sh -- build` — which the compose file forwards as a build argument.
+  CI and the publish workflow already pass `github.sha`. A Gradle build on the host picks the commit up from
+  `git rev-parse` on its own.
 - **Podman + SELinux: the config profile silently does not load.** `docker/fogwall-docker-default.yml` is bind-mounted
   into the container and loaded off the classpath as a config profile, and a profile that cannot be read is skipped
   without an error. On an SELinux host the file is labeled `user_home_t`, the container is `container_t`, and the read

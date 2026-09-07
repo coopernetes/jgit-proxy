@@ -39,6 +39,10 @@ COPY . .
 # BuildKit cache mounts persist Gradle/npm downloads across builds.
 # gitleaksTargets is derived from TARGETARCH so only the matching binary is bundled,
 # keeping each arch-specific image lean (amd64 image carries only linux_x64, etc.).
+# The commit is passed in rather than read from the checkout: this image has no git binary, and the
+# build context's .git would only be readable with one. Defaults to 'unknown' so a plain `docker build`
+# still produces a working image, just one that cannot name its commit.
+ARG BUILD_COMMIT=unknown
 RUN --mount=type=cache,target=/root/.gradle/caches \
     --mount=type=cache,target=/root/.gradle/wrapper \
     --mount=type=cache,target=/root/.npm \
@@ -47,7 +51,7 @@ RUN --mount=type=cache,target=/root/.gradle/caches \
       *)     GITLEAKS_TARGET=linux_x64   ;; \
     esac \
     && ./gradlew clean :fogwall-server:installDist :fogwall-dashboard:installDist generateThirdPartyNotices \
-       -PgitleaksTargets=${GITLEAKS_TARGET} --no-daemon -q
+       -PgitleaksTargets=${GITLEAKS_TARGET} -PbuildCommit=${BUILD_COMMIT} --no-daemon -q
 
 # Prepend a conf/ directory to the classpath so that a mounted fogwall-local.yml
 # is picked up by JettyConfigurationLoader at runtime.

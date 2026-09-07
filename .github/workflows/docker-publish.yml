@@ -85,6 +85,8 @@ jobs:
         with:
           context: .
           target: ${{ matrix.name }}
+          build-args: |
+            BUILD_COMMIT=${{ github.sha }}
           platforms: ${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
           push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
           tags: ${{ steps.meta.outputs.tags }}

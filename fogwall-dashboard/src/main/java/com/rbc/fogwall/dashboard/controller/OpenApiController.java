@@ -1,5 +1,6 @@
 package com.rbc.fogwall.dashboard.controller;
 
+import com.rbc.fogwall.build.BuildInfo;
 import io.swagger.v3.core.converter.AnnotatedType;
 import io.swagger.v3.core.converter.ModelConverters;
 import io.swagger.v3.core.converter.ResolvedSchema;
@@ -22,7 +23,6 @@ import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import jakarta.annotation.PostConstruct;
-import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.WildcardType;
@@ -31,7 +31,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
 import lombok.RequiredArgsConstructor;
@@ -76,20 +75,16 @@ public class OpenApiController {
     private String specYaml;
     private String specJson;
 
-    private static String readVersion() {
-        var props = new Properties();
-        try (var in = OpenApiController.class.getClassLoader().getResourceAsStream("version.properties")) {
-            if (in != null) props.load(in);
-        } catch (IOException ignored) {
-        }
-        return props.getProperty("version", "unknown");
-    }
-
-    public record VersionResponse(String version, String apiDocs) {}
+    /**
+     * Version and commit of the running build. {@code commit} is additive on this response and reads {@code unknown}
+     * when the build could not establish one.
+     */
+    public record VersionResponse(String version, String commit, String apiDocs) {}
 
     @GetMapping
     public ResponseEntity<VersionResponse> getSpec() {
-        return ResponseEntity.ok(new VersionResponse(readVersion(), "/api/openapi.json"));
+        BuildInfo build = BuildInfo.get();
+        return ResponseEntity.ok(new VersionResponse(build.version(), build.commit(), "/api/openapi.json"));
     }
 
     @PostConstruct
@@ -100,7 +95,7 @@ public class OpenApiController {
                 .info(
                         new Info()
                                 .title("fogwall API")
-                                .version(readVersion())
+                                .version(BuildInfo.get().version())
                                 .description(
                                         "REST API for fogwall. Covers push approval workflow, user management, access control rules, and provider configuration."))
                 .components(new Components()

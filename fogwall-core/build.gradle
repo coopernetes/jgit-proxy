@@ -279,3 +279,48 @@ tasks.register('downloadGitleaks') {
 }
 
 processResources.dependsOn('downloadGitleaks')
+
+// ---------------------------------------------------------------------------
+// Build stamp
+// ---------------------------------------------------------------------------
+// Expands fogwall-build.properties so BuildInfo can name the build at runtime.
+// Both applications read it from this module, so there is one source for both.
+//
+// Commit resolution order:
+//   -PbuildCommit=<sha>   → what the image build and the publish workflow pass
+//   BUILD_COMMIT env var  → for a CI system that prefers the environment
+//   local `git rev-parse` → a developer build
+//   'unknown'             → the container builder has no git binary, and a
+//                           build with no commit must still produce an artifact
+// ---------------------------------------------------------------------------
+
+def localGitCommit = { ->
+    try {
+        def proc = new ProcessBuilder('git', 'rev-parse', 'HEAD')
+                .directory(rootDir)
+                .redirectErrorStream(true)
+                .start()
+        def out = proc.inputStream.text.trim()
+        return (proc.waitFor() == 0 && out ==~ /[0-9a-f]{40}/) ? out : null
+    } catch (Exception ignored) {
+        // No git binary, not a checkout, or a git that refused — all mean "no commit".
+        return null
+    }
+}
+
+def buildCommit = providers.gradleProperty('buildCommit')
+        .orElse(providers.environmentVariable('BUILD_COMMIT'))
+        .orElse(providers.provider(localGitCommit))
+        .getOrElse('unknown')
+
+def buildVersion = project.version.toString()
+
+tasks.named('processResources') {
+    // Declared as inputs so a change to either re-runs the task. Without this the task goes UP-TO-DATE
+    // on the expanded copy and the jar keeps shipping the previous build's stamp.
+    inputs.property('buildVersion', buildVersion)
+    inputs.property('buildCommit', buildCommit)
+    filesMatching('fogwall-build.properties') {
+        expand(buildVersion: buildVersion, buildCommit: buildCommit)
+    }
+}

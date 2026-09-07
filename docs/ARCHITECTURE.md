@@ -373,6 +373,20 @@ configurable); issues accumulate and are reported together.
 
 ## Core abstractions
 
+### Build stamp (`BuildInfo`)
+
+`BuildInfo` names the version and commit the running process was built from. It lives in `fogwall-core` so both
+applications read the same two values from one file, `fogwall-build.properties`, which Gradle expands at build time. The
+dashboard's `version.properties` could not serve this purpose: it is absent from the standalone server's distribution,
+and a second resource of that name would shadow it rather than supplement it.
+
+The commit is supplied to the build rather than discovered by it — the container builder image has no `git` binary, so
+`-PbuildCommit` (or `BUILD_COMMIT`) carries it in, falling back to a local `git rev-parse` for a developer build. Both
+values degrade to `unknown` rather than failing a build, and an unexpanded `${...}` placeholder is treated as `unknown`
+too, since that is what a classpath assembled without `processResources` yields. The expanded values are declared as
+`processResources` inputs, without which the task goes `UP-TO-DATE` and the jar keeps shipping the previous build's
+stamp.
+
 ### Provider (`FogwallProvider`)
 
 A provider represents one upstream Git hosting service. It carries the upstream HTTP base URI, the URL path prefix the
