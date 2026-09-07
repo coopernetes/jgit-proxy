@@ -502,6 +502,25 @@ git clone http://fogwalladmin:Admin1234!@localhost:8080/server/gitea:3000/test-o
 bash compose.sh [same --auth/--db flags as start] -- down -v
 ```
 
+### Stack quirks that cost time if you don't know them
+
+- **Podman + SELinux: the config profile silently does not load.** `docker/fogwall-docker-default.yml` is bind-mounted
+  into the container and loaded off the classpath as a config profile, and a profile that cannot be read is skipped
+  without an error. On an SELinux host the file is labeled `user_home_t`, the container is `container_t`, and the read
+  is denied — so `providers.gitea` stays disabled and a clone through `/server/gitea:3000/...` returns
+  `repository not found`. Confirm it by looking for `Loaded profile configuration from fogwall-docker-default.yml` in
+  the startup log; if it is absent, the mount is unreadable. Fix it by swapping the `:ro` mount for the `:z` one
+  commented out in `docker/docker-compose.yml`, which lets podman relabel the file. A one-off
+  `chcon -t container_file_t docker/fogwall-docker-default.yml` also works, but a `restorecon` or a fresh clone undoes
+  it.
+- **`up -d` after a rebuild does not pick up the new image.** `bash compose.sh -- build` retags `fogwall:local`, but an
+  existing container keeps running the old image — `up -d` reports success and changes nothing, so code changes appear
+  not to take effect. Pass `--force-recreate`. That recreates Gitea too and resets its volume, so re-run
+  `bash docker/gitea-setup.sh` afterwards or the seeded users, repos and tokens are gone (an invalid-token 401 from the
+  Gitea API is the giveaway).
+- **`test/gitea-push-pass.sh` is interactive.** Server mode holds the git session while the push waits for review, so
+  the script blocks until you approve it in the dashboard at the push-record URL it prints. It is not usable unattended.
+
 ## Code style
 
 ### Java

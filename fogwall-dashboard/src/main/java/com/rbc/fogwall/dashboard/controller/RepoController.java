@@ -7,6 +7,7 @@ import com.rbc.fogwall.db.PushStore.RepoPushSummary;
 import com.rbc.fogwall.db.UrlRuleRegistry;
 import com.rbc.fogwall.db.model.AccessRule;
 import com.rbc.fogwall.git.HttpOperation;
+import com.rbc.fogwall.git.RepoPath;
 import com.rbc.fogwall.provider.FogwallProvider;
 import com.rbc.fogwall.provider.ProviderRegistry;
 import com.rbc.fogwall.servlet.filter.UrlRuleEvaluator;
@@ -17,6 +18,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -116,10 +118,18 @@ public class RepoController {
             return ResponseEntity.badRequest().body(Map.of("error", "invalid operation: " + req.operation()));
         }
 
+        // Derive the same way the live push and proxy paths do, so the trail an operator sees is the decision their
+        // next push gets rather than a near-miss built from a differently-shaped slug.
+        Optional<RepoPath> repoPath = RepoPath.parse(req.owner() + "/" + req.name());
+        if (repoPath.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "owner and name do not form a valid repository path"));
+        }
+
         FogwallProvider provider = providerSource.getProvider(req.provider()).orElseThrow();
         UrlRuleEvaluator evaluator = new UrlRuleEvaluator(urlRuleRegistry, provider);
-        String slug = req.owner() + "/" + req.name();
-        UrlRuleEvaluator.Trail trail = evaluator.evaluateTrail(slug, req.owner(), req.name(), operation);
+        UrlRuleEvaluator.Trail trail = evaluator.evaluateTrail(
+                repoPath.get().slug(), repoPath.get().owner(), repoPath.get().name(), operation);
 
         List<RuleTestStep> steps = trail.steps().stream()
                 .map(s -> new RuleTestStep(

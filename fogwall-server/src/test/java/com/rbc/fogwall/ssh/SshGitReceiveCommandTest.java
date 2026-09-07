@@ -62,6 +62,23 @@ class SshGitReceiveCommandTest {
     }
 
     @Test
+    void nestedGroupPath_ownerIsTheWholeNamespace() {
+        RepoRoute route =
+                SshGitReceiveCommand.resolveRoute("/localhost:3022/group/subgroup/project.git", singleRoute());
+        assertEquals("group/subgroup", route.owner());
+        assertEquals("project", route.repo());
+        assertEquals("ssh://git@localhost:3022/group/subgroup/project.git", route.upstreamUrl());
+        assertEquals("/group/subgroup/project", route.repoSlug());
+    }
+
+    @Test
+    void traversalInsideNestedOwner_isRejected() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> SshGitReceiveCommand.resolveRoute("/localhost:3022/group/../escaped/project.git", singleRoute()));
+    }
+
+    @Test
     void matchesProviderWithNoPort() {
         URI noPortUri = URI.create("ssh://git@github.com");
         SshProviderTarget githubTarget = target(noPortUri, null);

@@ -301,13 +301,26 @@ Paths default to exact (`LITERAL`) matching. Use `path-type` for wildcards:
   path-type: GLOB
   grant: PUSH
 
-# REGEX — Java regex matched against /owner/repo
+# REGEX — Java regex matched against the full repository path
 - username: alice
   provider: github/github.com
   path: \/myorg\/service\-.*
   path-type: REGEX
   grant: PUSH
 ```
+
+#### Nested namespaces (GitLab subgroups)
+
+A repository path is not limited to two segments: the repository name is the last segment and the owner is everything
+before it. A GitLab subgroup project `/group/subgroup/project` has owner `group/subgroup` and name `project`, and its
+slug keeps every segment. This applies to permissions, group grants and access rules alike, and to every path fogwall
+serves — both proxy modes and both of server mode's transports. See
+[Nested namespaces](CONFIGURATION.md#nested-namespaces) for the per-target breakdown.
+
+If you run GitLab with subgroups, check any rule or grant that names a subgroup: a value of `/group/subgroup` matches
+that path only, not the projects inside it. Write `/group/subgroup/*` as a `GLOB` to cover them. An entry that stops
+matching blocks the push rather than admitting it, so the failure is visible — the affected users are told the
+repository is not permitted.
 
 ### Permissions vs access rules
 

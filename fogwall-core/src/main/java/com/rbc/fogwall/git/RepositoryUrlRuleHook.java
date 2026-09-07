@@ -11,6 +11,7 @@ import com.rbc.fogwall.provider.FogwallProvider;
 import com.rbc.fogwall.servlet.filter.UrlRuleAggregateFilter;
 import com.rbc.fogwall.servlet.filter.UrlRuleEvaluator;
 import java.util.Collection;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
@@ -42,9 +43,13 @@ public class RepositoryUrlRuleHook implements FogwallHook {
 
     @Override
     public void onPreReceive(ReceivePack rp, Collection<ReceiveCommand> commands) {
-        String repoSlug = pushContext.getRepoSlug();
-        if (repoSlug == null || repoSlug.isBlank()) {
-            log.warn("No repoSlug in push context — cannot evaluate URL rules, blocking push (fail-closed)");
+        // A path that does not parse is blocked rather than evaluated against a partial reading of it: rules are
+        // the containment mechanism, and a truncated slug would be matched against the wrong repository.
+        Optional<RepoPath> repoPath = RepoPath.parse(pushContext.getRepoSlug());
+        if (repoPath.isEmpty()) {
+            log.warn(
+                    "No usable repoSlug in push context ({}) — cannot evaluate URL rules, blocking push (fail-closed)",
+                    pushContext.getRepoSlug());
             blockPush(
                     rp,
                     commands,
@@ -54,13 +59,11 @@ public class RepositoryUrlRuleHook implements FogwallHook {
             return;
         }
 
-        // Parse owner and name from /owner/name slug
-        String[] parts = repoSlug.split("/", 4);
-        String owner = parts.length >= 2 ? parts[1] : null;
-        String name = parts.length >= 3 ? parts[2] : null;
-        String normSlug = (owner != null && name != null) ? owner + "/" + name : strip(repoSlug);
-
-        UrlRuleEvaluator.Result result = evaluator.evaluate(normSlug, owner, name, HttpOperation.PUSH);
+        // The slug keeps its leading '/', the form the transparent proxy passes. LITERAL and GLOB normalise it either
+        // way, but REGEX receives the value raw — stripping it here made a regex rule match in one mode and not the
+        // other.
+        UrlRuleEvaluator.Result result = evaluator.evaluate(
+                repoPath.get().slug(), repoPath.get().owner(), repoPath.get().name(), HttpOperation.PUSH);
 
         switch (result) {
             case UrlRuleEvaluator.Result.Denied d -> {
@@ -119,10 +122,6 @@ public class RepositoryUrlRuleHook implements FogwallHook {
                 .stepOrder(ORDER)
                 .status(StepStatus.PASS)
                 .build());
-    }
-
-    private static String strip(String s) {
-        return (s != null && s.startsWith("/")) ? s.substring(1) : s;
     }
 
     @Override

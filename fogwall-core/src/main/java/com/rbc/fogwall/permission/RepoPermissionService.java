@@ -2,6 +2,7 @@ package com.rbc.fogwall.permission;
 
 import com.rbc.fogwall.db.model.MatchTarget;
 import com.rbc.fogwall.db.model.MatchType;
+import com.rbc.fogwall.git.RepoPath;
 import java.nio.file.FileSystems;
 import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
@@ -296,6 +297,9 @@ public class RepoPermissionService {
      */
     private boolean matchesPattern(MatchTarget target, String value, MatchType matchType, String path) {
         String subject = subjectFor(target, path);
+        if (subject == null) {
+            return false;
+        }
         return switch (matchType) {
             case LITERAL -> value.equals(subject);
             case GLOB -> matchesGlob(value, subject);
@@ -304,34 +308,22 @@ public class RepoPermissionService {
     }
 
     /**
-     * Picks the comparison subject for a permission path. Permission paths use the {@code /owner/repo} convention, so
-     * {@code OWNER} takes the first segment and {@code NAME} the second — split the same way
-     * {@code RepositoryUrlRuleHook} derives owner/name from the server-mode slug, so permission and URL-rule matching
-     * agree. A {@code null} target defaults to {@code SLUG} (the model default), matching the whole path.
+     * Picks the comparison subject for a permission path. {@code OWNER} and {@code NAME} take their side of the
+     * owner/name boundary from {@link RepoPath}, the same derivation the URL rules use, so a permission check and a URL
+     * rule evaluated for one request never match against different strings. A {@code null} target defaults to
+     * {@code SLUG} (the model default), matching the whole path.
+     *
+     * <p>Returns {@code null} when the path does not name a repository, which makes the grant not match rather than
+     * comparing the pattern against a truncated namespace.
      */
     private static String subjectFor(MatchTarget target, String path) {
-        return switch (target == null ? MatchTarget.SLUG : target) {
-            case SLUG -> path;
-            case OWNER -> ownerOf(path);
-            case NAME -> nameOf(path);
-        };
-    }
-
-    /** First path segment of a {@code /owner/repo} slug, e.g. {@code "/myorg/repo"} → {@code "myorg"}. */
-    private static String ownerOf(String path) {
-        String[] parts = stripLeadingSlash(path).split("/", 3);
-        return parts.length >= 1 ? parts[0] : "";
-    }
-
-    /** Second path segment of a {@code /owner/repo} slug, e.g. {@code "/myorg/repo"} → {@code "repo"}. */
-    private static String nameOf(String path) {
-        String[] parts = stripLeadingSlash(path).split("/", 3);
-        return parts.length >= 2 ? parts[1] : "";
-    }
-
-    private static String stripLeadingSlash(String s) {
-        if (s == null) return "";
-        return s.startsWith("/") ? s.substring(1) : s;
+        MatchTarget resolved = target == null ? MatchTarget.SLUG : target;
+        if (resolved == MatchTarget.SLUG) {
+            return path;
+        }
+        return RepoPath.parse(path)
+                .map(repo -> resolved == MatchTarget.OWNER ? repo.owner() : repo.name())
+                .orElse(null);
     }
 
     private boolean matchesGlob(String pattern, String value) {

@@ -538,4 +538,30 @@ class ParseGitRequestFilterTest {
         assertEquals("my-org", details.getRepoRef().getOwner());
         assertEquals("my.repo_2", details.getRepoRef().getName());
     }
+
+    // ---- nested group paths (GitLab subgroups) ----
+
+    @Test
+    void parse_nestedGroupPath_keepsEverySegment() throws Exception {
+        byte[] body = loadResource("push-sample-01-body.bin");
+        RequestBodyWrapper wrapper = wrapBody(body, "/group/subgroup/project.git/git-receive-pack");
+
+        GitRequestDetails details = makeFilter().parse(wrapper);
+
+        assertNotEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
+        assertEquals("group/subgroup", details.getRepoRef().getOwner());
+        assertEquals("project", details.getRepoRef().getName());
+        assertEquals("/group/subgroup/project", details.getRepoRef().getSlug());
+    }
+
+    @Test
+    void parse_traversalInsideNestedOwner_isRejected() throws Exception {
+        byte[] body = loadResource("push-sample-01-body.bin");
+        RequestBodyWrapper wrapper = wrapBody(body, "/group/../escaped/project.git/git-receive-pack");
+
+        GitRequestDetails details = makeFilter().parse(wrapper);
+
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
+        assertNull(details.getCommitFrom(), "Body must not be parsed for a rejected path");
+    }
 }

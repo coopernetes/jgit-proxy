@@ -228,6 +228,22 @@ because a probe that cannot reach upstream must never be the reason a repository
 The transparent proxy needs none of this: it forwards to upstream directly, so upstream issues its own challenge. SSH
 authenticates by key before any git command runs.
 
+### Repository path derivation
+
+Owner, name and slug all come from one place, `RepoPath` — the transparent proxy's `ParseGitRequestFilter`, server
+mode's `ServerReceivePackFactory` and `RepositoryUrlRuleHook`, the SSH transport's route resolution, and
+`RepoPermissionService`'s `OWNER`/`NAME` targets each parse the request path through it rather than splitting the path
+themselves. A URL rule and a permission check evaluated for the same request have to compare against the same strings; a
+per-call-site split is how they drift apart, and a rule that silently matches a different repository than the permission
+check did is a containment failure rather than a cosmetic inconsistency.
+
+The rule is that the repository name is the **last** path segment and the owner is everything before it, so a path is
+not capped at two segments — a GitLab subgroup project `/group/subgroup/project` has owner `group/subgroup`. Splitting
+at the first separator, or keeping only the first two segments, reads such a path as the subgroup itself. Every segment
+is validated, not just the first and last, because a nested owner is several segments and traversal in any one of them
+must not reach an upstream URL or a cache key. A path that does not parse yields nothing at all and each caller rejects:
+a partial reading of a repository path is never safe to authorize against.
+
 ### Transparent proxy push
 
 ```
