@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.rbc.fogwall.db.PushStore;
 import com.rbc.fogwall.db.model.Attestation;
+import com.rbc.fogwall.db.model.PushQuery;
 import com.rbc.fogwall.db.model.PushStatus;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -257,6 +258,29 @@ class ProxyModeE2ETest {
         assertTrue(
                 result.output().contains("commit before pushing"),
                 "rejection message should mention making a commit. Output:\n" + result.output());
+    }
+
+    // ---- push options ----
+
+    @Test
+    void pushOptions_rejected() throws Exception {
+        // Gitea advertises push-options, so a stock client sends the option lines through the proxy.
+        // The proxy must refuse the request rather than relay an option it cannot inspect.
+        GitHelper git = helper();
+        Path repo = git.clone(repoUrl(), "proxy-push-options");
+        git.setAuthor(repo, GiteaContainer.VALID_AUTHOR_NAME, GiteaContainer.VALID_AUTHOR_EMAIL);
+        git.writeAndStage(repo, "test-file.txt", "push options - " + Instant.now());
+        git.commit(repo, "feat: push with an option");
+
+        var result = git.pushWithResult(repo, "-o", "repo.private=false");
+        assertFalse(result.succeeded(), "push carrying a push option should be rejected");
+        assertTrue(
+                result.output().contains("Push Options Not Supported"),
+                "rejection should name push options. Output:\n" + result.output());
+        // Every decision leaves an audit record: the rejection must be recorded, and nothing else may be.
+        var records = pushStore().find(PushQuery.builder().repoName(repoName).build());
+        assertEquals(1, records.size(), "the rejected push should leave exactly one record");
+        assertEquals(PushStatus.REJECTED, records.get(0).getStatus(), "the record must show the rejection");
     }
 
     // ---- checkHiddenCommits (mirrors checkHiddenCommits.ts) ----

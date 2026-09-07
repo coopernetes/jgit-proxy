@@ -280,6 +280,10 @@ public class ServerReceivePackFactory implements ReceivePackFactory<HttpServletR
 
         ReceivePack rp = new ReceivePack(db);
         rp.setBiDirectionalPipe(false);
+        // Never advertise push-options: git push -o values are upstream commands (merge-request creation,
+        // CI skips, visibility changes) that no hook inspects, so a client that sends them must fail at
+        // negotiation. This is JGit's default, stated here so a library upgrade cannot change the posture.
+        rp.setAllowPushOptions(false);
 
         // Bound what JGit will accept before any hook runs: the pack limit caps wire bytes (the only such cap on
         // the SSH transport), and the object limit caps what those bytes may inflate to.

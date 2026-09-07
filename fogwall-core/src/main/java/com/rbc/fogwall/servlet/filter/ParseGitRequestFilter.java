@@ -37,6 +37,9 @@ public class ParseGitRequestFilter extends ProviderAwareFogwallFilter<FogwallPro
     /** A full git object id: 40 lowercase hex characters. Covers the all-zero create/delete sentinel. */
     private static final Pattern OBJECT_ID = Pattern.compile("^[0-9a-f]{40}$");
 
+    /** receive-pack capability under which {@code git push -o} option lines travel. */
+    private static final String PUSH_OPTIONS_CAPABILITY = "push-options";
+
     private final long maxPushBytes;
 
     public ParseGitRequestFilter(FogwallProvider provider) {
@@ -194,6 +197,19 @@ public class ParseGitRequestFilter extends ProviderAwareFogwallFilter<FogwallPro
                     return gr;
                 }
 
+                // Push options (git push -o key=value) are commands to the upstream — GitLab opens merge
+                // requests and skips CI from them, Gitea/Forgejo flip repository visibility — that travel
+                // after the ref updates and are never inspected by the filter chain. The proxy relays the
+                // body verbatim, so it cannot strip them; reject the request when the client negotiated
+                // the capability instead. The capability list follows the NUL on the first ref line.
+                if (hasCapability(packetLine, PUSH_OPTIONS_CAPABILITY)) {
+                    log.warn("Rejecting push that negotiated push-options: the capability is not supported");
+                    gr.setResult(GitRequestDetails.GitResult.REJECTED);
+                    gr.setRejectionTitle("Push Blocked - Push Options Not Supported");
+                    gr.setReason("Push options (git push -o ...) are not supported. Please push again without -o.");
+                    return gr;
+                }
+
                 // CVE-2025-54583: Reject multi-ref pushes. Read the next pkt-line — it must
                 // be a flush packet (0000). If it's another ref update, the client is pushing
                 // multiple branches and we must reject.
@@ -230,6 +246,16 @@ public class ParseGitRequestFilter extends ProviderAwareFogwallFilter<FogwallPro
             }
         }
         return gr;
+    }
+
+    /** True when the client's capability list on a ref-update line contains {@code capability} as a whole token. */
+    static boolean hasCapability(String refUpdateLine, String capability) {
+        int nul = refUpdateLine.indexOf('\0');
+        if (nul < 0) return false;
+        for (String token : refUpdateLine.substring(nul + 1).trim().split(" ")) {
+            if (token.equals(capability)) return true;
+        }
+        return false;
     }
 
     /** Marks the request rejected as a malformed push, with a reason the git client will see verbatim. */

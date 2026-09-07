@@ -141,8 +141,20 @@ class GitHelper {
 
     /** Attempts a push and returns the result: exit code and combined output. */
     PushResult pushWithResult(Path repoDir) throws IOException, InterruptedException {
+        return pushWithResult(repoDir, new String[0]);
+    }
+
+    /**
+     * Attempts a push with extra {@code git push} arguments placed before the remote (for example {@code -o key=value})
+     * and returns the result: exit code and combined output.
+     */
+    PushResult pushWithResult(Path repoDir, String... pushArgs) throws IOException, InterruptedException {
         String branch = currentBranch(repoDir);
-        ProcessBuilder pb = buildGitCommand(repoDir, "push", "origin", branch);
+        List<String> args = new ArrayList<>(List.of("push"));
+        args.addAll(List.of(pushArgs));
+        args.add("origin");
+        args.add(branch);
+        ProcessBuilder pb = buildGitCommand(repoDir, args.toArray(new String[0]));
         pb.redirectErrorStream(true);
         Process p = pb.start();
         String output = new String(p.getInputStream().readAllBytes());
