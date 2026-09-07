@@ -1,6 +1,7 @@
 package com.rbc.fogwall.user;
 
 import java.time.Instant;
+import java.util.List;
 import lombok.Builder;
 import lombok.Value;
 
@@ -29,7 +30,33 @@ public class SshKeyEntry {
     @Builder.Default
     boolean locked = false;
 
-    /** What locked this key: {@code "config"} (default, pre-#40 meaning) or an SCM OAuth provider id (#40). */
+    /**
+     * Display label for where this key came from: {@code "config"}, a provider id, or a comma-joined list when more
+     * than one linked provider vouches for the key.
+     *
+     * <p>Not safe to compare against a provider id — use {@link #authSources} for that. A key two providers both report
+     * reads {@code "github, gitlab"} here, which equals neither.
+     */
     @Builder.Default
     String authSource = "config";
+
+    /**
+     * Every source that vouches for this key, one entry per provider (or the single value {@code "config"}). This is
+     * the field to test when deciding whether a given provider proved a key, since a key can legitimately be verified
+     * by more than one linked account.
+     */
+    @Builder.Default
+    List<String> authSources = List.of();
+
+    /** Whether {@code providerId} is among the sources that vouch for this key. */
+    public boolean isVouchedForBy(String providerId) {
+        if (providerId == null) {
+            return false;
+        }
+        if (!authSources.isEmpty()) {
+            return authSources.stream().anyMatch(providerId::equalsIgnoreCase);
+        }
+        // Older rows, and config-declared keys, carry only the single-valued label.
+        return providerId.equalsIgnoreCase(authSource);
+    }
 }

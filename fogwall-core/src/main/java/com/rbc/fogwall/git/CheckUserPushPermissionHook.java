@@ -246,7 +246,7 @@ public class CheckUserPushPermissionHook implements FogwallHook {
                 return;
             }
             pushContext.setScmUsername(scmLogin.get());
-        } else if (provider != null && user.getScmIdentities() != null) {
+        } else if (provider != null) {
             // HTTP: scmUsername comes from the token lookup already performed during identity resolution
             var httpScmIdentities = user.getScmIdentities().stream()
                     .filter(id -> provider.getProviderId().equalsIgnoreCase(id.getProvider()));
@@ -293,11 +293,19 @@ public class CheckUserPushPermissionHook implements FogwallHook {
      * registered upstream — what is missing is that <em>this key</em> came from the linked account.
      */
     private void blockUnimportedSshKey(UserEntry user, String providerId) {
+        // Names what was actually on file: the usual cause is a key added by hand, but "imported before the account
+        // was linked" and "verified identity missing" look identical to a user without this.
         log.warn(
                 "SSH key for user '{}' was not imported from provider '{}' by OAuth linking — push denied (strict"
-                        + " identity mode)",
+                        + " identity mode). Keys on file: {}. Identities: {}",
                 user.getUsername(),
-                providerId);
+                providerId,
+                user.getSshKeys().stream()
+                        .map(k -> k.getFingerprint() + "[locked=" + k.isLocked() + ",source=" + k.getAuthSource() + "]")
+                        .toList(),
+                user.getScmIdentities().stream()
+                        .map(i -> i.getProvider() + "/" + i.getUsername() + "[verified=" + i.isVerified() + "]")
+                        .toList());
         String profileHint = serviceUrl != null
                 ? "Link the account, or re-import your SSH keys, at:\n  " + sym(LINK) + "  " + serviceUrl
                         + "/dashboard/profile"

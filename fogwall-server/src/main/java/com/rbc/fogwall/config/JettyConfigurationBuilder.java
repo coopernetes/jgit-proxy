@@ -406,27 +406,7 @@ public class JettyConfigurationBuilder {
                 scmOAuthConfig.getSshKeyRefreshInterval().isZero()
                         ? "disabled"
                         : scmOAuthConfig.getSshKeyRefreshInterval());
-        warnIfStrictModeCannotResolve(scmOAuthConfig.getIdentityMode());
         return scmOAuthConfig;
-    }
-
-    /**
-     * Warns when strict identity mode is configured in a deployment that cannot produce the evidence it requires.
-     *
-     * <p>Strict mode resolves identity only from OAuth-verified identities and the SSH keys imported alongside them.
-     * Both are written by the dashboard's linking flow. A config file cannot declare either: config-declared identities
-     * are always unverified and config-declared keys carry {@code authSource: config}. So a standalone server with its
-     * own database has no way to satisfy strict mode, and every push would be refused at push time with nothing said at
-     * startup. The supported shape is a database shared with a dashboard, which is why this warns rather than fails.
-     */
-    private void warnIfStrictModeCannotResolve(ScmOAuthConfig.IdentityMode identityMode) {
-        if (identityMode != ScmOAuthConfig.IdentityMode.STRICT) {
-            return;
-        }
-        log.warn("scm-oauth.identity-mode: strict resolves identity only from OAuth-linked accounts and their imported"
-                + " SSH keys. Nothing declared in this config file can satisfy it. If this process does not"
-                + " share a database with a dashboard where users link their accounts, every push will be"
-                + " refused.");
     }
 
     private CommitConfig.AuthorConfig buildAuthorConfig(CommitSettings.EmailSettings email) {

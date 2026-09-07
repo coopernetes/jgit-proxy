@@ -29,12 +29,13 @@ class ScmSshKeyImporterTest {
         return UserEntry.builder().username("alice").sshKeys(List.of(keys)).build();
     }
 
-    private static SshKeyEntry importedKey(String fingerprint, String authSource) {
+    private static SshKeyEntry importedKey(String fingerprint, String... sources) {
         return SshKeyEntry.builder()
                 .username("alice")
                 .fingerprint(fingerprint)
                 .locked(true)
-                .authSource(authSource)
+                .authSource(String.join(", ", sources))
+                .authSources(List.of(sources))
                 .build();
     }
 
@@ -154,5 +155,36 @@ class ScmSshKeyImporterTest {
         assertTrue(result.fetchFailed());
         assertEquals(0, result.withdrawn());
         assertEquals(0, result.added());
+    }
+
+    @Test
+    void keyVouchedForByTwoProviders_isWithdrawnFromOnlyTheOneReconciled() {
+        // The joined display label ("github, gitlab") equals neither provider id, so matching on it would leave the
+        // key claimed by both forever.
+        UserStore mutable = mock(UserStore.class);
+        String fp = SshKeyUtils.fingerprint(SAMPLE_KEY);
+
+        var result = ScmSshKeyImporter.reconcile(
+                mutable, userWith(importedKey(fp, "github", "gitlab")), "github", Optional.of(List.of()));
+
+        verify(mutable).removeSshKeySource("alice", fp, "github");
+        assertEquals(1, result.withdrawn());
+    }
+
+    @Test
+    void keyAlreadyOnFile_isNotCountedAsAdded() {
+        // Otherwise every sweep reports work for anyone with keys, and usersChanged is meaningless.
+        UserStore mutable = mock(UserStore.class);
+        String fp = SshKeyUtils.fingerprint(SAMPLE_KEY);
+
+        var result = ScmSshKeyImporter.reconcile(
+                mutable,
+                userWith(importedKey(fp, "github")),
+                "github",
+                Optional.of(List.of(new OAuthSshKeyEntry(SAMPLE_KEY, "work laptop"))));
+
+        assertEquals(0, result.added());
+        assertEquals(0, result.withdrawn());
+        assertFalse(result.changedAnything());
     }
 }

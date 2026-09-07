@@ -347,11 +347,11 @@ public class ScmOAuthLinkController {
             return null;
         }
         if (scmOAuthTokenStore.isEmpty()) {
-            // JDBC-only for now (see FogwallDashboardApplication's conditional bean registration) — Mongo
-            // deployments get no ScmOAuthTokenStore bean. Degrade, don't fail Spring context startup over it.
+            // Both database families provide a token store, so reaching here means neither was configured — a
+            // deployment with no database at all. Degrade rather than failing Spring context startup.
             response.sendError(
                     HttpStatus.NOT_IMPLEMENTED.value(),
-                    "SCM OAuth linking is not supported with the current user store backend (requires a JDBC database).");
+                    "SCM OAuth linking requires a database (JDBC or MongoDB); none is configured.");
             return null;
         }
         OAuthProviderSettings providerSettings = oauthSettingsFor(providerId);

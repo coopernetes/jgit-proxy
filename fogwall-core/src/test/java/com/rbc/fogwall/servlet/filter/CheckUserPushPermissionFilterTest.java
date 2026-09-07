@@ -4,12 +4,14 @@ import static com.rbc.fogwall.servlet.FogwallServlet.GIT_REQUEST_ATTR;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import com.rbc.fogwall.config.ScmOAuthConfig;
 import com.rbc.fogwall.git.GitRequestDetails;
 import com.rbc.fogwall.git.HttpOperation;
 import com.rbc.fogwall.permission.RepoPermissionService;
 import com.rbc.fogwall.provider.FogwallProvider;
 import com.rbc.fogwall.provider.GitHubProvider;
 import com.rbc.fogwall.service.PushIdentityResolver;
+import com.rbc.fogwall.user.ScmIdentity;
 import com.rbc.fogwall.user.UserEntry;
 import jakarta.servlet.ReadListener;
 import jakarta.servlet.ServletInputStream;
@@ -24,6 +26,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -263,5 +266,73 @@ class CheckUserPushPermissionFilterTest {
 
         verify(resolver).resolve(any(FogwallProvider.class), eq("user"), eq(tokenWithColon));
         assertFalse(resp.committed.get());
+    }
+
+    // ---- strict identity mode (parity with the server-mode hook) ----
+
+    private UserEntry userWithIdentity(String username, String provider, String scmUsername, boolean verified) {
+        return UserEntry.builder()
+                .username(username)
+                .emails(List.of())
+                .scmIdentities(List.of(ScmIdentity.builder()
+                        .provider(provider)
+                        .username(scmUsername)
+                        .verified(verified)
+                        .build()))
+                .build();
+    }
+
+    private static Supplier<ScmOAuthConfig> strict() {
+        return () -> ScmOAuthConfig.builder()
+                .identityMode(ScmOAuthConfig.IdentityMode.STRICT)
+                .build();
+    }
+
+    @Test
+    void strictMode_unverifiedIdentity_blocks() throws Exception {
+        // Without this the setting applied to server mode only, and pushing to /proxy/… skipped it entirely.
+        GitRequestDetails details = pushDetails();
+        UserEntry alice = userWithIdentity("alice", "github", "alice-gh", false);
+        when(resolver.resolve(any(FogwallProvider.class), eq("alice"), eq("token")))
+                .thenReturn(Optional.of(alice));
+        when(permService.isAllowedToPush("alice", "github", "/owner/repo")).thenReturn(true);
+        var resp = new FakeResponse();
+
+        new CheckUserPushPermissionFilter(resolver, permService, strict())
+                .doHttpFilter(mockRequest(details, basicAuth("alice", "token")), resp.mock);
+
+        assertEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
+    }
+
+    @Test
+    void strictMode_verifiedIdentity_allows() throws Exception {
+        GitRequestDetails details = pushDetails();
+        UserEntry alice = userWithIdentity("alice", "github", "alice-gh", true);
+        when(resolver.resolve(any(FogwallProvider.class), eq("alice"), eq("token")))
+                .thenReturn(Optional.of(alice));
+        when(permService.isAllowedToPush("alice", "github", "/owner/repo")).thenReturn(true);
+        var resp = new FakeResponse();
+
+        new CheckUserPushPermissionFilter(resolver, permService, strict())
+                .doHttpFilter(mockRequest(details, basicAuth("alice", "token")), resp.mock);
+
+        assertNotEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
+        assertEquals("alice-gh", details.getScmUsername());
+    }
+
+    @Test
+    void permissiveMode_unverifiedIdentity_stillAllows() throws Exception {
+        GitRequestDetails details = pushDetails();
+        UserEntry alice = userWithIdentity("alice", "github", "alice-gh", false);
+        when(resolver.resolve(any(FogwallProvider.class), eq("alice"), eq("token")))
+                .thenReturn(Optional.of(alice));
+        when(permService.isAllowedToPush("alice", "github", "/owner/repo")).thenReturn(true);
+        var resp = new FakeResponse();
+
+        new CheckUserPushPermissionFilter(resolver, permService)
+                .doHttpFilter(mockRequest(details, basicAuth("alice", "token")), resp.mock);
+
+        assertNotEquals(GitRequestDetails.GitResult.REJECTED, details.getResult());
+        assertEquals("alice-gh", details.getScmUsername());
     }
 }

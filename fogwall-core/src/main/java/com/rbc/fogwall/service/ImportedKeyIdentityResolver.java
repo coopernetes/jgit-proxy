@@ -47,19 +47,13 @@ public final class ImportedKeyIdentityResolver {
 
     /** Whether the connecting key is one this provider's OAuth linking imported, rather than a self-asserted one. */
     private static boolean wasImportedFrom(List<SshKeyEntry> keys, String providerId, String connectingFingerprint) {
-        if (keys == null) {
-            return false;
-        }
         return keys.stream()
                 .anyMatch(key -> connectingFingerprint.equals(key.getFingerprint())
                         && key.isLocked()
-                        && providerId.equalsIgnoreCase(key.getAuthSource()));
+                        && key.isVouchedForBy(providerId));
     }
 
     private static Optional<String> verifiedLoginFor(List<ScmIdentity> identities, String providerId) {
-        if (identities == null) {
-            return Optional.empty();
-        }
         return identities.stream()
                 .filter(identity -> providerId.equalsIgnoreCase(identity.getProvider()))
                 .filter(ScmIdentity::isVerified)

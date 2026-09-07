@@ -7,6 +7,7 @@ import com.rbc.fogwall.db.mongo.MongoGitHubNodeIdCache;
 import com.rbc.fogwall.db.mongo.MongoGitLabProjectIdCache;
 import com.rbc.fogwall.db.mongo.MongoPushStore;
 import com.rbc.fogwall.db.mongo.MongoScmApiActionStore;
+import com.rbc.fogwall.db.mongo.MongoScmOAuthTokenStore;
 import com.rbc.fogwall.db.mongo.MongoScmTokenCache;
 import com.rbc.fogwall.db.mongo.MongoSshFingerprintCache;
 import com.rbc.fogwall.db.mongo.MongoUrlRuleRegistry;
@@ -20,6 +21,7 @@ import com.rbc.fogwall.scmapi.GitLabProjectIdCache;
 import com.rbc.fogwall.service.ScmTokenCache;
 import com.rbc.fogwall.service.SshFingerprintCache;
 import com.rbc.fogwall.user.MongoUserStore;
+import com.rbc.fogwall.user.ScmOAuthTokenStore;
 import com.rbc.fogwall.user.UserStore;
 import java.time.Duration;
 
@@ -102,6 +104,13 @@ public final class MongoStoreFactory implements AutoCloseable {
         MongoSshFingerprintCache cache = new MongoSshFingerprintCache(client, databaseName, ttl);
         cache.initialize();
         return cache;
+    }
+
+    /** Create and initialize a {@link ScmOAuthTokenStore} backed by this factory's client. */
+    public ScmOAuthTokenStore scmOAuthTokenStore() {
+        MongoScmOAuthTokenStore store = new MongoScmOAuthTokenStore(client, databaseName);
+        store.initialize();
+        return store;
     }
 
     /** Create and initialize a {@link ScmTokenCache} backed by this factory's client. */

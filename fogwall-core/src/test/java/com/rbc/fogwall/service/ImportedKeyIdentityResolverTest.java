@@ -20,6 +20,18 @@ class ImportedKeyIdentityResolverTest {
                 .fingerprint(fingerprint)
                 .locked(locked)
                 .authSource(authSource)
+                .authSources(List.of(authSource))
+                .build();
+    }
+
+    /** A key two linked providers both vouch for — the stores render authSource as a joined display label. */
+    private static SshKeyEntry multiSourceKey(String fingerprint, String... sources) {
+        return SshKeyEntry.builder()
+                .username("alice")
+                .fingerprint(fingerprint)
+                .locked(true)
+                .authSource(String.join(", ", sources))
+                .authSources(List.of(sources))
                 .build();
     }
 
@@ -94,5 +106,23 @@ class ImportedKeyIdentityResolverTest {
         UserEntry linked = user(List.of(key(FP, true, "github")), List.of(identity("github", "alice-gh", true)));
         assertTrue(ImportedKeyIdentityResolver.resolve(linked, "github", null).isEmpty());
         assertTrue(ImportedKeyIdentityResolver.resolve(linked, null, FP).isEmpty());
+    }
+
+    @Test
+    void keyVouchedForByTwoProviders_resolvesForEach() {
+        // The display label reads "github, gitlab" and equals neither provider id, so comparing against it would
+        // refuse a key both providers actually proved.
+        UserEntry u = user(
+                List.of(multiSourceKey(FP, "github", "gitlab")),
+                List.of(identity("github", "alice-gh", true), identity("gitlab", "alice-gl", true)));
+        assertEquals(Optional.of("alice-gh"), ImportedKeyIdentityResolver.resolve(u, "github", FP));
+        assertEquals(Optional.of("alice-gl"), ImportedKeyIdentityResolver.resolve(u, "gitlab", FP));
+    }
+
+    @Test
+    void keyVouchedForByTwoProviders_stillRefusesAThird() {
+        UserEntry u =
+                user(List.of(multiSourceKey(FP, "github", "gitlab")), List.of(identity("gitea", "alice-gt", true)));
+        assertTrue(ImportedKeyIdentityResolver.resolve(u, "gitea", FP).isEmpty());
     }
 }

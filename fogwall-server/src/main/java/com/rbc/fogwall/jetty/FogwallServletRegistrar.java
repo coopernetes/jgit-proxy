@@ -228,7 +228,8 @@ public final class FogwallServletRegistrar {
                         fogwallContext.pushIdentityResolver(),
                         fogwallContext.repoPermissionService(),
                         fogwallContext.fetchStore(),
-                        fogwallContext.urlRuleRegistry());
+                        fogwallContext.urlRuleRegistry(),
+                        scmOAuthConfigSupplier);
             } else {
                 log.info(
                         "Skipping HTTP servlet registration for {} — SSH provider (scheme={})",
@@ -679,7 +680,8 @@ public final class FogwallServletRegistrar {
             PushIdentityResolver pushIdentityResolver,
             RepoPermissionService repoPermissionService,
             FetchStore fetchStore,
-            UrlRuleRegistry urlRuleRegistry) {
+            UrlRuleRegistry urlRuleRegistry,
+            Supplier<ScmOAuthConfig> scmOAuthConfigSupplier) {
         String urlPattern = PROXY_PATH_PREFIX + provider.servletPath() + "/*";
 
         // PushStoreAuditFilter wraps the entire chain via try-finally; must be registered first.
@@ -705,7 +707,8 @@ public final class FogwallServletRegistrar {
         if (provider instanceof BitbucketProvider bitbucketProvider) {
             filters.add(new BitbucketIdentityFilter(bitbucketProvider));
         }
-        filters.add(new CheckUserPushPermissionFilter(pushIdentityResolver, repoPermissionService));
+        filters.add(
+                new CheckUserPushPermissionFilter(pushIdentityResolver, repoPermissionService, scmOAuthConfigSupplier));
         filters.add(new CommitAttributionPolicyFilter(pushIdentityResolver, commitConfigSupplier));
         filters.add(new CheckEmptyBranchFilter());
         filters.add(new CheckHiddenCommitsFilter());

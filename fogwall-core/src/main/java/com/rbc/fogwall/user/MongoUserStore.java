@@ -596,6 +596,13 @@ public class MongoUserStore implements UserStore {
                                             : Instant.EPOCH)
                             .locked(Boolean.TRUE.equals(k.getBoolean("locked")))
                             .authSource(sourceLabel)
+                            .authSources(
+                                    !sources.isEmpty()
+                                            ? List.copyOf(sources)
+                                            : List.of(
+                                                    k.getString("authSource") != null
+                                                            ? k.getString("authSource")
+                                                            : "config"))
                             .build();
                 })
                 .toList();
@@ -623,11 +630,37 @@ public class MongoUserStore implements UserStore {
         String rolesStr = doc.getString("roles");
         List<String> roles = (rolesStr != null && !rolesStr.isBlank()) ? List.of(rolesStr.split(",")) : List.of("USER");
 
+        // SSH keys belong on the entry — see JdbcUserStore.buildEntry for why. Read straight off the document here
+        // rather than through findSshKeys, which would re-fetch it.
+        List<SshKeyEntry> sshKeys = doc.getList("sshKeys", Document.class, List.of()).stream()
+                .map(k -> {
+                    List<String> sources = k.getList("authSources", String.class, List.of());
+                    String sourceLabel = !sources.isEmpty()
+                            ? String.join(", ", sources)
+                            : (k.getString("authSource") != null ? k.getString("authSource") : "config");
+                    return SshKeyEntry.builder()
+                            .id(k.getString("id"))
+                            .username(doc.getString("_id"))
+                            .fingerprint(k.getString("fingerprint"))
+                            .publicKey(k.getString("publicKey"))
+                            .label(k.getString("label"))
+                            .createdAt(
+                                    k.getDate("createdAt") != null
+                                            ? k.getDate("createdAt").toInstant()
+                                            : Instant.EPOCH)
+                            .locked(Boolean.TRUE.equals(k.getBoolean("locked")))
+                            .authSource(sourceLabel)
+                            .authSources(!sources.isEmpty() ? List.copyOf(sources) : List.of(sourceLabel))
+                            .build();
+                })
+                .toList();
+
         return UserEntry.builder()
                 .username(doc.getString("_id"))
                 .passwordHash(doc.getString("passwordHash"))
                 .emails(emails)
                 .scmIdentities(scmIdentities)
+                .sshKeys(sshKeys)
                 .roles(roles)
                 .build();
     }

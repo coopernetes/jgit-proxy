@@ -22,6 +22,7 @@ import com.rbc.fogwall.provider.ProviderRegistry;
 import com.rbc.fogwall.scheduler.MaintenanceScheduler;
 import com.rbc.fogwall.ssh.SshGitServer;
 import com.rbc.fogwall.ssh.SshServerRegistrar;
+import com.rbc.fogwall.user.JdbcScmOAuthTokenStore;
 import com.rbc.fogwall.user.ScmOAuthTokenStore;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.ServletContextEvent;
@@ -201,7 +202,11 @@ public class FogwallDashboardApplication {
             TokenCipherProvider tokenCipherProvider = TokenCipherProvider.initialize(
                     fogwallConfig.getScmOauth().getTokenEncryptionKeyPath(), Path.of("./.data/scm-oauth-token-key"));
             bf.registerSingleton("tokenCipherProvider", tokenCipherProvider);
-            ScmOAuthTokenStore oauthTokenStore = jdbcDataSource != null ? new ScmOAuthTokenStore(jdbcDataSource) : null;
+            // Both database families provide one, so account linking, the SSH key refresh and strict identity mode
+            // behave the same on either.
+            ScmOAuthTokenStore oauthTokenStore = jdbcDataSource != null
+                    ? new JdbcScmOAuthTokenStore(jdbcDataSource)
+                    : (mongoFactory != null ? mongoFactory.scmOAuthTokenStore() : null);
             bf.registerSingleton(
                     "sshKeyRefreshService",
                     new SshKeyRefreshService(
@@ -222,8 +227,8 @@ public class FogwallDashboardApplication {
             // when session-store=jdbc. Null for MongoDB deployments (no JDBC DataSource available).
             if (jdbcDataSource != null) {
                 bf.registerSingleton("dataSource", jdbcDataSource);
-                // #40: OAuth token storage is JDBC-only for now — ScmOAuthLinkController treats its absence
-                // (Mongo deployments) as "OAuth linking not supported with this backend", not a startup failure.
+            }
+            if (oauthTokenStore != null) {
                 bf.registerSingleton("scmOAuthTokenStore", oauthTokenStore);
             }
             // Expose the shared MongoClient + database name for session-store=mongo. Null for JDBC deployments.

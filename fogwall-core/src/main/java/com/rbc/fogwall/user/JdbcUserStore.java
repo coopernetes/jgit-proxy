@@ -588,6 +588,13 @@ public class JdbcUserStore implements UserStore {
                             .createdAt(((Timestamp) row.get("created_at")).toInstant())
                             .locked(Boolean.TRUE.equals(row.get("locked")))
                             .authSource(sourceLabel)
+                            .authSources(
+                                    sources != null && !sources.isEmpty()
+                                            ? List.copyOf(sources)
+                                            : List.of(
+                                                    row.get("auth_source") != null
+                                                            ? (String) row.get("auth_source")
+                                                            : "config"))
                             .build();
                 })
                 .toList();
@@ -609,11 +616,14 @@ public class JdbcUserStore implements UserStore {
                         .build())
                 .toList();
         List<String> roles = (rolesStr != null && !rolesStr.isBlank()) ? List.of(rolesStr.split(",")) : List.of("USER");
+        // SSH keys belong on the entry: authorization code reads them to decide whether a provider proved the key
+        // that authenticated. Leaving them out made every database-backed user look as though they had none.
         return UserEntry.builder()
                 .username(username)
                 .passwordHash(passwordHash)
                 .emails(Collections.unmodifiableList(emails))
                 .scmIdentities(Collections.unmodifiableList(scmIdentities))
+                .sshKeys(findSshKeys(username))
                 .roles(roles)
                 .build();
     }

@@ -17,6 +17,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hc.client5.http.fluent.Request;
 import tools.jackson.databind.json.JsonMapper;
@@ -117,13 +118,21 @@ public final class ScmSshKeyImporter {
                     providerId);
             return ReconcileResult.failed();
         }
+        // What this provider already vouched for, so "added" counts keys that were not on file rather than every key
+        // the provider reports — otherwise a sweep that changed nothing still reports work.
+        Set<String> alreadyVouched = user.getSshKeys().stream()
+                .filter(k -> k.isVouchedForBy(providerId))
+                .map(SshKeyEntry::getFingerprint)
+                .collect(Collectors.toSet());
         Set<String> upstreamFingerprints = new LinkedHashSet<>();
         int added = 0;
         for (OAuthSshKeyEntry key : upstream.get()) {
             String fingerprint = importKey(mutable, user.getUsername(), providerId, key);
             if (fingerprint != null) {
                 upstreamFingerprints.add(fingerprint);
-                added++;
+                if (!alreadyVouched.contains(fingerprint)) {
+                    added++;
+                }
             }
         }
         int withdrawn = withdrawMissing(mutable, user, providerId, upstreamFingerprints);
@@ -161,9 +170,9 @@ public final class ScmSshKeyImporter {
     private static int withdrawMissing(
             UserStore mutable, UserEntry user, String providerId, Set<String> upstreamFingerprints) {
         List<SshKeyEntry> imported = new ArrayList<>();
-        for (SshKeyEntry key : user.getSshKeys() != null ? user.getSshKeys() : List.<SshKeyEntry>of()) {
+        for (SshKeyEntry key : user.getSshKeys()) {
             if (key.isLocked()
-                    && providerId.equalsIgnoreCase(key.getAuthSource())
+                    && key.isVouchedForBy(providerId)
                     && !upstreamFingerprints.contains(key.getFingerprint())) {
                 imported.add(key);
             }
