@@ -5,9 +5,9 @@ fogwall's built-in PII content-pattern bundles are hand-ported from
 `UPSTREAM-LICENSE-presidio.txt` in this directory). fogwall does **not** run Presidio itself: no Python runtime, no NLP
 models, no sidecar service. Only the regex patterns, context-keyword lists, and structural validation logic (Luhn
 checksum, placeholder rejection, etc.) from Presidio's `PatternRecognizer` subclasses are translated into fogwall's own
-Java implementation. Refresh this against upstream with `/refresh-pii-patterns` (see `.claude/commands/`).
+Java implementation. Refresh this against upstream with `/refresh-pattern-bundles` (see `.claude/skills/`).
 
-**Pinned commit:** `517d13eee659794ed3a55d188752d014be574c2a`
+**Pinned commit:** `5e2fcea990aa3b99660d2aea9121d0ba74a8940b`
 
 ## Simplifications from upstream
 
@@ -62,12 +62,12 @@ rather than duplicated.
 These aren't ISO-country-scoped and cover data types Presidio also recognizes, plus two (`us-bank-routing`,
 `btc-bech32-address`/`eth-address`) that Presidio doesn't:
 
-| fogwall bundle                 | Data type(s)                                         | Upstream source file                                                                                                                                                                                                | Validator(s)                                                                                                                                             |
-| ------------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `generic-iban.json`            | IBAN                                                 | `presidio-analyzer/presidio_analyzer/predefined_recognizers/iban_patterns.py`                                                                                                                                       | `iban` (ISO 7064 mod-97-10)                                                                                                                              |
-| `generic-credit-card.json`     | Credit card number                                   | `presidio-analyzer/presidio_analyzer/predefined_recognizers/credit_card_recognizer.py`                                                                                                                              | `luhn`                                                                                                                                                   |
-| `generic-crypto-wallet.json`   | Bitcoin (legacy), Bitcoin (SegWit/Taproot), Ethereum | Bitcoin legacy ported from `presidio-analyzer/presidio_analyzer/predefined_recognizers/crypto_recognizer.py`; SegWit/Taproot (BIP-173/BIP-350) and Ethereum (EIP-55) are fogwall's own additions, not from Presidio | `btc-address` (Base58Check); `btc-bech32-address` (Bech32/Bech32m); `eth-address` (EIP-55 Keccak-256 checksum, only applies to checksum-cased addresses) |
-| `generic-us-bank-routing.json` | US bank routing number (ABA)                         | Not from Presidio - the publicly published ABA routing-number checksum algorithm                                                                                                                                    | `us-bank-routing` (weighted mod-10)                                                                                                                      |
+| fogwall bundle                 | Data type(s)                                         | Upstream source file                                                                                                                                                                                                        | Validator(s)                                                                                                                                             |
+| ------------------------------ | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `generic-iban.json`            | IBAN                                                 | `presidio-analyzer/presidio_analyzer/predefined_recognizers/generic/iban_patterns.py`                                                                                                                                       | `iban` (ISO 7064 mod-97-10)                                                                                                                              |
+| `generic-credit-card.json`     | Credit card number                                   | `presidio-analyzer/presidio_analyzer/predefined_recognizers/generic/credit_card_recognizer.py`                                                                                                                              | `luhn`                                                                                                                                                   |
+| `generic-crypto-wallet.json`   | Bitcoin (legacy), Bitcoin (SegWit/Taproot), Ethereum | Bitcoin legacy ported from `presidio-analyzer/presidio_analyzer/predefined_recognizers/generic/crypto_recognizer.py`; SegWit/Taproot (BIP-173/BIP-350) and Ethereum (EIP-55) are fogwall's own additions, not from Presidio | `btc-address` (Base58Check); `btc-bech32-address` (Bech32/Bech32m); `eth-address` (EIP-55 Keccak-256 checksum, only applies to checksum-cased addresses) |
+| `generic-us-bank-routing.json` | US bank routing number (ABA)                         | Not from Presidio - the publicly published ABA routing-number checksum algorithm                                                                                                                                            | `us-bank-routing` (weighted mod-10)                                                                                                                      |
 
 ## Group aliases
 
@@ -91,3 +91,9 @@ These aren't ISO-country-scoped and cover data types Presidio also recognizes, p
   `generic-us-bank-routing` - the latter two chains and the ABA routing checksum aren't from Presidio. Default
   `fogwall.yml` enables `national-id-all-geos` plus the two strongest-checksum generic bundles (`generic-iban`,
   `generic-crypto-wallet`); `generic-credit-card`/`generic-us-bank-routing` (Luhn-strength mod-10, noisier) stay opt-in.
+- 2026-09-07 — re-pinned to `5e2fcea990aa3b99660d2aea9121d0ba74a8940b`, no bundle changes. Of the 23 tracked upstream
+  files, only `uk_nino_recognizer.py` changed: upstream dropped an optional space between the invalid-prefix negative
+  lookahead and the letter pair, which had let a NINO preceded by a space bypass the BG/GB/NK/KN/NT/TN/ZZ exclusions.
+  fogwall's `national-id-gb` NINO regex never had that space, so it already behaves as the fixed upstream one does.
+  Corrected the three `generic-*` upstream source paths (they live under `predefined_recognizers/generic/`) and the
+  refresh command name.
