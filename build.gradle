@@ -51,7 +51,7 @@ ext {
     jacksonBomVersion = '3.2.2'
 
     // GraphQL (SCM API proxy — parses GraphQL request bodies for AST-based mutation allowlisting)
-    graphqlJavaVersion = '24.1'
+    graphqlJavaVersion = '26.1'
 
     // Spring
     springVersion = '7.0.9'
@@ -72,7 +72,7 @@ ext {
     minaSshdVersion = '2.19.0'
 
     // Lombok
-    lombokVersion = '1.18.46'
+    lombokVersion = '1.18.48'
 
     // Testing
     junitVersion = '6.1.3'
@@ -84,7 +84,7 @@ ext {
     gitleaksVersion = '8.30.1'
 
     // OpenAPI spec generation
-    swaggerCoreVersion = '2.2.54'
+    swaggerCoreVersion = '2.2.55'
     swaggerUiVersion = '5.32.14'
 
 }
