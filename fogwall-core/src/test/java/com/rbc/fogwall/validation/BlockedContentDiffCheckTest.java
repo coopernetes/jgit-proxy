@@ -2,7 +2,7 @@ package com.rbc.fogwall.validation;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.rbc.fogwall.config.CommitConfig;
+import com.rbc.fogwall.config.BlockConfig;
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -12,11 +12,11 @@ class BlockedContentDiffCheckTest {
 
     private static BlockedContentDiffCheck checkWithLiterals(String... literals) {
         return new BlockedContentDiffCheck(
-                CommitConfig.BlockConfig.builder().literals(List.of(literals)).build());
+                BlockConfig.builder().literals(List.of(literals)).build());
     }
 
     private static BlockedContentDiffCheck checkWithPattern(String pattern) {
-        return new BlockedContentDiffCheck(CommitConfig.BlockConfig.builder()
+        return new BlockedContentDiffCheck(BlockConfig.builder()
                 .patterns(List.of(Pattern.compile(pattern)))
                 .build());
     }
@@ -35,7 +35,7 @@ class BlockedContentDiffCheckTest {
     @Test
     void noRulesConfigured_returnsEmpty() {
         BlockedContentDiffCheck check =
-                new BlockedContentDiffCheck(CommitConfig.BlockConfig.builder().build());
+                new BlockedContentDiffCheck(BlockConfig.builder().build());
         Optional<List<Violation>> result = check.check(SAMPLE_DIFF);
         assertTrue(result.isPresent());
         assertTrue(result.get().isEmpty());

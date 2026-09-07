@@ -1,0 +1,4 @@
+[tools]
+# grype
+github-cli = "latest"
+"gitlab:gitlab-org/cli" = { version = "latest", exe = "glab", provider = "gitlab" }

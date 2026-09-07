@@ -64,6 +64,82 @@ class BlockingContentHandlerTest {
         port = ((ServerConnector) server.getConnectors()[0]).getLocalPort();
     }
 
+    /**
+     * A second server whose connectors are named the way the applications name them, so the handler can tell an SCM API
+     * port from a git one.
+     */
+    private Server namedServer;
+
+    private int mainPort;
+    private int scmApiPort;
+
+    private void startNamedServer() throws Exception {
+        namedServer = new Server();
+        var main = new ServerConnector(namedServer);
+        main.setPort(0);
+        main.setName(FogwallServletRegistrar.MAIN_HTTP_CONNECTOR);
+        namedServer.addConnector(main);
+
+        var scmApi = new ServerConnector(namedServer);
+        scmApi.setPort(0);
+        scmApi.setName(FogwallServletRegistrar.SCM_API_CONNECTOR_PREFIX + "github");
+        namedServer.addConnector(scmApi);
+
+        var context = new ServletContextHandler("/", false, false);
+        context.addFilter(
+                new FilterHolder(new BodyReadingFilter(bytesRead, servletError)),
+                "/*",
+                EnumSet.of(jakarta.servlet.DispatcherType.REQUEST));
+        context.addServlet(new ServletHolder(new OkServlet()), "/*");
+        namedServer.setHandler(new BlockingContentHandler(context));
+        namedServer.start();
+        mainPort = main.getLocalPort();
+        scmApiPort = scmApi.getLocalPort();
+    }
+
+    private static String postRaw(int port, int bodySize) throws Exception {
+        byte[] body = new byte[bodySize];
+        String headers = "POST /test HTTP/1.1\r\n"
+                + "Host: localhost:" + port + "\r\n"
+                + "Content-Type: application/octet-stream\r\n"
+                + "Content-Length: " + bodySize + "\r\n"
+                + "\r\n";
+        try (Socket socket = new Socket("localhost", port)) {
+            socket.setSoTimeout(10_000);
+            OutputStream out = socket.getOutputStream();
+            out.write(headers.getBytes(StandardCharsets.US_ASCII));
+            out.write(body);
+            out.flush();
+            byte[] buf = new byte[4096];
+            int n = socket.getInputStream().read(buf);
+            return new String(buf, 0, n, StandardCharsets.US_ASCII);
+        }
+    }
+
+    /**
+     * This handler runs before any context, so what it buffers is read before authentication. The proposals ports do
+     * their own bounded read in the gate filter, and nothing on them needs the chunked-push workaround the handler
+     * exists for, so a request arriving on one is passed straight through.
+     *
+     * <p>The risk of passing through is that the servlet layer stops seeing a complete body — the very thing this
+     * handler was added to guarantee — so both paths are checked for the whole body, not just for a status.
+     */
+    @Test
+    void scmApiConnector_isPassedThroughWithTheBodyStillComplete() throws Exception {
+        startNamedServer();
+        try {
+            bytesRead.set(-1);
+            assertTrue(postRaw(mainPort, 8192).startsWith("HTTP/1.1 200"), "git ports are buffered as before");
+            assertEquals(8192, bytesRead.get(), "the buffered path delivers the whole body");
+
+            bytesRead.set(-1);
+            assertTrue(postRaw(scmApiPort, 8192).startsWith("HTTP/1.1 200"), "proposals ports pass through");
+            assertEquals(8192, bytesRead.get(), "and the unbuffered path delivers it too");
+        } finally {
+            namedServer.stop();
+        }
+    }
+
     @AfterEach
     void stopServer() throws Exception {
         if (server != null) server.stop();

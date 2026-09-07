@@ -16,7 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Service that evaluates whether a proxy user is authorised to push to or approve a push for a given repository.
  *
- * <h3>Fail-closed semantics</h3>
+ * <h2>Fail-closed semantics</h2>
  *
  * <p>If <em>any</em> permission rows exist for the {@code (provider, path)} combination the request is denied unless
  * the user appears in the matching set for the requested operation. If <em>no</em> rows match the path the request is
@@ -78,6 +78,16 @@ public class RepoPermissionService {
      */
     public boolean isAllowedToReview(String username, String provider, String path) {
         return isAllowed(username, provider, path, RepoPermission.Grant.REVIEW);
+    }
+
+    /**
+     * Returns {@code true} when {@code username} is authorised to propose a change against {@code path} at
+     * {@code provider} — opening a pull/merge request and iterating on it through the SCM API proxy. Fail-closed:
+     * returns {@code false} if no grants exist for the path. Reads do not call this method at all — they are governed
+     * by the existing URL-rule mechanism instead, the same as git fetches.
+     */
+    public boolean isAllowedToPropose(String username, String provider, String path) {
+        return isAllowed(username, provider, path, RepoPermission.Grant.PROPOSE);
     }
 
     /**
@@ -188,10 +198,28 @@ public class RepoPermissionService {
 
     // ---- internals ----
 
+    /**
+     * Whether a {@code configured} grant satisfies a {@code requested} check. {@code PUSH_AND_REVIEW} is shorthand for
+     * {@code PUSH} + {@code REVIEW} only — it must not also satisfy unrelated grants like {@code SELF_CERTIFY} or
+     * {@code PROPOSE}, which are independent axes an operator can permission separately.
+     */
+    private static boolean impliesGrant(RepoPermission.Grant configured, RepoPermission.Grant requested) {
+        if (configured == requested) {
+            return true;
+        }
+        return configured == RepoPermission.Grant.PUSH_AND_REVIEW
+                && (requested == RepoPermission.Grant.PUSH || requested == RepoPermission.Grant.REVIEW);
+    }
+
     private boolean grantsOverlap(RepoPermission.Grant a, RepoPermission.Grant b) {
         // SELF_CERTIFY is evaluated by isBypassReviewAllowed(), independent of push/review checks.
         // A SELF_CERTIFY entry only conflicts with another SELF_CERTIFY entry.
         if (a == RepoPermission.Grant.SELF_CERTIFY || b == RepoPermission.Grant.SELF_CERTIFY) {
+            return a == b;
+        }
+        // PROPOSE is a separate axis from push/review too — a repo can permission git-push and change
+        // proposals independently, so a PROPOSE entry only conflicts with another PROPOSE entry.
+        if (a == RepoPermission.Grant.PROPOSE || b == RepoPermission.Grant.PROPOSE) {
             return a == b;
         }
         // Among PUSH / REVIEW / PUSH_AND_REVIEW: conflict if both entries would affect the same check.
@@ -230,7 +258,7 @@ public class RepoPermissionService {
     public GrantResult evaluateGrant(String username, String provider, String path, RepoPermission.Grant op) {
         Optional<RepoPermission> direct = store.findByProvider(provider).stream()
                 .filter(p -> matchesPath(p, path))
-                .filter(p -> p.getGrant() == op || p.getGrant() == RepoPermission.Grant.PUSH_AND_REVIEW)
+                .filter(p -> impliesGrant(p.getGrant(), op))
                 .filter(p -> username.equals(p.getUsername()))
                 .findFirst();
         if (direct.isPresent()) {
@@ -242,7 +270,7 @@ public class RepoPermissionService {
             Optional<GroupPermissionRule> viaGroup = groupStore.findRulesByProvider(provider).stream()
                     .filter(r -> userGroupIds.contains(r.getGroupId()))
                     .filter(r -> matchesPathRule(r, path))
-                    .filter(r -> r.getGrant() == op || r.getGrant() == RepoPermission.Grant.PUSH_AND_REVIEW)
+                    .filter(r -> impliesGrant(r.getGrant(), op))
                     .findFirst();
             if (viaGroup.isPresent()) {
                 return new GrantResult.GrantedByGroup(viaGroup.get());

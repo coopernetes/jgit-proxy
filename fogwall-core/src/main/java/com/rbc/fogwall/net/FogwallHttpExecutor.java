@@ -47,7 +47,6 @@ public final class FogwallHttpExecutor {
      * Kept for parity with the JGit and Jetty outbound paths, which both have non-deprecated native Kerberos/SPNEGO
      * support.
      */
-    @SuppressWarnings("deprecation")
     public static void configure(ResolvedOutboundProxy proxy) {
         if (proxy == null || !proxy.isConfigured()) {
             client = HttpClientBuilder.create().build();

@@ -34,6 +34,11 @@ public class TokenPushIdentityResolver implements PushIdentityResolver {
 
     @Override
     public Optional<UserEntry> resolve(FogwallProvider provider, String pushUsername, String token) {
+        return resolveIdentity(provider, pushUsername, token).map(ResolvedScmIdentity::user);
+    }
+
+    @Override
+    public Optional<ResolvedScmIdentity> resolveIdentity(FogwallProvider provider, String pushUsername, String token) {
         if (!(provider instanceof HttpTokenUserLookup tip)) {
             log.debug(
                     "Token identity lookup not supported for provider '{}' — returning empty",
@@ -41,9 +46,12 @@ public class TokenPushIdentityResolver implements PushIdentityResolver {
             return Optional.empty();
         }
 
+        // The login is kept alongside the user rather than recovered from it later: the match may have been made on
+        // email, in which case no identity on file carries this login at all.
         return tip.fetchUserFromHttp(pushUsername, token)
                 .flatMap(id -> userStore
                         .findByScmIdentity(provider.getProviderId(), id.login())
-                        .or(() -> userStore.findByEmail(id.email().orElse(null))));
+                        .or(() -> userStore.findByEmail(id.email().orElse(null)))
+                        .map(user -> new ResolvedScmIdentity(user, id.login())));
     }
 }

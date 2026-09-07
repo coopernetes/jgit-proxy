@@ -1,0 +1,12 @@
+-- The token cache recorded only the proxy user a token resolved to, discarding the SCM login the provider returned
+-- on the way there. That is the wrong half to keep: a token names the same account for its whole life, so the cache
+-- key and the login are bound one-to-one, while the proxy username is derived from the login through the unique
+-- (provider, scm_username) index on user_scm_identities.
+--
+-- The derivation does not run backwards. A fogwall user may hold several identities on one provider, so the proxy
+-- username alone cannot say which account a token belongs to -- which left the SCM API audit trail unable to name
+-- the account that performed a write without guessing at it.
+--
+-- Nullable: rows written before this column existed keep working and age out on the cache TTL. A null means "not
+-- recorded", never "no account".
+ALTER TABLE scm_token_cache ADD COLUMN scm_login VARCHAR(255);

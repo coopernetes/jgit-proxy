@@ -59,6 +59,11 @@ class RepoPermissionServiceTest {
         assertFalse(svc.isAllowedToReview("alice", "github", "/owner/repo"));
     }
 
+    @Test
+    void noGrants_apiWrite_denied() {
+        assertFalse(svc.isAllowedToPropose("alice", "github", "/owner/repo"));
+    }
+
     // ---- literal match: user present ----
 
     @Test
@@ -103,6 +108,20 @@ class RepoPermissionServiceTest {
         svc.save(grant("alice", "github", "/owner/repo", MatchType.LITERAL, RepoPermission.Grant.PUSH_AND_REVIEW));
         assertTrue(svc.isAllowedToPush("alice", "github", "/owner/repo"));
         assertTrue(svc.isAllowedToReview("alice", "github", "/owner/repo"));
+    }
+
+    @Test
+    void apiWriteOnlyGrant_allowsApiWrite_deniesPushAndReview() {
+        svc.save(grant("alice", "github", "/owner/repo", MatchType.LITERAL, RepoPermission.Grant.PROPOSE));
+        assertTrue(svc.isAllowedToPropose("alice", "github", "/owner/repo"));
+        assertFalse(svc.isAllowedToPush("alice", "github", "/owner/repo"));
+        assertFalse(svc.isAllowedToReview("alice", "github", "/owner/repo"));
+    }
+
+    @Test
+    void pushAndReviewGrant_doesNotImplyApiWrite() {
+        svc.save(grant("alice", "github", "/owner/repo", MatchType.LITERAL, RepoPermission.Grant.PUSH_AND_REVIEW));
+        assertFalse(svc.isAllowedToPropose("alice", "github", "/owner/repo"));
     }
 
     // ---- provider isolation ----
@@ -366,6 +385,30 @@ class RepoPermissionServiceTest {
         svc.save(grant("alice", "github", "/acme/repo", MatchType.LITERAL, RepoPermission.Grant.SELF_CERTIFY));
         RepoPermission incoming =
                 grant("alice", "github", "/acme/repo", MatchType.LITERAL, RepoPermission.Grant.SELF_CERTIFY);
+        assertTrue(svc.findConflict(incoming).isPresent());
+    }
+
+    @Test
+    void findConflict_pushAndReviewVsApiWrite_noConflict() {
+        svc.save(grant("alice", "github", "/acme/repo", MatchType.LITERAL, RepoPermission.Grant.PUSH_AND_REVIEW));
+        RepoPermission incoming =
+                grant("alice", "github", "/acme/repo", MatchType.LITERAL, RepoPermission.Grant.PROPOSE);
+        assertTrue(svc.findConflict(incoming).isEmpty());
+    }
+
+    @Test
+    void findConflict_selfCertifyVsApiWrite_noConflict() {
+        svc.save(grant("alice", "github", "/acme/repo", MatchType.LITERAL, RepoPermission.Grant.SELF_CERTIFY));
+        RepoPermission incoming =
+                grant("alice", "github", "/acme/repo", MatchType.LITERAL, RepoPermission.Grant.PROPOSE);
+        assertTrue(svc.findConflict(incoming).isEmpty());
+    }
+
+    @Test
+    void findConflict_apiWriteVsApiWrite_detected() {
+        svc.save(grant("alice", "github", "/acme/repo", MatchType.LITERAL, RepoPermission.Grant.PROPOSE));
+        RepoPermission incoming =
+                grant("alice", "github", "/acme/repo", MatchType.LITERAL, RepoPermission.Grant.PROPOSE);
         assertTrue(svc.findConflict(incoming).isPresent());
     }
 

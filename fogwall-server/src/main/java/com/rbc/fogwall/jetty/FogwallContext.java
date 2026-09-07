@@ -6,10 +6,13 @@ import com.rbc.fogwall.config.CommitConfig;
 import com.rbc.fogwall.config.JettyConfigurationBuilder;
 import com.rbc.fogwall.db.FetchStore;
 import com.rbc.fogwall.db.PushStore;
+import com.rbc.fogwall.db.ScmApiActionStore;
 import com.rbc.fogwall.db.UrlRuleRegistry;
 import com.rbc.fogwall.git.LocalRepositoryCache;
 import com.rbc.fogwall.permission.RepoPermissionService;
 import com.rbc.fogwall.provider.ProviderRegistry;
+import com.rbc.fogwall.scmapi.GitHubNodeIdCache;
+import com.rbc.fogwall.scmapi.GitLabProjectIdCache;
 import com.rbc.fogwall.service.PushIdentityResolver;
 import com.rbc.fogwall.service.SshScmIdentityEnricher;
 import com.rbc.fogwall.tls.SslUtil;
@@ -44,4 +47,7 @@ public record FogwallContext(
         LocalRepositoryCache proxyCache,
         SslUtil.UpstreamTls upstreamTls,
         ProviderRegistry providerRegistry,
-        SshScmIdentityEnricher sshScmIdentityEnricher) {}
+        SshScmIdentityEnricher sshScmIdentityEnricher,
+        GitHubNodeIdCache gitHubNodeIdCache,
+        GitLabProjectIdCache gitLabProjectIdCache,
+        ScmApiActionStore scmApiActionStore) {}

@@ -270,10 +270,13 @@ content-patterns:
     - national-id-all-geos
     - generic-iban
     - generic-crypto-wallet
-  # scan-diff / scan-commit-messages independently gate the two content sources - both default true. Set either
-  # to false to skip that half without touching the other (e.g. skip commit-message scanning if it's noisy).
+  # scan-diff / scan-commit-messages / scan-proposals independently gate the three content sources - all default
+  # true. Set any to false to skip that surface without touching the others (e.g. skip commit-message scanning if
+  # it's noisy). A match warns on the push path, where a reviewer sees it, and blocks on the proposal path, which
+  # has no reviewer and nothing held for one to look at.
   scan-diff: true
   scan-commit-messages: true
+  scan-proposals: true
 
 # User accounts for authentication and push authorization.
 # When this list is non-empty, only listed users may authenticate to the dashboard

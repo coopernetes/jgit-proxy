@@ -2,7 +2,6 @@ package com.rbc.fogwall.config;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Pattern;
 import lombok.Builder;
 import lombok.Data;
 
@@ -170,23 +169,6 @@ public class CommitConfig {
         /** Configuration for blocking specific message patterns. */
         @Builder.Default
         private BlockConfig block = BlockConfig.builder().build();
-    }
-
-    /**
-     * Shared block-list config: literal strings (case-insensitive match) and compiled regex patterns. Used by commit
-     * message validation ({@link MessageConfig}) and diff content scanning ({@link DiffScanConfig}).
-     */
-    @Data
-    @Builder
-    public static class BlockConfig {
-
-        /** List of literal strings that are blocked. Matching is case-insensitive. */
-        @Builder.Default
-        private List<String> literals = new ArrayList<>();
-
-        /** List of compiled regex patterns that are blocked. */
-        @Builder.Default
-        private List<Pattern> patterns = new ArrayList<>();
     }
 
     /**

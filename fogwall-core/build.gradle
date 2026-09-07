@@ -49,6 +49,9 @@ dependencies {
     // HTTP Client
     implementation "org.apache.httpcomponents.client5:httpclient5-fluent:${apacheHttpClientVersion}"
 
+    // GraphQL parser (#264 SCM API proxy) — AST-based mutation-field allowlisting, not substring matching
+    implementation "com.graphql-java:graphql-java:${graphqlJavaVersion}"
+
     // Jackson for JSON — BOM pins all jackson-* modules to the same version
     api platform("tools.jackson:jackson-bom:${jacksonBomVersion}")
     api "tools.jackson.core:jackson-databind"
@@ -146,6 +149,7 @@ jacocoTestCoverageVerification {
                 'com.rbc.fogwall.db.model',
                 'com.rbc.fogwall.db.jdbc.mapper',
                 'com.rbc.fogwall.db.memory',
+                'com.rbc.fogwall.scmapi',
             ]
             limit { counter = 'LINE'; minimum = 0.90 }
         }

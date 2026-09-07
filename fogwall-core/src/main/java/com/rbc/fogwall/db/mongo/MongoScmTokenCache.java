@@ -7,6 +7,7 @@ import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.IndexOptions;
 import com.mongodb.client.model.Indexes;
 import com.mongodb.client.model.ReplaceOptions;
+import com.rbc.fogwall.service.CachedScmIdentity;
 import com.rbc.fogwall.service.ScmTokenCache;
 import java.time.Duration;
 import java.time.Instant;
@@ -19,7 +20,7 @@ import org.slf4j.LoggerFactory;
 /**
  * MongoDB-backed cache for SCM token identity resolutions.
  *
- * <p>Stores a mapping of {@code (provider, SHA-512(provider:token)) -> proxy_username}. A TTL index on
+ * <p>Stores a mapping of {@code (provider, SHA-512(provider:token)) -> (proxy_username, scm_login)}. A TTL index on
  * {@code cached_at} handles automatic expiry at the MongoDB level; expired entries are also filtered on read so
  * behaviour matches {@link com.rbc.fogwall.service.JdbcScmTokenCache}.
  */
@@ -48,7 +49,7 @@ public class MongoScmTokenCache implements ScmTokenCache {
     }
 
     @Override
-    public Optional<String> lookup(String provider, String tokenHash) {
+    public Optional<CachedScmIdentity> lookup(String provider, String tokenHash) {
         Date cutoff = Date.from(Instant.now().minus(maxAge));
         Document doc = getCollection()
                 .find(Filters.and(
@@ -58,21 +59,23 @@ public class MongoScmTokenCache implements ScmTokenCache {
                 .first();
         if (doc == null) return Optional.empty();
         log.debug("SCM token cache hit: provider={}", provider);
-        return Optional.ofNullable(doc.getString("proxy_username"));
+        // scm_login is absent on documents written before it was cached; those expire on the TTL index.
+        return Optional.of(new CachedScmIdentity(doc.getString("proxy_username"), doc.getString("scm_login")));
     }
 
     @Override
-    public void store(String provider, String tokenHash, String proxyUsername) {
+    public void store(String provider, String tokenHash, CachedScmIdentity identity) {
         Document doc = new Document("provider", provider)
                 .append("token_hash", tokenHash)
-                .append("proxy_username", proxyUsername)
+                .append("proxy_username", identity.proxyUsername())
+                .append("scm_login", identity.scmLogin())
                 .append("cached_at", Date.from(Instant.now()));
         getCollection()
                 .replaceOne(
                         Filters.and(Filters.eq("provider", provider), Filters.eq("token_hash", tokenHash)),
                         doc,
                         new ReplaceOptions().upsert(true));
-        log.debug("SCM token cached: provider={}, user={}", provider, proxyUsername);
+        log.debug("SCM token cached: provider={}, user={}", provider, identity.proxyUsername());
     }
 
     @Override

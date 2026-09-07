@@ -18,7 +18,7 @@ public class DiffScanConfig {
 
     /** Block rules applied to added lines in the push diff. */
     @Builder.Default
-    private CommitConfig.BlockConfig block = CommitConfig.BlockConfig.builder().build();
+    private BlockConfig block = BlockConfig.builder().build();
 
     public static DiffScanConfig defaultConfig() {
         return DiffScanConfig.builder().build();

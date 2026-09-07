@@ -8,6 +8,8 @@ import com.rbc.fogwall.db.FetchStore;
 import com.rbc.fogwall.db.MongoStoreFactory;
 import com.rbc.fogwall.db.PushStore;
 import com.rbc.fogwall.db.PushStoreFactory;
+import com.rbc.fogwall.db.ScmApiActionStore;
+import com.rbc.fogwall.db.ScmApiActionStoreFactory;
 import com.rbc.fogwall.db.UrlRuleRegistry;
 import com.rbc.fogwall.db.jdbc.DataSourceFactory;
 import com.rbc.fogwall.db.jdbc.JdbcFetchStore;
@@ -33,6 +35,10 @@ import com.rbc.fogwall.permission.PermissionStore;
 import com.rbc.fogwall.permission.RepoPermission;
 import com.rbc.fogwall.permission.RepoPermissionService;
 import com.rbc.fogwall.provider.*;
+import com.rbc.fogwall.scmapi.GitHubNodeIdCache;
+import com.rbc.fogwall.scmapi.GitLabProjectIdCache;
+import com.rbc.fogwall.scmapi.JdbcGitHubNodeIdCache;
+import com.rbc.fogwall.scmapi.JdbcGitLabProjectIdCache;
 import com.rbc.fogwall.service.CachingTokenPushIdentityResolver;
 import com.rbc.fogwall.service.JdbcScmTokenCache;
 import com.rbc.fogwall.service.JdbcSshFingerprintCache;
@@ -91,6 +97,9 @@ public class JettyConfigurationBuilder {
     private UrlRuleRegistry cachedUrlRuleRegistry;
     private ConfigHolder cachedConfigHolder;
     private ResolvedOutboundProxy cachedOutboundProxy;
+    private GitHubNodeIdCache cachedGitHubNodeIdCache;
+    private GitLabProjectIdCache cachedGitLabProjectIdCache;
+    private ScmApiActionStore cachedScmApiActionStore;
 
     public JettyConfigurationBuilder(FogwallConfig config) {
         this.config = config;
@@ -493,13 +502,15 @@ public class JettyConfigurationBuilder {
                 .bundles(new ArrayList<>(cp.getBundles()))
                 .scanDiff(cp.isScanDiff())
                 .scanCommitMessages(cp.isScanCommitMessages())
+                .scanProposals(cp.isScanProposals())
                 .build();
         log.info(
-                "Loaded content-patterns config: enabled={}, bundles={}, scanDiff={}, scanCommitMessages={}",
+                "Loaded content-patterns config: enabled={}, bundles={}, scanDiff={}, scanCommitMessages={}, scanProposals={}",
                 cfg.isEnabled(),
                 cfg.getBundles(),
                 cfg.isScanDiff(),
-                cfg.isScanCommitMessages());
+                cfg.isScanCommitMessages(),
+                cfg.isScanProposals());
         return cfg;
     }
 
@@ -620,7 +631,10 @@ public class JettyConfigurationBuilder {
                 proxyCache,
                 buildUpstreamTls(),
                 buildProviderRegistry(),
-                new SshScmIdentityEnricher(SshScmIdentityEnricher.DEFAULT_TTL, buildSshFingerprintCache()));
+                new SshScmIdentityEnricher(SshScmIdentityEnricher.DEFAULT_TTL, buildSshFingerprintCache()),
+                buildNodeIdCache(),
+                buildGitLabProjectIdCache(),
+                buildScmApiActionStore());
     }
 
     /**
@@ -1001,6 +1015,83 @@ public class JettyConfigurationBuilder {
         return new JdbcScmTokenCache(requireJdbcDataSource(), maxAge);
     }
 
+    /**
+     * Builds the {@link GitHubNodeIdCache} for the SCM API proxy — resolves an opaque GraphQL node ID to
+     * {@code owner/repo}. The TTL is a security parameter (see {@link ProposalsSettings#getNodeIdCacheTtl()}), not just
+     * a perf knob, so unlike the pack-window cache it is deliberately operator-configurable.
+     */
+    public GitHubNodeIdCache buildNodeIdCache() {
+        if (cachedGitHubNodeIdCache != null) return cachedGitHubNodeIdCache;
+        Duration ttl = Duration.parse(config.getProposals().getNodeIdCacheTtl());
+        log.info("Proposal node-ID cache enabled (TTL {})", ttl);
+        cachedGitHubNodeIdCache = "mongo".equals(config.getDatabase().getType())
+                ? requireMongoStoreFactory().nodeIdCache(ttl)
+                : new JdbcGitHubNodeIdCache(requireJdbcDataSource(), ttl);
+        return cachedGitHubNodeIdCache;
+    }
+
+    /**
+     * Builds the {@link GitLabProjectIdCache} — resolves a GitLab numeric project ID to {@code owner/repo}, which is
+     * what lets a fork merge request be authorized against the upstream it targets rather than the fork in its URL.
+     * Shares {@code proposals.node-id-cache-ttl}: both caches map a provider-scoped opaque ID to a repository, and the
+     * TTL is a security parameter for the same reason in each.
+     */
+    public GitLabProjectIdCache buildGitLabProjectIdCache() {
+        if (cachedGitLabProjectIdCache != null) return cachedGitLabProjectIdCache;
+        Duration ttl = Duration.parse(config.getProposals().getNodeIdCacheTtl());
+        cachedGitLabProjectIdCache = "mongo".equals(config.getDatabase().getType())
+                ? requireMongoStoreFactory().gitLabProjectIdCache(ttl)
+                : new JdbcGitLabProjectIdCache(requireJdbcDataSource(), ttl);
+        return cachedGitLabProjectIdCache;
+    }
+
+    /** Builds the {@link ScmApiActionStore} (the SCM API proxy audit trail) based on the database configuration. */
+    public ScmApiActionStore buildScmApiActionStore() {
+        if (cachedScmApiActionStore != null) return cachedScmApiActionStore;
+        cachedScmApiActionStore = "mongo".equals(config.getDatabase().getType())
+                ? requireMongoStoreFactory().scmApiActionStore()
+                : ScmApiActionStoreFactory.fromDataSource(requireJdbcDataSource());
+        return cachedScmApiActionStore;
+    }
+
+    /**
+     * Whether proposals are enabled for {@code provider} — {@code providers.<name>.proposals.enabled}. Opt-in per
+     * provider, default {@code false}.
+     */
+    public boolean isProposalsEnabled(FogwallProvider provider) {
+        ProviderConfig providerConfig = config.getProviders().get(provider.getName());
+        return providerConfig != null && providerConfig.getProposals().isEnabled();
+    }
+
+    /**
+     * The dedicated listener port for {@code provider}'s proposal dialect — {@code providers.<name>.proposals.port}.
+     * Required whenever proposals are enabled for that provider, since the dialect is mounted at the root of its own
+     * listener rather than under a shared path prefix (see {@link ProposalsProviderSettings#getPort()}).
+     *
+     * @throws IllegalStateException if proposals are enabled for this provider without a port, rather than silently
+     *     starting a listener the CLIs can never reach.
+     */
+    public int getProposalsPort(FogwallProvider provider) {
+        ProviderConfig providerConfig = config.getProviders().get(provider.getName());
+        int port = providerConfig == null ? 0 : providerConfig.getProposals().getPort();
+        if (port <= 0) {
+            throw new IllegalStateException("providers." + provider.getName()
+                    + ".proposals.enabled is true but proposals.port is not set — proposals need a dedicated port"
+                    + " because gh and fj address the API from the host root");
+        }
+        return port;
+    }
+
+    /**
+     * Whether this provider refuses callers that aren't a recognised SCM CLI —
+     * {@code providers.<name>.proposals.require-known-cli}, default {@code false}. Subtractive hardening only; see
+     * {@link ProposalsProviderSettings#isRequireKnownCli()}.
+     */
+    public boolean isProposalsRequireKnownCli(FogwallProvider provider) {
+        ProviderConfig providerConfig = config.getProviders().get(provider.getName());
+        return providerConfig != null && providerConfig.getProposals().isRequireKnownCli();
+    }
+
     private MongoStoreFactory requireMongoStoreFactory() {
         if (cachedMongoStoreFactory == null) {
             DatabaseConfig db = config.getDatabase();
@@ -1318,10 +1409,15 @@ public class JettyConfigurationBuilder {
         return null;
     }
 
-    private static CommitConfig.BlockConfig buildBlockConfig(BlockSettings block) {
+    /** Blocked literals and patterns for proposal content ({@code proposals.block}). */
+    public BlockConfig buildProposalsBlockConfig() {
+        return buildBlockConfig(config.getProposals().getBlock());
+    }
+
+    private static BlockConfig buildBlockConfig(BlockSettings block) {
         List<Pattern> patterns =
                 block.getPatterns().stream().map(Pattern::compile).collect(Collectors.toList());
-        return CommitConfig.BlockConfig.builder()
+        return BlockConfig.builder()
                 .literals(new ArrayList<>(block.getLiterals()))
                 .patterns(patterns)
                 .build();

@@ -8,6 +8,13 @@ The easiest way to get the right toolchain versions is [mise](https://mise.jdx.d
 mise install   # installs Java 25 (Temurin) and Node 26 as defined in mise.toml
 ```
 
+Optional CLI tools (e.g. `glab`, for testing the GitLab SCM API proxy dialect) live in `mise.cli.toml` rather than
+`mise.toml`, since they're not needed by every contributor. Install them with:
+
+```shell
+MISE_ENVIRONMENT=cli mise install
+```
+
 If you prefer to manage tools yourself, you need:
 
 - Java 25+
@@ -102,6 +109,77 @@ permissions:
 ```
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full reference.
+
+### Testing the proposals listeners locally (TLS)
+
+The proposals listeners (`gh`, `glab`, `tea`, `fj`) can't be exercised over plain HTTP: every one of those CLIs
+addresses a custom host over HTTPS with no way to ask otherwise. So fogwall has to terminate TLS, which locally means a
+self-signed certificate the CLIs will trust.
+
+Generate a small CA and a leaf signed by it. A bare `openssl req -x509` self-signed certificate is **not** enough: it is
+a CA certificate, and `fj` (rustls) refuses one presented as a server certificate — `CaUsedAsEndEntity`. `gh` and `glab`
+(Go) accept it, so the shortcut appears to work until you try Forgejo.
+
+```shell
+cd /tmp
+openssl req -x509 -newkey rsa:2048 -nodes -days 30 -keyout ca-key.pem -out ca.pem \
+  -subj "/CN=fogwall local dev CA" -addext "basicConstraints=critical,CA:TRUE"
+
+openssl req -newkey rsa:2048 -nodes -keyout fogwall-key.pem -out leaf.csr -subj "/CN=localhost"
+openssl x509 -req -in leaf.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -days 30 -out leaf.pem \
+  -extfile <(printf "subjectAltName=DNS:localhost,IP:127.0.0.1\nbasicConstraints=critical,CA:FALSE\nextendedKeyUsage=serverAuth\n")
+cat leaf.pem ca.pem > fogwall-cert.pem
+```
+
+The SAN matters too — Go rejects a certificate carrying only a CN. `-nodes` already emits a PKCS8 key, so there is no
+conversion step. Run with `server.tls` pointed at the chain; every enabled proposals listener inherits it and logs
+`(https, inherited from server.tls)`:
+
+```shell
+FOGWALL_SERVER_TLS_CERTIFICATE=/tmp/fogwall-cert.pem \
+FOGWALL_SERVER_TLS_KEY=/tmp/fogwall-key.pem \
+  ./gradlew :fogwall-dashboard:run
+```
+
+Clients then trust `ca.pem` (not the leaf) via `SSL_CERT_FILE`.
+
+Then point a CLI at it, trusting the CA per-invocation with `SSL_CERT_FILE` (`gh` and `glab` are Go, which reads it for
+the file portion of the trust store while still loading the system CA directory — so public hosts keep working):
+
+```shell
+export SSL_CERT_FILE=/tmp/ca.pem
+
+# gh — GH_ENTERPRISE_TOKEN, not GH_TOKEN, which gh only applies to github.com.
+# `gh auth login` can't be used here: it validates against the REST API, which fogwall doesn't proxy.
+GH_HOST=localhost:9443 GH_ENTERPRISE_TOKEN="$(gh auth token)" \
+  gh pr create -R localhost:9443/<owner>/<repo> --base main --head <branch> --title t --body b
+
+# glab — authenticate against the fogwall host in a throwaway config dir so your real one is untouched
+export GLAB_CONFIG_DIR=/tmp/fogwall-glab
+glab auth login --hostname localhost:9444 --api-protocol https --insecure-storage --stdin < /path/to/pat
+GITLAB_HOST=localhost:9444 glab mr create -R <owner>/<repo> \
+  --source-branch <branch> --target-branch main --title t --description b --no-editor --yes
+```
+
+For Gitea/Forgejo, bring up the container (`bash compose.sh -- up -d gitea`) and point both CLIs at the Gitea listener.
+Each keeps its config under `$XDG_CONFIG_HOME`, so a throwaway directory isolates them from your real logins:
+
+```shell
+XDG_CONFIG_HOME=/tmp/fogwall-tea tea login add --name fogwall --url https://localhost:9445 --token "$GITEA_PAT"
+XDG_CONFIG_HOME=/tmp/fogwall-tea tea pr create --login fogwall --repo <owner>/<repo> --head <branch> --base main --title t
+
+echo "$GITEA_PAT" | XDG_CONFIG_HOME=/tmp/fogwall-fj fj auth add-token -H https://localhost:9445
+XDG_CONFIG_HOME=/tmp/fogwall-fj fj -H https://localhost:9445 pr create "t" --body b --head <branch> --base main --repo <owner>/<repo>
+```
+
+Client quirks that cost time if you don't know them:
+
+- `glab mr create` refuses to run unless one of the repo's git remotes points at `GITLAB_HOST` — add a dummy
+  `glab-proxy-do-not-use` remote, which is never used for git.
+- `glab` sends a PAT in `PRIVATE-TOKEN` but an OAuth token in `Authorization: Bearer`; the two are not interchangeable.
+- `fj` must run inside a clone and needs `--repo` for most commands; `fj pr close` takes the number only.
+- gitleaks discards low-entropy matches, so a made-up token like `ghp_ABCDEF…0123456789` is a false negative by design.
+  Use a random one when testing content inspection.
 
 ## Tests
 

@@ -142,6 +142,7 @@ See the [Configuration Reference](docs/CONFIGURATION.md#database) for connection
 | [Architecture](docs/ARCHITECTURE.md)                         | How the proxy works: two proxy modes, validation pipeline, core abstractions, advanced use cases                |
 | [JGit Infrastructure](docs/internals/JGIT_INFRASTRUCTURE.md) | Server mode internals: ReceivePackFactory, hook chain, forwarding, credential flow (contributor reference)      |
 | [Git Internals](docs/internals/GIT_INTERNALS.md)             | Wire-protocol edge cases: tags, new branches, force pushes, pack parsing (contributor reference)                |
+| [SCM API Proxy](docs/internals/SCM_API_PROXY.md)             | Design note (#264): SCM API proxy — pipeline, GraphQL/REST dialects, node-ID resolution + allowlist             |
 
 ## Roadmap
 

@@ -2,6 +2,7 @@ package com.rbc.fogwall.jetty;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.rbc.fogwall.config.BlockConfig;
 import com.rbc.fogwall.config.CommitConfig;
 import com.rbc.fogwall.config.EmailRule;
 import com.rbc.fogwall.git.AuthorEmailValidationHook;
@@ -78,7 +79,7 @@ class ServerHookChainTest {
                                 .build())
                         .build())
                 .message(CommitConfig.MessageConfig.builder()
-                        .block(CommitConfig.BlockConfig.builder()
+                        .block(BlockConfig.builder()
                                 .literals(List.of("WIP", "DO NOT MERGE", "fixup!", "squash!"))
                                 .build())
                         .build())

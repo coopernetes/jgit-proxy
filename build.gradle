@@ -50,6 +50,9 @@ ext {
     // Jackson
     jacksonBomVersion = '3.2.2'
 
+    // GraphQL (SCM API proxy — parses GraphQL request bodies for AST-based mutation allowlisting)
+    graphqlJavaVersion = '24.1'
+
     // Spring
     springVersion = '7.0.9'
     springSecurityVersion = '7.1.1'

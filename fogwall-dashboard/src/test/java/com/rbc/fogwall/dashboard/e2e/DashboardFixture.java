@@ -6,6 +6,8 @@ import com.rbc.fogwall.crypto.TokenCipherProvider;
 import com.rbc.fogwall.dashboard.SecurityConfig;
 import com.rbc.fogwall.dashboard.SpringWebConfig;
 import com.rbc.fogwall.db.PushStoreFactory;
+import com.rbc.fogwall.db.ScmApiActionStoreFactory;
+import com.rbc.fogwall.db.jdbc.DataSourceFactory;
 import com.rbc.fogwall.db.memory.InMemoryFetchStore;
 import com.rbc.fogwall.db.memory.InMemoryUrlRuleRegistry;
 import com.rbc.fogwall.git.LocalRepositoryCache;
@@ -95,6 +97,10 @@ class DashboardFixture implements AutoCloseable {
             bf.registerSingleton("liveConfigLoader", liveConfigLoader);
             bf.registerSingleton("repoRegistry", new InMemoryUrlRuleRegistry());
             bf.registerSingleton("fetchStore", new InMemoryFetchStore());
+            bf.registerSingleton(
+                    "scmApiActionStore",
+                    ScmApiActionStoreFactory.fromDataSource(
+                            DataSourceFactory.h2InMemory("test-scm-api-" + UUID.randomUUID())));
             bf.registerSingleton("repoPermissionService", new RepoPermissionService(new InMemoryRepoPermissionStore()));
             bf.registerSingleton(
                     "tokenCipherProvider",
