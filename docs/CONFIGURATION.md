@@ -1687,6 +1687,11 @@ carries the leading `/` the path has — write `/acme/repo`, not `acme/repo`. `O
 carry no slash. fogwall does not normalise either way: a value whose leading `/` disagrees with its target can never
 match, and is named in a startup warning rather than silently matching nothing.
 
+**Case is the one exception, and is ignored for every match type.** Every supported provider resolves `owner/repo`
+case-insensitively, so `/acme/widgets` and `/Acme/Widgets` are the same repository upstream — a rule written in one
+casing covers both. This matters most for `DENY`: rules are first-match-wins, so a deny that missed on casing would hand
+the request to whatever broader allow sits below it.
+
 #### Nested namespaces
 
 The repository name is the **last** path segment and the owner is **everything before it**, so a repository path is not
@@ -1711,15 +1716,18 @@ Two consequences when writing rules for subgroup projects:
 
 #### LITERAL
 
-Exact string match. Nothing is normalised — `/acme/repo` matches the slug `/acme/repo`, and `acme/repo` matches nothing.
+Exact string match, ignoring case. The path shape is not normalised — `/acme/repo` matches the slug `/acme/repo` and
+`/ACME/Repo`, while `acme/repo` matches nothing.
 
 #### GLOB
 
-Wildcard matching using `*` (any characters) and `?` (single character).
+Wildcard matching using `*` (any characters) and `?` (single character), ignoring case. Both the pattern and the
+candidate are folded before matching, so `GLOB` behaves the same on every host — without that it would inherit the
+filesystem's own case rules and differ between Linux and macOS.
 
 | Target  | `*` behaviour                                                                         |
 | ------- | ------------------------------------------------------------------------------------- |
-| `SLUG`  | Does **not** cross `/` — use `acme/*` not `acme/**`                                   |
+| `SLUG`  | Does **not** cross `/` — use `/acme/*` for one level, `/acme/**` for any depth        |
 | `OWNER` | Does **not** cross `/` — a nested namespace needs `group/*` or `group/**` (see above) |
 | `NAME`  | Repo names cannot contain `/` — `*` matches any valid name                            |
 
@@ -1738,15 +1746,15 @@ Full Java regular expression. A few things to know before writing regex rules:
   `matches()` semantics apply. A pattern of `acme` does **not** match `/acme/repo`; write `/acme/.*` or `.*acme.*`.
 - **`/` does not need escaping**: Java regex uses strings, not a `/pattern/` literal syntax. Write `/acme/.*` not
   `\/acme\/.*`.
-- **Case-insensitive**: use the `(?i)` inline flag — e.g. `(?i)/acme/.*`.
+- **Case-insensitive already**: patterns are compiled with `CASE_INSENSITIVE`. An inline `(?i)` stays valid and is
+  harmless, but is no longer needed.
 - **Anchoring**: explicit `^` and `$` are redundant with `matches()` but harmless if included.
 
 | Pattern (REGEX, target=SLUG) | Matches                               | Does NOT match      |
 | ---------------------------- | ------------------------------------- | ------------------- |
-| `/acme/.*`                   | `/acme/repo`, `/acme/my-service`      | `/other/repo`       |
+| `/acme/.*`                   | `/acme/repo`, `/ACME/Repo`            | `/other/repo`       |
 | `/(acme\|partner)/.*`        | `/acme/repo`, `/partner/repo`         | `/other/repo`       |
 | `/acme/service-[0-9]+`       | `/acme/service-1`, `/acme/service-42` | `/acme/service-api` |
-| `(?i)/acme/.*`               | `/acme/repo`, `/ACME/Repo`            | `/other/repo`       |
 
 | Pattern (REGEX, target=NAME)       | Matches                      | Does NOT match |
 | ---------------------------------- | ---------------------------- | -------------- |
@@ -1936,7 +1944,9 @@ permissions:
 ### Pattern matching
 
 Permissions support the same three match types as URL rules (LITERAL, GLOB, REGEX) applied to the same three targets
-(SLUG, OWNER, NAME). See [Pattern matching](#pattern-matching) above for full semantics including regex behaviour.
+(SLUG, OWNER, NAME), matched the same way — including case-insensitively, so a grant covers the repository it names
+whatever casing the push uses. See [Pattern matching](#pattern-matching) above for full semantics including regex
+behaviour.
 
 GLOB on `target: SLUG` follows slug path conventions:
 
@@ -1949,7 +1959,7 @@ GLOB on `target: SLUG` follows slug path conventions:
 
 <!-- prettier-ignore-start -->
 > [!NOTE]
-> **Conflict detection:** At config load time and when saving via the dashboard API, fogwall rejects any new permission entry whose pattern overlaps with an existing entry for the same user and provider. Two entries overlap when they are equal, or when one is a GLOB/REGEX pattern that would match the other's value. This prevents silent misconfiguration where the effective permission depends on evaluation order.
+> **Conflict detection:** At config load time and when saving via the dashboard API, fogwall rejects any new permission entry whose pattern overlaps with an existing entry for the same user and provider. Two entries overlap when they are equal ignoring case, or when one is a GLOB/REGEX pattern that would match the other's value. This prevents silent misconfiguration where the effective permission depends on evaluation order.
 <!-- prettier-ignore-end -->
 
 ### Real-world permission examples

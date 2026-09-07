@@ -700,7 +700,7 @@ function AddPermissionModal({
               onChange={(e) => handlePathTypeChange(e.target.value as typeof pathType)}
               className={inputClass}
             >
-              <option value="LITERAL">Literal — exact match</option>
+              <option value="LITERAL">Literal — exact match (any case)</option>
               <option value="GLOB">Glob — wildcard (* / **)</option>
               <option value="REGEX">Regex — full Java regex</option>
             </select>

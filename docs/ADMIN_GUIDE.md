@@ -291,7 +291,8 @@ together in the **Groups** admin page.
 
 ### Path matching
 
-Paths default to exact (`LITERAL`) matching. Use `path-type` for wildcards:
+Paths default to exact (`LITERAL`) matching, ignoring case — `/myorg/repo` covers a push to `/MyOrg/Repo`, since both
+name the same repository upstream. Use `path-type` for wildcards:
 
 ```yaml
 # GLOB — all repos under an owner

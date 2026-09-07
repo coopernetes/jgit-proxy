@@ -244,6 +244,14 @@ is validated, not just the first and last, because a nested owner is several seg
 must not reach an upstream URL or a cache key. A path that does not parse yields nothing at all and each caller rejects:
 a partial reading of a repository path is never safe to authorize against.
 
+`RepoPathMatching` is the companion half: `RepoPath` decides which part of a path a pattern is compared against, and
+`RepoPathMatching` decides how that comparison is made. Both the URL-rule evaluator and the permission service route
+through it, so neither can drift on the answer. Its one job today is case folding — every provider fogwall speaks to
+resolves `owner/repo` case-insensitively, so comparing case-sensitively let a recased path miss a `DENY` and fall
+through to a broader allow beneath it. Folding also takes `GLOB` off the host filesystem's case rules, which otherwise
+made the same rule behave differently on Linux and macOS. Case is the only thing folded: the path's shape — its leading
+slash and its segment boundaries — is still compared verbatim, because those are what the operator wrote in a URL rule.
+
 ### Transparent proxy push
 
 ```

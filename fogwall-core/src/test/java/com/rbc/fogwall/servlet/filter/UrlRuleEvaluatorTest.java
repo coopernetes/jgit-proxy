@@ -408,6 +408,36 @@ class UrlRuleEvaluatorTest {
         assertFalse(UrlRuleEvaluator.matchPattern("pattern", MatchType.LITERAL, null));
     }
 
+    // ── Case folding ──────────────────────────────────────────────────────────
+
+    @Test
+    void matchPattern_literal_ignoresCase() {
+        assertTrue(UrlRuleEvaluator.matchPattern("/acme/widgets", MatchType.LITERAL, "/Acme/Widgets"));
+        assertTrue(UrlRuleEvaluator.matchPattern("/Acme/Widgets", MatchType.LITERAL, "/acme/widgets"));
+    }
+
+    @Test
+    void matchPattern_glob_ignoresCase() {
+        assertTrue(UrlRuleEvaluator.matchPattern("/acme/*", MatchType.GLOB, "/ACME/widgets"));
+        assertTrue(UrlRuleEvaluator.matchPattern("/acme/service-*", MatchType.GLOB, "/Acme/Service-API"));
+        assertTrue(UrlRuleEvaluator.matchPattern("/group/**", MatchType.GLOB, "/Group/SubGroup/Project"));
+    }
+
+    @Test
+    void matchPattern_regex_ignoresCaseWithoutInlineFlag() {
+        // (?i) remains valid but is no longer needed for a rule to cover a recased path.
+        assertTrue(UrlRuleEvaluator.matchPattern("/acme/.*", MatchType.REGEX, "/ACME/repo"));
+        assertTrue(UrlRuleEvaluator.matchPattern("(?i)/acme/.*", MatchType.REGEX, "/ACME/repo"));
+        assertFalse(UrlRuleEvaluator.matchPattern("/acme/.*", MatchType.REGEX, "/other/repo"));
+    }
+
+    @Test
+    void matchPattern_caseFoldingLeavesThePathShapeAlone() {
+        // Folding case must not also start forgiving a missing leading slash or a crossed segment boundary.
+        assertFalse(UrlRuleEvaluator.matchPattern("/acme/widgets", MatchType.LITERAL, "Acme/Widgets"));
+        assertFalse(UrlRuleEvaluator.matchPattern("/acme/*", MatchType.GLOB, "/Acme/Sub/Widgets"));
+    }
+
     // ── operationMatches helper ───────────────────────────────────────────────
 
     @Test
