@@ -139,6 +139,8 @@ public class FogwallDashboardApplication {
         // Spring MVC DispatcherServlet at /* - git-specific paths take precedence per servlet spec
         var jdbcDataSource = configBuilder.getJdbcDataSourceOrNull();
         var mongoFactory = configBuilder.getMongoStoreFactoryOrNull();
+        // scm-oauth is operator setup read once at startup, not a hot-reloadable section.
+        ScmOAuthConfig scmOAuthConfig = configBuilder.buildScmOAuthConfig();
         var springContext = registerSpringServlet(
                 context,
                 ctx,
@@ -148,7 +150,8 @@ public class FogwallDashboardApplication {
                 liveConfigLoader,
                 urlRuleRegistry,
                 jdbcDataSource,
-                mongoFactory);
+                mongoFactory,
+                scmOAuthConfig);
 
         // SCM API dialects live on their own listeners, not under the dashboard's "/" context — see
         // FogwallServletRegistrar.registerScmApiListeners for why a shared path prefix can't work.
@@ -159,7 +162,7 @@ public class FogwallDashboardApplication {
         server.setHandler(new BlockingContentHandler(contexts));
         server.start();
 
-        scheduleSshKeyRefresh(maintenance, springContext, configBuilder.buildScmOAuthConfig());
+        scheduleSshKeyRefresh(maintenance, springContext, scmOAuthConfig);
 
         log.info("fogwall with dashboard started on port {}", connector.getPort());
         log.info("  Dashboard:  http://localhost:{}/dashboard/", connector.getPort());
@@ -179,7 +182,8 @@ public class FogwallDashboardApplication {
             LiveConfigLoader liveConfigLoader,
             UrlRuleRegistry urlRuleRegistry,
             javax.sql.DataSource jdbcDataSource,
-            MongoStoreFactory mongoFactory) {
+            MongoStoreFactory mongoFactory,
+            ScmOAuthConfig scmOAuthConfig) {
         var appContext = new AnnotationConfigWebApplicationContext();
         appContext.register(SpringWebConfig.class, SecurityConfig.class, SessionStoreConfig.class);
         appContext.addBeanFactoryPostProcessor(bf -> {
@@ -193,6 +197,7 @@ public class FogwallDashboardApplication {
             bf.registerSingleton("fetchStore", ctx.fetchStore());
             bf.registerSingleton("scmApiActionStore", ctx.scmApiActionStore());
             bf.registerSingleton("sshScmIdentityEnricher", ctx.sshScmIdentityEnricher());
+            bf.registerSingleton("scmOAuthConfig", scmOAuthConfig);
             // #340: expose both local-mirror caches so AdminCacheController can inspect/invalidate them. Both are
             // always constructed by JettyConfigurationBuilder (server-mode and transparent-proxy mirrors).
             bf.registerSingleton("serverCache", ctx.serverCache());

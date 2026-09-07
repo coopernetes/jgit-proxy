@@ -13,6 +13,7 @@ import com.rbc.fogwall.provider.SshKeyFingerprintLookup;
 import com.rbc.fogwall.service.ImportedKeyIdentityResolver;
 import com.rbc.fogwall.service.PushIdentityResolver;
 import com.rbc.fogwall.service.SshScmIdentityEnricher;
+import com.rbc.fogwall.service.SshScmLoginResolver;
 import com.rbc.fogwall.servlet.filter.CheckUserPushPermissionFilter;
 import com.rbc.fogwall.user.ScmIdentity;
 import com.rbc.fogwall.user.UserEntry;
@@ -195,8 +196,9 @@ public class CheckUserPushPermissionHook implements FogwallHook {
                 // Strict mode answers from what OAuth linking proved and nothing else, so the provider is not called
                 // and need not support key listing at all. Re-reading a public key endpoint would only re-prove, more
                 // weakly, what an authenticated OAuth session already established.
+                SshScmLoginResolver strictResolver = new ImportedKeyIdentityResolver();
                 Optional<String> importedLogin =
-                        ImportedKeyIdentityResolver.resolve(user, providerId, sshTransport.connectingFingerprint());
+                        strictResolver.resolveScmLogin(user, provider, sshTransport.connectingFingerprint());
                 if (importedLogin.isEmpty()) {
                     blockUnimportedSshKey(user, providerId);
                     return;

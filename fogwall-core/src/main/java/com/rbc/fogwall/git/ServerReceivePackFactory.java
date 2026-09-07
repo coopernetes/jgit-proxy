@@ -53,7 +53,9 @@ public class ServerReceivePackFactory implements ReceivePackFactory<HttpServletR
     private final Supplier<DiffScanConfig> diffScanConfigSupplier;
     private final Supplier<SecretScanConfig> secretScanConfigSupplier;
     private final Supplier<BinaryBlobConfig> binaryBlobConfigSupplier;
-    private Supplier<ScmOAuthConfig> scmOAuthConfigSupplier = ScmOAuthConfig::defaultConfig;
+    /** Set once at startup: {@code scm-oauth} is operator setup, not policy, and is not a hot-reloadable section. */
+    private ScmOAuthConfig scmOAuthConfig = ScmOAuthConfig.defaultConfig();
+
     private final ContentPatternConfig contentPatternConfig;
     private final GpgConfig gpgConfig;
     private final RepoPermissionService repoPermissionService;
@@ -114,10 +116,9 @@ public class ServerReceivePackFactory implements ReceivePackFactory<HttpServletR
         this.sshScmIdentityEnricher = enricher;
     }
 
-    /** Set the live SCM OAuth config supplier (#40 — {@code scm-oauth.identity-mode}). Defaults to permissive. */
-    public void setScmOAuthConfigSupplier(Supplier<ScmOAuthConfig> scmOAuthConfigSupplier) {
-        this.scmOAuthConfigSupplier =
-                scmOAuthConfigSupplier != null ? scmOAuthConfigSupplier : ScmOAuthConfig::defaultConfig;
+    /** Set the SCM OAuth config. Read once at startup; this section is not hot-reloadable. Defaults to permissive. */
+    public void setScmOAuthConfig(ScmOAuthConfig scmOAuthConfig) {
+        this.scmOAuthConfig = scmOAuthConfig != null ? scmOAuthConfig : ScmOAuthConfig.defaultConfig();
     }
 
     /** Set the approval-wait timeout. Call after construction before the factory handles any requests. */
@@ -355,7 +356,6 @@ public class ServerReceivePackFactory implements ReceivePackFactory<HttpServletR
         DiffScanConfig diffScanConfig = diffScanConfigSupplier.get();
         SecretScanConfig secretScanConfig = secretScanConfigSupplier.get();
         BinaryBlobConfig binaryBlobConfig = binaryBlobConfigSupplier.get();
-        ScmOAuthConfig scmOAuthConfig = scmOAuthConfigSupplier.get();
 
         var permissionHook = new CheckUserPushPermissionHook(
                 pushIdentityResolver,

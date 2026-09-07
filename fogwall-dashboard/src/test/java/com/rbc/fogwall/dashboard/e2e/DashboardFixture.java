@@ -2,9 +2,11 @@ package com.rbc.fogwall.dashboard.e2e;
 
 import com.rbc.fogwall.config.FogwallConfig;
 import com.rbc.fogwall.config.JettyConfigurationBuilder;
+import com.rbc.fogwall.config.ScmOAuthConfig;
 import com.rbc.fogwall.crypto.TokenCipherProvider;
 import com.rbc.fogwall.dashboard.SecurityConfig;
 import com.rbc.fogwall.dashboard.SpringWebConfig;
+import com.rbc.fogwall.dashboard.service.SshKeyRefreshService;
 import com.rbc.fogwall.db.PushStoreFactory;
 import com.rbc.fogwall.db.ScmApiActionStoreFactory;
 import com.rbc.fogwall.db.jdbc.DataSourceFactory;
@@ -15,6 +17,7 @@ import com.rbc.fogwall.jetty.reload.LiveConfigLoader;
 import com.rbc.fogwall.permission.InMemoryRepoPermissionStore;
 import com.rbc.fogwall.permission.RepoPermissionService;
 import com.rbc.fogwall.provider.InMemoryProviderRegistry;
+import com.rbc.fogwall.service.SshScmIdentityEnricher;
 import com.rbc.fogwall.user.ReadOnlyUserStore;
 import com.rbc.fogwall.user.StaticUserStore;
 import com.rbc.fogwall.user.UserEntry;
@@ -25,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.eclipse.jetty.ee11.servlet.FilterHolder;
 import org.eclipse.jetty.ee11.servlet.ServletContextHandler;
@@ -102,13 +106,21 @@ class DashboardFixture implements AutoCloseable {
                     ScmApiActionStoreFactory.fromDataSource(
                             DataSourceFactory.h2InMemory("test-scm-api-" + UUID.randomUUID())));
             bf.registerSingleton("repoPermissionService", new RepoPermissionService(new InMemoryRepoPermissionStore()));
+            TokenCipherProvider tokenCipherProvider = TokenCipherProvider.initialize(
+                    null,
+                    Path.of(System.getProperty("java.io.tmpdir"), "fogwall-test-scm-oauth-key-" + UUID.randomUUID()));
+            bf.registerSingleton("tokenCipherProvider", tokenCipherProvider);
+            bf.registerSingleton("scmOAuthConfig", ScmOAuthConfig.defaultConfig());
+            var sshEnricher = new SshScmIdentityEnricher();
+            bf.registerSingleton("sshScmIdentityEnricher", sshEnricher);
             bf.registerSingleton(
-                    "tokenCipherProvider",
-                    TokenCipherProvider.initialize(
-                            null,
-                            Path.of(
-                                    System.getProperty("java.io.tmpdir"),
-                                    "fogwall-test-scm-oauth-key-" + UUID.randomUUID())));
+                    "sshKeyRefreshService",
+                    new SshKeyRefreshService(
+                            userStore,
+                            new InMemoryProviderRegistry(List.of()),
+                            Optional.empty(),
+                            tokenCipherProvider,
+                            sshEnricher));
         });
 
         server = new Server();

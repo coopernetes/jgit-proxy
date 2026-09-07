@@ -46,7 +46,7 @@ import lombok.extern.slf4j.Slf4j;
  * do not block future lookups.
  */
 @Slf4j
-public class SshScmIdentityEnricher {
+public class SshScmIdentityEnricher implements SshScmLoginResolver {
 
     public static final Duration DEFAULT_TTL = Duration.ofDays(7);
 
@@ -84,6 +84,7 @@ public class SshScmIdentityEnricher {
      * @param connectingFingerprint SHA-256 fingerprint of the key the client connected with
      * @return the SCM login whose registered keys include {@code connectingFingerprint}, or empty if not found
      */
+    @Override
     public Optional<String> resolveScmLogin(UserEntry user, FogwallProvider provider, String connectingFingerprint) {
         if (!(provider instanceof SshKeyFingerprintLookup lookup)) {
             log.debug("Provider '{}' does not support SSH fingerprint lookup", provider.getName());

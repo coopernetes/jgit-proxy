@@ -26,7 +26,6 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -282,10 +281,8 @@ class CheckUserPushPermissionFilterTest {
                 .build();
     }
 
-    private static Supplier<ScmOAuthConfig> strict() {
-        return () -> ScmOAuthConfig.builder()
-                .identityMode(ScmOAuthConfig.IdentityMode.STRICT)
-                .build();
+    private static ScmOAuthConfig.IdentityMode strict() {
+        return ScmOAuthConfig.IdentityMode.STRICT;
     }
 
     @Test

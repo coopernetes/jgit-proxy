@@ -1,7 +1,6 @@
 package com.rbc.fogwall.dashboard.controller;
 
 import com.rbc.fogwall.config.ScmOAuthConfig;
-import com.rbc.fogwall.jetty.reload.ConfigHolder;
 import com.rbc.fogwall.permission.RepoPermissionService;
 import com.rbc.fogwall.service.SshScmIdentityEnricher;
 import com.rbc.fogwall.ssh.SshKeyUtils;
@@ -64,7 +63,7 @@ public class ProfileController {
 
     private final RepoPermissionService permissionService;
 
-    private final ConfigHolder configHolder;
+    private final ScmOAuthConfig scmOAuthConfig;
 
     private final SshScmIdentityEnricher sshEnricher;
 
@@ -120,7 +119,7 @@ public class ProfileController {
     @PostMapping("/identities")
     public ResponseEntity<?> addScmIdentity(@RequestBody Map<String, String> body) {
         if (!(userStore instanceof UserStore mutable)) return NOT_MUTABLE;
-        if (configHolder.getScmOAuthConfig().getIdentityMode() == ScmOAuthConfig.IdentityMode.STRICT) {
+        if (scmOAuthConfig.getIdentityMode() == ScmOAuthConfig.IdentityMode.STRICT) {
             return STRICT_MODE_MANUAL_ENTRY_DISABLED;
         }
         String provider = body.get("provider");

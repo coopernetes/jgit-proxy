@@ -1,5 +1,6 @@
 package com.rbc.fogwall.service;
 
+import com.rbc.fogwall.provider.FogwallProvider;
 import com.rbc.fogwall.user.ScmIdentity;
 import com.rbc.fogwall.user.SshKeyEntry;
 import com.rbc.fogwall.user.UserEntry;
@@ -27,9 +28,12 @@ import java.util.Optional;
  * live lookup reads a public endpoint and answers "this key is on that account", which is a weaker claim than "we
  * watched this user authenticate as that account and took these keys from it".
  */
-public final class ImportedKeyIdentityResolver {
+public final class ImportedKeyIdentityResolver implements SshScmLoginResolver {
 
-    private ImportedKeyIdentityResolver() {}
+    @Override
+    public Optional<String> resolveScmLogin(UserEntry user, FogwallProvider provider, String connectingFingerprint) {
+        return resolve(user, provider != null ? provider.getProviderId() : null, connectingFingerprint);
+    }
 
     /**
      * Returns the verified SCM login proven by {@code connectingFingerprint}, or empty when the key was not imported

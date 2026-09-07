@@ -173,7 +173,7 @@ public final class FogwallServletRegistrar {
         Supplier<DiffScanConfig> diffScanConfigSupplier = configHolder::getDiffScanConfig;
         Supplier<SecretScanConfig> secretScanConfigSupplier = configHolder::getSecretScanConfig;
         Supplier<BinaryBlobConfig> binaryBlobConfigSupplier = configHolder::getBinaryBlobConfig;
-        Supplier<ScmOAuthConfig> scmOAuthConfigSupplier = configHolder::getScmOAuthConfig;
+        ScmOAuthConfig scmOAuthConfig = configBuilder.buildScmOAuthConfig();
         ContentPatternConfig contentPatternConfig = configBuilder.buildContentPatternConfig();
 
         // Seed config rules once — registry is the single source of truth for all rule evaluation
@@ -190,7 +190,7 @@ public final class FogwallServletRegistrar {
                         diffScanConfigSupplier,
                         secretScanConfigSupplier,
                         binaryBlobConfigSupplier,
-                        scmOAuthConfigSupplier,
+                        scmOAuthConfig,
                         contentPatternConfig,
                         fogwallContext.pushStore(),
                         fogwallContext.serviceUrl(),
@@ -229,7 +229,7 @@ public final class FogwallServletRegistrar {
                         fogwallContext.repoPermissionService(),
                         fogwallContext.fetchStore(),
                         fogwallContext.urlRuleRegistry(),
-                        scmOAuthConfigSupplier);
+                        scmOAuthConfig);
             } else {
                 log.info(
                         "Skipping HTTP servlet registration for {} — SSH provider (scheme={})",
@@ -272,7 +272,7 @@ public final class FogwallServletRegistrar {
         factory.setApprovalTimeout(Duration.ofSeconds(fogwallContext.approvalTimeoutSeconds()));
         factory.setCache(fogwallContext.serverCache());
         factory.setSshScmIdentityEnricher(fogwallContext.sshScmIdentityEnricher());
-        factory.setScmOAuthConfigSupplier(configHolder::getScmOAuthConfig);
+        factory.setScmOAuthConfig(configBuilder.buildScmOAuthConfig());
         factory.setMaxPackBytes(fogwallContext.maxPushBytes());
         factory.setMaxObjectSizeBytes(fogwallContext.maxObjectSizeBytes());
         return factory;
@@ -286,7 +286,7 @@ public final class FogwallServletRegistrar {
             Supplier<DiffScanConfig> diffScanConfigSupplier,
             Supplier<SecretScanConfig> secretScanConfigSupplier,
             Supplier<BinaryBlobConfig> binaryBlobConfigSupplier,
-            Supplier<ScmOAuthConfig> scmOAuthConfigSupplier,
+            ScmOAuthConfig scmOAuthConfig,
             ContentPatternConfig contentPatternConfig,
             PushStore pushStore,
             String serviceUrl,
@@ -325,7 +325,7 @@ public final class FogwallServletRegistrar {
             factory.setConnectTimeoutSeconds(connectTimeoutSeconds);
             factory.setApprovalTimeout(Duration.ofSeconds(approvalTimeoutSeconds));
             factory.setCache(cache);
-            factory.setScmOAuthConfigSupplier(scmOAuthConfigSupplier);
+            factory.setScmOAuthConfig(scmOAuthConfig);
             factory.setMaxPackBytes(maxPushBytes);
             factory.setMaxObjectSizeBytes(maxObjectSizeBytes);
 
@@ -681,7 +681,7 @@ public final class FogwallServletRegistrar {
             RepoPermissionService repoPermissionService,
             FetchStore fetchStore,
             UrlRuleRegistry urlRuleRegistry,
-            Supplier<ScmOAuthConfig> scmOAuthConfigSupplier) {
+            ScmOAuthConfig scmOAuthConfig) {
         String urlPattern = PROXY_PATH_PREFIX + provider.servletPath() + "/*";
 
         // PushStoreAuditFilter wraps the entire chain via try-finally; must be registered first.
@@ -707,8 +707,8 @@ public final class FogwallServletRegistrar {
         if (provider instanceof BitbucketProvider bitbucketProvider) {
             filters.add(new BitbucketIdentityFilter(bitbucketProvider));
         }
-        filters.add(
-                new CheckUserPushPermissionFilter(pushIdentityResolver, repoPermissionService, scmOAuthConfigSupplier));
+        filters.add(new CheckUserPushPermissionFilter(
+                pushIdentityResolver, repoPermissionService, scmOAuthConfig.getIdentityMode()));
         filters.add(new CommitAttributionPolicyFilter(pushIdentityResolver, commitConfigSupplier));
         filters.add(new CheckEmptyBranchFilter());
         filters.add(new CheckHiddenCommitsFilter());

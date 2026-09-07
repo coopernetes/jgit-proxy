@@ -21,7 +21,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -38,28 +37,22 @@ public class CheckUserPushPermissionFilter extends AbstractFogwallFilter {
     private static final int ORDER = 150;
     private final PushIdentityResolver identityResolver;
     private final RepoPermissionService repoPermissionService;
-    /** Read per request, so a hot-reloaded {@code scm-oauth} section takes effect without a restart. */
-    private final Supplier<ScmOAuthConfig> scmOAuthConfigSupplier;
+    /** Fixed at startup: {@code scm-oauth} is operator setup, not a hot-reloadable policy section. */
+    private final ScmOAuthConfig.IdentityMode identityMode;
 
     public CheckUserPushPermissionFilter(
             PushIdentityResolver identityResolver, RepoPermissionService repoPermissionService) {
-        this(identityResolver, repoPermissionService, ScmOAuthConfig::defaultConfig);
+        this(identityResolver, repoPermissionService, ScmOAuthConfig.IdentityMode.PERMISSIVE);
     }
 
     public CheckUserPushPermissionFilter(
             PushIdentityResolver identityResolver,
             RepoPermissionService repoPermissionService,
-            Supplier<ScmOAuthConfig> scmOAuthConfigSupplier) {
+            ScmOAuthConfig.IdentityMode identityMode) {
         super(ORDER, Set.of(HttpOperation.PUSH));
         this.identityResolver = identityResolver;
         this.repoPermissionService = repoPermissionService;
-        this.scmOAuthConfigSupplier =
-                scmOAuthConfigSupplier != null ? scmOAuthConfigSupplier : ScmOAuthConfig::defaultConfig;
-    }
-
-    private ScmOAuthConfig.IdentityMode identityMode() {
-        ScmOAuthConfig config = scmOAuthConfigSupplier.get();
-        return config != null ? config.getIdentityMode() : ScmOAuthConfig.IdentityMode.PERMISSIVE;
+        this.identityMode = identityMode != null ? identityMode : ScmOAuthConfig.IdentityMode.PERMISSIVE;
     }
 
     @Override
@@ -154,7 +147,6 @@ public class CheckUserPushPermissionFilter extends AbstractFogwallFilter {
         if (requestDetails.getProvider() != null) {
             var identities = user.getScmIdentities().stream()
                     .filter(id -> requestDetails.getProvider().getProviderId().equalsIgnoreCase(id.getProvider()));
-            ScmOAuthConfig.IdentityMode identityMode = identityMode();
             if (identityMode == ScmOAuthConfig.IdentityMode.STRICT) {
                 identities = identities.filter(ScmIdentity::isVerified);
             }
