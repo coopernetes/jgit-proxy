@@ -150,8 +150,11 @@ public class UrlRuleEvaluator {
     }
 
     /**
-     * Matches a pattern string against a value using the specified {@link MatchType}. LITERAL and GLOB normalise
-     * leading {@code /} before comparison; REGEX receives the raw value as-is.
+     * Matches a pattern string against a value using the specified {@link MatchType}. Nothing is normalised for any
+     * match type — the pattern is compared against the candidate exactly as both are written. These are URL rules, so a
+     * {@code SLUG} pattern carries the leading {@code /} the request path has (`/acme/repo`), while {@code OWNER} and
+     * {@code NAME} patterns are bare path segments. Normalising a leading {@code /} for some match types and not others
+     * is how the same rule came to match in one proxy mode and not the other.
      */
     static boolean matchPattern(String pattern, MatchType matchType, String value) {
         if (pattern == null || value == null) return false;
@@ -162,16 +165,10 @@ public class UrlRuleEvaluator {
                         .matcher(value)
                         .matches();
             case GLOB -> {
-                String p = strip(pattern);
-                String v = strip(value);
-                PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + p);
-                yield matcher.matches(Paths.get(v));
+                PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + pattern);
+                yield matcher.matches(Paths.get(value));
             }
-            case LITERAL -> strip(pattern).equals(strip(value));
+            case LITERAL -> pattern.equals(value);
         };
-    }
-
-    private static String strip(String s) {
-        return (s != null && s.startsWith("/")) ? s.substring(1) : s;
     }
 }

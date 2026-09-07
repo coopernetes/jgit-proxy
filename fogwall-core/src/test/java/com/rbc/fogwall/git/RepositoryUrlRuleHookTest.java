@@ -153,4 +153,91 @@ class RepositoryUrlRuleHookTest {
         assertEquals(StepStatus.PASS, pushContext.getSteps().get(0).getStatus());
         assertEquals(ReceiveCommand.Result.NOT_ATTEMPTED, cmd.getResult());
     }
+
+    @Test
+    void slugRegexRuleWithLeadingSlash_matches() throws Exception {
+
+        var regexAllow = AccessRule.builder()
+                .ruleOrder(100)
+                .access(AccessRule.Access.ALLOW)
+                .operation(AccessRule.Operation.BOTH)
+                .target(MatchTarget.SLUG)
+                .value("/myorg/myrepo(-2)?")
+                .matchType(MatchType.REGEX)
+                .build();
+        var pushContext = new PushContext();
+        pushContext.setRepoSlug("/myorg/myrepo");
+        var registry = new InMemoryUrlRuleRegistry();
+        registry.save(regexAllow);
+        var hook = new RepositoryUrlRuleHook(registry, GITHUB, null, pushContext);
+        var cmd = makeCmd();
+
+        hook.onPreReceive(new ReceivePack(repo), List.of(cmd));
+
+        // REGEX receives the value as-is, so the slug must keep the leading '/' the proxy mode also passes
+        assertEquals(StepStatus.PASS, pushContext.getSteps().get(0).getStatus());
+        assertEquals(ReceiveCommand.Result.NOT_ATTEMPTED, cmd.getResult());
+    }
+
+    // ── Nested group paths (GitLab subgroups) ────────────────────────────────
+
+    private static AccessRule slugRule(AccessRule.Access access, String slug, int order) {
+        return AccessRule.builder()
+                .ruleOrder(order)
+                .access(access)
+                .operation(AccessRule.Operation.BOTH)
+                .target(MatchTarget.SLUG)
+                .value(slug)
+                .matchType(MatchType.LITERAL)
+                .build();
+    }
+
+    @Test
+    void nestedGroupPath_denySlugRuleMatches_rejectsCommand() throws Exception {
+
+        var pushContext = new PushContext();
+        pushContext.setRepoSlug("/group/subgroup/restricted");
+        var registry = new InMemoryUrlRuleRegistry();
+        registry.save(slugRule(AccessRule.Access.DENY, "/group/subgroup/restricted", 100));
+        registry.save(slugRule(AccessRule.Access.ALLOW, "/group/subgroup/restricted", 200));
+        var hook = new RepositoryUrlRuleHook(registry, GITHUB, null, pushContext);
+        var cmd = makeCmd();
+
+        hook.onPreReceive(new ReceivePack(repo), List.of(cmd));
+
+        assertEquals(StepStatus.FAIL, pushContext.getSteps().get(0).getStatus());
+        assertEquals(ReceiveCommand.Result.REJECTED_OTHER_REASON, cmd.getResult());
+    }
+
+    @Test
+    void nestedGroupPath_allowRuleNamingSubgroupAlone_doesNotAdmitItsProjects() throws Exception {
+
+        var pushContext = new PushContext();
+        pushContext.setRepoSlug("/group/subgroup/project");
+        var registry = new InMemoryUrlRuleRegistry();
+        registry.save(slugRule(AccessRule.Access.ALLOW, "/group/subgroup", 100));
+        var hook = new RepositoryUrlRuleHook(registry, GITHUB, null, pushContext);
+        var cmd = makeCmd();
+
+        hook.onPreReceive(new ReceivePack(repo), List.of(cmd));
+
+        assertEquals(StepStatus.FAIL, pushContext.getSteps().get(0).getStatus());
+        assertEquals(ReceiveCommand.Result.REJECTED_OTHER_REASON, cmd.getResult());
+    }
+
+    @Test
+    void nestedGroupPath_ownerRuleMatchesWholeNamespace_recordsPass() throws Exception {
+
+        var pushContext = new PushContext();
+        pushContext.setRepoSlug("/group/subgroup/project");
+        var registry = new InMemoryUrlRuleRegistry();
+        registry.save(ownerRule(AccessRule.Access.ALLOW, AccessRule.Operation.BOTH, "group/subgroup", 100));
+        var hook = new RepositoryUrlRuleHook(registry, GITHUB, null, pushContext);
+        var cmd = makeCmd();
+
+        hook.onPreReceive(new ReceivePack(repo), List.of(cmd));
+
+        assertEquals(StepStatus.PASS, pushContext.getSteps().get(0).getStatus());
+        assertEquals(ReceiveCommand.Result.NOT_ATTEMPTED, cmd.getResult());
+    }
 }

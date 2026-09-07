@@ -868,16 +868,48 @@ public class JettyConfigurationBuilder {
             String rawProvider = rule.getProvider().isBlank() ? null : rule.getProvider();
             String resolvedId = resolveProviderName(access.name() + " rule (order=" + resolvedOrder + ")", rawProvider);
             MatchConfig m = rule.getMatch();
+            MatchTarget target = MatchTarget.valueOf(m.getTarget().toUpperCase());
+            MatchType matchType = MatchType.valueOf((m.getType() != null ? m.getType() : "GLOB").toUpperCase());
+            warnIfValueCannotMatch(access, resolvedOrder, target, matchType, m.getValue());
             result.add(AccessRule.builder()
                     .provider(resolvedId)
-                    .target(MatchTarget.valueOf(m.getTarget().toUpperCase()))
+                    .target(target)
                     .value(m.getValue())
-                    .matchType(MatchType.valueOf((m.getType() != null ? m.getType() : "GLOB").toUpperCase()))
+                    .matchType(matchType)
                     .access(access)
                     .operation(ops)
                     .source(AccessRule.Source.CONFIG)
                     .ruleOrder(resolvedOrder)
                     .build());
+        }
+    }
+
+    /**
+     * Warns about a rule value whose leading {@code /} disagrees with its target, which makes the rule unable to ever
+     * match. Values are compared to the request path verbatim: a {@code SLUG} carries the path's leading {@code /}
+     * while {@code OWNER} and {@code NAME} are bare segments. A deny rule that silently never matches is a hole, so it
+     * is named at startup rather than left to be discovered by the push that should have been blocked. {@code REGEX} is
+     * not checked — too many valid patterns start with something other than a literal {@code /}.
+     */
+    private void warnIfValueCannotMatch(
+            AccessRule.Access access, int order, MatchTarget target, MatchType matchType, String value) {
+        if (value == null || value.isBlank() || matchType == MatchType.REGEX) return;
+        String rule = access.name() + " rule (order=" + order + ")";
+        if (target == MatchTarget.SLUG && !value.startsWith("/")) {
+            log.warn(
+                    "{} has match.target SLUG and value '{}', which cannot match: a slug is compared against the"
+                            + " request path, so the value needs a leading '/' (e.g. '/{}').",
+                    rule,
+                    value,
+                    value);
+        } else if (target != MatchTarget.SLUG && value.startsWith("/")) {
+            log.warn(
+                    "{} has match.target {} and value '{}', which cannot match: {} is a single path segment, so the"
+                            + " value must not start with '/'.",
+                    rule,
+                    target,
+                    value,
+                    target);
         }
     }
 

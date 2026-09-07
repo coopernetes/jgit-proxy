@@ -1,15 +1,15 @@
 package com.rbc.fogwall.servlet.filter;
 
-import com.rbc.fogwall.git.RepoSlugValidator;
+import com.rbc.fogwall.git.RepoPath;
 import com.rbc.fogwall.git.UpstreamAuthProbe;
 import com.rbc.fogwall.provider.FogwallProvider;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.http.server.GitSmartHttpTools;
-import org.eclipse.jgit.lib.Constants;
 
 /**
  * Servlet filter that challenges unauthenticated requests with HTTP 401 and {@code WWW-Authenticate: Basic}. Git
@@ -101,18 +101,12 @@ public class BasicAuthChallengeFilter implements Filter {
      * outbound URL here either.
      */
     private String upstreamUrl(HttpServletRequest req) {
-        String pathInfo = req.getPathInfo();
-        if (pathInfo == null) return null;
-        String[] parts = pathInfo.split("/");
-        if (parts.length < 3) return null;
-
-        String owner = parts[1];
-        String name = parts[2].replace(Constants.DOT_GIT_EXT, "");
-        if (!RepoSlugValidator.isValidSegment(owner) || !RepoSlugValidator.isValidSegment(name)) {
-            log.debug("Not probing upstream for invalid repository path: {}", pathInfo);
+        Optional<RepoPath> repoPath = RepoPath.parse(req.getPathInfo());
+        if (repoPath.isEmpty()) {
+            log.debug("Not probing upstream for invalid repository path: {}", req.getPathInfo());
             return null;
         }
-        return provider.getUri() + "/" + owner + "/" + name + ".git";
+        return provider.getUri() + repoPath.get().slug() + ".git";
     }
 
     private boolean isGitSmartHttpRequest(HttpServletRequest req) {

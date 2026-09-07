@@ -4,6 +4,7 @@ import com.rbc.fogwall.approval.ClientLivenessCheck;
 import com.rbc.fogwall.git.LocalRepositoryCache;
 import com.rbc.fogwall.git.PushTransport;
 import com.rbc.fogwall.git.QuarantineObjectStore;
+import com.rbc.fogwall.git.RepoPath;
 import com.rbc.fogwall.git.ServerReceivePackFactory;
 import com.rbc.fogwall.provider.FogwallProvider;
 import com.rbc.fogwall.user.UserEntry;
@@ -129,13 +130,14 @@ public class SshGitReceiveCommand implements Command {
                         + " (configured provider paths: " + routes.keySet() + ")"));
 
         String remainder = normalised.substring(match.getKey().length()).replaceFirst("^/", "");
-        String[] ownerRepo = remainder.split("/", 2);
-        if (ownerRepo.length < 2 || ownerRepo[0].isBlank() || ownerRepo[1].isBlank()) {
-            throw new IllegalArgumentException(
-                    "Invalid repository path: " + repoPath + " (expected " + match.getKey() + "/{owner}/{repo}.git)");
-        }
-        String owner = ownerRepo[0];
-        String repo = ownerRepo[1];
+        // Splits at the last separator, so a GitLab subgroup project keeps its whole namespace as the owner. The
+        // permission grants evaluated later target owner and name, so this boundary has to be the one the HTTP
+        // transport uses.
+        RepoPath parsed = RepoPath.parse(remainder)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid repository path: " + repoPath + " (expected "
+                        + match.getKey() + "/{owner}/{repo}.git)"));
+        String owner = parsed.owner();
+        String repo = parsed.name();
         SshProviderTarget target = match.getValue();
         // Forward over the provider's SSH endpoint, not getUri() — for a combined HTTP+SSH entry (fogwall#531) getUri()
         // is the https endpoint while the push must be forwarded over ssh. getSshUri() is always present here because
@@ -144,8 +146,8 @@ public class SshGitReceiveCommand implements Command {
                 .getSshUri()
                 .orElseThrow(() -> new IllegalStateException("Provider '"
                         + target.provider().getName() + "' has no SSH endpoint but was routed to the SSH server"));
-        String upstreamUrl = sshUpstream + "/" + owner + "/" + repo + ".git";
-        return new RepoRoute(target, owner, repo, upstreamUrl, "/" + owner + "/" + repo);
+        String upstreamUrl = sshUpstream + parsed.slug() + ".git";
+        return new RepoRoute(target, owner, repo, upstreamUrl, parsed.slug());
     }
 
     record RepoRoute(SshProviderTarget target, String owner, String repo, String upstreamUrl, String repoSlug) {

@@ -9,7 +9,7 @@ import static com.rbc.fogwall.servlet.FogwallServlet.GIT_REQUEST_ATTR;
 import com.rbc.fogwall.git.GitClientUtils;
 import com.rbc.fogwall.git.GitRequestDetails;
 import com.rbc.fogwall.git.HttpOperation;
-import com.rbc.fogwall.git.RepoSlugValidator;
+import com.rbc.fogwall.git.RepoPath;
 import com.rbc.fogwall.provider.FogwallProvider;
 import com.rbc.fogwall.servlet.PushTooLargeException;
 import com.rbc.fogwall.servlet.RequestBodyWrapper;
@@ -22,7 +22,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.transport.PacketLineIn;
 
 /**
@@ -149,21 +148,24 @@ public class ParseGitRequestFilter extends ProviderAwareFogwallFilter<FogwallPro
         gr.getFilters().add(this);
         var op = determineOperation(request);
         gr.setOperation(op);
-        gr.setRepoRef(GitRequestDetails.RepoRef.builder()
-                .owner(getOwner(request.getPathInfo()))
-                .name(getName(request.getPathInfo()))
-                .slug(getSlug(request.getPathInfo()))
-                .build());
-        // Reject malformed owner/name before they reach URL rules, permission checks, or upstream URL
-        // construction — the servlet container's URI normalization must not be the only defense.
-        if (!RepoSlugValidator.isValidSegment(gr.getRepoRef().getOwner())
-                || !RepoSlugValidator.isValidSegment(gr.getRepoRef().getName())) {
+        // Reject a path that does not name a repository before it reaches URL rules, permission checks, or
+        // upstream URL construction — the servlet container's URI normalization must not be the only defense.
+        var repoPath = RepoPath.parse(request.getPathInfo());
+        if (repoPath.isEmpty()) {
             log.warn("Rejecting request with invalid repository path: {}", request.getPathInfo());
+            gr.setRepoRef(GitRequestDetails.RepoRef.builder()
+                    .slug(request.getPathInfo())
+                    .build());
             gr.setResult(GitRequestDetails.GitResult.REJECTED);
             gr.setRejectionTitle("Request Blocked - Invalid Repository Path");
             gr.setReason("Repository owner and name may only contain letters, digits, '.', '_' and '-'.");
             return gr;
         }
+        gr.setRepoRef(GitRequestDetails.RepoRef.builder()
+                .owner(repoPath.get().owner())
+                .name(repoPath.get().name())
+                .slug(repoPath.get().slug())
+                .build());
         if (op == HttpOperation.INFO) {
             gr.setResult(GitRequestDetails.GitResult.ALLOWED);
         }
@@ -236,21 +238,5 @@ public class ParseGitRequestFilter extends ProviderAwareFogwallFilter<FogwallPro
         gr.setRejectionTitle("Push Blocked - Malformed Push Request");
         gr.setReason(reason + " If a normal git push produced this, please contact your administrator.");
         return gr;
-    }
-
-    private static String getOwner(String pathInfo) {
-        var parts = pathInfo.split("/");
-        return parts.length < 3 ? pathInfo : parts[1];
-    }
-
-    private static String getName(String pathInfo) {
-        var parts = pathInfo.split("/");
-        return parts.length < 3 ? pathInfo : parts[2].replace(Constants.DOT_GIT_EXT, "");
-    }
-
-    private static String getSlug(String pathInfo) {
-        var parts = pathInfo.split("/");
-        if (parts.length < 3) return pathInfo;
-        return "/" + String.join("/", parts[1], parts[2]).replace(Constants.DOT_GIT_EXT, "");
     }
 }

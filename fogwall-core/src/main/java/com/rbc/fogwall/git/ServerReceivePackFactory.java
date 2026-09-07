@@ -227,16 +227,9 @@ public class ServerReceivePackFactory implements ReceivePackFactory<HttpServletR
         String pushUser = userPass != null ? userPass[0] : null;
         String pushToken = userPass != null ? userPass[1] : null;
 
-        String repoSlug = null;
-        String pathInfo = req.getPathInfo();
-        if (pathInfo != null) {
-            String slug = pathInfo.replaceAll("\\.git$", "");
-            String[] segments = slug.split("/", 4);
-            if (segments.length >= 3) {
-                slug = "/" + segments[1] + "/" + segments[2];
-            }
-            repoSlug = slug;
-        }
+        // Null when the path does not name a repository; RepositoryUrlRuleHook blocks the push fail-closed rather
+        // than evaluating rules against a partial slug.
+        String repoSlug = RepoPath.parse(req.getPathInfo()).map(RepoPath::slug).orElse(null);
 
         String upstreamUrl = (String) req.getAttribute(ServerRepositoryResolver.UPSTREAM_URL_ATTRIBUTE);
 

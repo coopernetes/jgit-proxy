@@ -275,6 +275,37 @@ class RepoPermissionServiceTest {
         assertFalse(svc.isAllowedToPush("alice", "github", "/a/repo2"));
     }
 
+    // ---- match target on a nested group path (GitLab subgroups) ----
+
+    @Test
+    void ownerTarget_nestedGroupPath_matchesWholeNamespace() {
+        svc.save(targetGrant("alice", "gitlab", MatchTarget.OWNER, "group/subgroup", MatchType.LITERAL));
+        assertTrue(svc.isAllowedToPush("alice", "gitlab", "/group/subgroup/project"));
+        assertTrue(svc.isAllowedToPush("alice", "gitlab", "/group/subgroup/other"));
+        assertFalse(svc.isAllowedToPush("alice", "gitlab", "/group/elsewhere/project"));
+    }
+
+    @Test
+    void ownerTarget_nestedGroupPath_grantOnTopLevelGroupAloneDoesNotMatch() {
+        svc.save(targetGrant("alice", "gitlab", MatchTarget.OWNER, "group", MatchType.LITERAL));
+        assertFalse(svc.isAllowedToPush("alice", "gitlab", "/group/subgroup/project"));
+        assertTrue(svc.isAllowedToPush("alice", "gitlab", "/group/project"));
+    }
+
+    @Test
+    void nameTarget_nestedGroupPath_matchesFinalSegmentNotTheSubgroup() {
+        svc.save(targetGrant("alice", "gitlab", MatchTarget.NAME, "project", MatchType.LITERAL));
+        assertTrue(svc.isAllowedToPush("alice", "gitlab", "/group/subgroup/project"));
+        assertFalse(svc.isAllowedToPush("alice", "gitlab", "/group/project/other"));
+    }
+
+    @Test
+    void ownerTarget_pathNamingNoRepository_doesNotMatch() {
+        svc.save(targetGrant("alice", "gitlab", MatchTarget.OWNER, "group", MatchType.LITERAL));
+        assertFalse(svc.isAllowedToPush("alice", "gitlab", "/group"));
+        assertFalse(svc.isAllowedToPush("alice", "gitlab", "/group/../escaped/project"));
+    }
+
     // ---- regex matching ----
 
     @Test

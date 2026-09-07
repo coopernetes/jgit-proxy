@@ -12,6 +12,9 @@ services:
       - "8080:8080"
     volumes:
       - ./fogwall-docker-default.yml:/app/conf/fogwall-docker-default.yml:ro
+      # On hosts with Podman+SELinux the mount above is unreadable by the container and the config profile is
+      # silently skipped — replace that line with this one so podman relabels the file (see CONTRIBUTING.md):
+#      - ./fogwall-docker-default.yml:/app/conf/fogwall-docker-default.yml:z
       # Uncomment to enable debug logging (see docker/log4j2-debug.xml):
 #      - ./log4j2-debug.xml:/app/conf/log4j2-debug.xml:ro
     depends_on:

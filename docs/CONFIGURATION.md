@@ -1672,7 +1672,7 @@ rules:
 | `operation`    | string  | `BOTH`       | `FETCH`, `PUSH`, or `BOTH` — which git operation this entry matches        |
 | `provider`     | string  | _(all)_      | Provider name to scope this entry to; omit or leave blank for all          |
 | `match`        | object  | —            | Repository match criteria — see below                                      |
-| `match.target` | enum    | `SLUG`       | What to match: `SLUG` (`/owner/repo`), `OWNER`, or `NAME`                  |
+| `match.target` | enum    | `SLUG`       | What to match: `SLUG` (the full repository path), `OWNER`, or `NAME`       |
 | `match.value`  | string  | —            | The pattern to match against the chosen target                             |
 | `match.type`   | enum    | `GLOB`       | How to interpret the pattern: `LITERAL`, `GLOB`, or `REGEX`                |
 
@@ -1682,19 +1682,46 @@ Each rule matches exactly one thing — the `match` block selects what URL part 
 (`type`). To express an AND condition (e.g. specific owner AND specific name prefix), use `target: SLUG` and write a
 single glob or regex that covers both parts.
 
+**Values are compared to the request path verbatim, for every match type.** These are URL rules, so a `SLUG` value
+carries the leading `/` the path has — write `/acme/repo`, not `acme/repo`. `OWNER` and `NAME` are path segments and
+carry no slash. fogwall does not normalise either way: a value whose leading `/` disagrees with its target can never
+match, and is named in a startup warning rather than silently matching nothing.
+
+#### Nested namespaces
+
+The repository name is the **last** path segment and the owner is **everything before it**, so a repository path is not
+limited to two segments. For a GitLab subgroup project `/group/subgroup/project`:
+
+| Target  | Value matched against     |
+| ------- | ------------------------- |
+| `SLUG`  | `/group/subgroup/project` |
+| `OWNER` | `group/subgroup`          |
+| `NAME`  | `project`                 |
+
+GitLab is the only supported provider that produces such a path — GitHub owners are a single segment, and Forgejo/Gitea
+and Bitbucket address owner and repository as two plain segments. The same derivation applies to every path fogwall
+serves: both proxy modes, and both of server mode's transports.
+
+Two consequences when writing rules for subgroup projects:
+
+- An `OWNER` value must name the whole namespace (`group/subgroup`), not just the top-level group. A `GLOB` of `group/*`
+  matches one level of nesting; `group/**` matches any depth.
+- A `SLUG` value must name every segment. A `LITERAL` of `/group/subgroup` does **not** admit the projects inside that
+  subgroup — write `/group/subgroup/*` as a `GLOB` for that.
+
 #### LITERAL
 
-Exact string match after normalising a leading `/`. `/acme/repo` and `acme/repo` are equivalent.
+Exact string match. Nothing is normalised — `/acme/repo` matches the slug `/acme/repo`, and `acme/repo` matches nothing.
 
 #### GLOB
 
 Wildcard matching using `*` (any characters) and `?` (single character).
 
-| Target  | `*` behaviour                                               |
-| ------- | ----------------------------------------------------------- |
-| `SLUG`  | Does **not** cross `/` — use `acme/*` not `acme/**`         |
-| `OWNER` | Owner names cannot contain `/` — `*` matches any valid name |
-| `NAME`  | Repo names cannot contain `/` — `*` matches any valid name  |
+| Target  | `*` behaviour                                                                         |
+| ------- | ------------------------------------------------------------------------------------- |
+| `SLUG`  | Does **not** cross `/` — use `acme/*` not `acme/**`                                   |
+| `OWNER` | Does **not** cross `/` — a nested namespace needs `group/*` or `group/**` (see above) |
+| `NAME`  | Repo names cannot contain `/` — `*` matches any valid name                            |
 
 | Pattern (GLOB, target=SLUG) | Matches                                     | Does NOT match  |
 | --------------------------- | ------------------------------------------- | --------------- |
@@ -1811,7 +1838,8 @@ rules:
 
 **Combine owner and name matching (AND condition):**
 
-Use `target: SLUG` with a glob or regex — the slug is `/owner/repo` so a single pattern can constrain both parts.
+Use `target: SLUG` with a glob or regex — the slug is the full repository path, so a single pattern can constrain both
+parts.
 
 ```yaml
 rules:
@@ -1900,7 +1928,7 @@ permissions:
 | `username`     | string | —                 | Proxy username (must match a `users:` entry or a DB user)                                                                                                              |
 | `provider`     | string | —                 | Provider name as defined in `providers:` config                                                                                                                        |
 | `match`        | object | —                 | Repository match criteria — see below                                                                                                                                  |
-| `match.target` | enum   | `SLUG`            | What to match: `SLUG` (`/owner/repo`), `OWNER`, or `NAME`                                                                                                              |
+| `match.target` | enum   | `SLUG`            | What to match: `SLUG` (the full repository path), `OWNER`, or `NAME`                                                                                                   |
 | `match.value`  | string | —                 | The pattern to match against the chosen target                                                                                                                         |
 | `match.type`   | enum   | `GLOB`            | How to interpret the pattern: `LITERAL`, `GLOB`, or `REGEX`                                                                                                            |
 | `grant`        | enum   | `PUSH_AND_REVIEW` | What the user may do: `PUSH`, `REVIEW`, `PUSH_AND_REVIEW`, `SELF_CERTIFY`, `PROPOSE` (v1.4.0+, [SCM API proxy](#proposals) mutations — independent of `PUSH`/`REVIEW`) |

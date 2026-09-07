@@ -369,15 +369,30 @@ class UrlRuleEvaluatorTest {
     }
 
     @Test
-    void matchPattern_literal_leadingSlashNormalised() {
-        assertTrue(UrlRuleEvaluator.matchPattern("/owner/repo", MatchType.LITERAL, "owner/repo"));
-        assertTrue(UrlRuleEvaluator.matchPattern("owner/repo", MatchType.LITERAL, "/owner/repo"));
+    void matchPattern_literal_leadingSlashNotNormalised() {
+        // A slug pattern is compared against the request path verbatim: the leading '/' is part of the value on both
+        // sides, and a rule that omits it does not match.
+        assertTrue(UrlRuleEvaluator.matchPattern("/owner/repo", MatchType.LITERAL, "/owner/repo"));
+        assertFalse(UrlRuleEvaluator.matchPattern("/owner/repo", MatchType.LITERAL, "owner/repo"));
+        assertFalse(UrlRuleEvaluator.matchPattern("owner/repo", MatchType.LITERAL, "/owner/repo"));
     }
 
     @Test
     void matchPattern_glob_wildcard() {
         assertTrue(UrlRuleEvaluator.matchPattern("myorg-*", MatchType.GLOB, "myorg-internal"));
         assertFalse(UrlRuleEvaluator.matchPattern("myorg-*", MatchType.GLOB, "otherorg-internal"));
+    }
+
+    @Test
+    void matchPattern_glob_leadingSlashNotNormalised() {
+        assertTrue(UrlRuleEvaluator.matchPattern("/myorg/*", MatchType.GLOB, "/myorg/repo"));
+        assertFalse(UrlRuleEvaluator.matchPattern("myorg/*", MatchType.GLOB, "/myorg/repo"));
+    }
+
+    @Test
+    void matchPattern_glob_slugDoubleStarCrossesNestedNamespace() {
+        assertTrue(UrlRuleEvaluator.matchPattern("/group/**", MatchType.GLOB, "/group/subgroup/project"));
+        assertFalse(UrlRuleEvaluator.matchPattern("/group/*", MatchType.GLOB, "/group/subgroup/project"));
     }
 
     @Test
